@@ -5,6 +5,7 @@ import com.lextr.semanticlayer.dto.AttributeRegistrationResponseDto;
 import com.lextr.semanticlayer.dto.ObjectRegistrationRequestDto;
 import com.lextr.semanticlayer.dto.ObjectRegistrationResponseDto;
 import com.lextr.semanticlayer.exception.ObjectRegistrationServiceException;
+import com.lextr.semanticlayer.exception.PolicyViolationException;
 import com.lextr.semanticlayer.service.ObjectRegistrationService;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
@@ -140,12 +141,47 @@ class ObjectRegistrationControllerTest {
                 .andExpect(status().isInternalServerError());
     }
 
+    @Test
+    void mapsPolicyViolationToUnprocessableEntityWithCode() throws Exception {
+        RecordingObjectRegistrationService service = new RecordingObjectRegistrationService();
+        service.error = new PolicyViolationException("taxonomy.jurisdiction_valid", "Taxonomy jurisdiction is invalid");
+        MockMvc mockMvc = mockMvc(service);
+
+        mockMvc.perform(post("/api/objects")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "client_id": "client-a",
+                                  "object_cd": "GL_BALANCE",
+                                  "object_nm": "GL Balance",
+                                  "object_type_cd": "TABLE",
+                                  "schema_cd": "meta",
+                                  "connection_id": "00000000-0000-0000-0000-000000000201",
+                                  "registered_by": "producer",
+                                  "attributes": [
+                                    {
+                                      "attribute_cd": "AMOUNT",
+                                      "attribute_nm": "Amount",
+                                      "data_type_cd": "DECIMAL",
+                                      "taxonomy_cd": "MDRM12345678",
+                                      "taxonomy_source_cd": "MDRM",
+                                      "taxonomy_jurisdiction_cd": "US"
+                                    }
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("taxonomy.jurisdiction_valid"))
+                .andExpect(jsonPath("$.message").value("Taxonomy jurisdiction is invalid"));
+    }
+
     private static MockMvc mockMvc(ObjectRegistrationService service) {
         ObjectRegistrationController controller = new ObjectRegistrationController(service);
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
         return MockMvcBuilders.standaloneSetup(controller)
+                .setControllerAdvice(new ApiExceptionHandler())
                 .setValidator(validator)
                 .setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))
                 .build();
