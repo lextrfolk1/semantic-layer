@@ -20,6 +20,8 @@ import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 import org.springframework.jdbc.datasource.AbstractDataSource;
 
 import javax.sql.DataSource;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.lang.reflect.Proxy;
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -172,6 +174,19 @@ class JdbcObjectRegistrationWriteDaoTest {
         );
 
         assertThrows(SemanticLayerException.class, () -> dao.insertDraftObject(request));
+    }
+
+    @Test
+    void usesNamedParameterJdbcTemplateAndDoesNotUseJpa() throws Exception {
+        String source = Files.readString(Path.of(
+                "src/main/java/com/lextr/semanticlayer/dao/impl/JdbcObjectRegistrationWriteDao.java"
+        ));
+
+        assertTrue(source.contains("NamedParameterJdbcTemplate"));
+        assertTrue(!source.contains("EntityManager"));
+        assertTrue(!source.contains("JpaRepository"));
+        assertTrue(!source.contains("jakarta.persistence"));
+        assertTrue(!source.contains("javax.persistence"));
     }
 
     private static ObjectProvider<NamedParameterJdbcTemplate> providerOf(NamedParameterJdbcTemplate jdbcTemplate) {
