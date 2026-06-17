@@ -2,10 +2,13 @@ package com.lextr.semanticlayer.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lextr.semanticlayer.dto.AttributeRegistrationResponseDto;
+import com.lextr.semanticlayer.dto.ObjectExposureDetailDto;
+import com.lextr.semanticlayer.dto.ObjectExposureSummaryDto;
 import com.lextr.semanticlayer.dto.ObjectRegistrationRequestDto;
 import com.lextr.semanticlayer.dto.ObjectRegistrationResponseDto;
 import com.lextr.semanticlayer.exception.ObjectRegistrationServiceException;
 import com.lextr.semanticlayer.exception.PolicyViolationException;
+import com.lextr.semanticlayer.service.ObjectExposureReadService;
 import com.lextr.semanticlayer.service.ObjectRegistrationService;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
@@ -176,7 +179,7 @@ class ObjectRegistrationControllerTest {
     }
 
     private static MockMvc mockMvc(ObjectRegistrationService service) {
-        ObjectRegistrationController controller = new ObjectRegistrationController(service);
+        ObjectRegistrationController controller = new ObjectRegistrationController(service, new NoOpObjectExposureReadService());
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
@@ -200,6 +203,19 @@ class ObjectRegistrationControllerTest {
                 throw error;
             }
             return response;
+        }
+    }
+
+    private static final class NoOpObjectExposureReadService implements ObjectExposureReadService {
+
+        @Override
+        public List<ObjectExposureSummaryDto> findObjects(String clientId, String schemaCode, String lifecycleStatusCode) {
+            throw new UnsupportedOperationException("Not used in write tests");
+        }
+
+        @Override
+        public ObjectExposureDetailDto findObject(String clientId, UUID objectId) {
+            throw new UnsupportedOperationException("Not used in write tests");
         }
     }
 }
