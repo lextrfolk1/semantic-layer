@@ -15,13 +15,19 @@ class SQLQueryLoaderUtilTest {
         SQLQueryLoaderUtil loader = new SQLQueryLoaderUtil(new DefaultResourceLoader());
 
         String schemaQuery = loader.getQuery("schema_registry.find_all");
+        String schemaByCodeQuery = loader.getQuery("schema_registry.find_by_code");
         String connectionQuery = loader.getQuery("connection_registry.find_all");
+        String connectionByIdQuery = loader.getQuery("connection_registry.find_by_id");
 
         assertTrue(schemaQuery.contains("schema_cd"));
+        assertTrue(schemaQuery.contains("client_id"));
         assertTrue(schemaQuery.contains(":lifecycle_status_cd"));
+        assertTrue(schemaByCodeQuery.contains(":schema_cd"));
         assertTrue(connectionQuery.contains("connection_id"));
+        assertTrue(connectionQuery.contains("client_id"));
         assertTrue(connectionQuery.contains(":engine_cd"));
         assertTrue(connectionQuery.contains(":is_active_flg"));
+        assertTrue(connectionByIdQuery.contains(":connection_id"));
         assertFalse(connectionQuery.contains("secrets_ref"));
     }
 

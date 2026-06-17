@@ -15,13 +15,16 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
 public class JdbcRegistryReadDao implements RegistryReadDao {
 
     static final String SCHEMA_REGISTRY_FIND_ALL = "schema_registry.find_all";
+    static final String SCHEMA_REGISTRY_FIND_BY_CODE = "schema_registry.find_by_code";
     static final String CONNECTION_REGISTRY_FIND_ALL = "connection_registry.find_all";
+    static final String CONNECTION_REGISTRY_FIND_BY_ID = "connection_registry.find_by_id";
 
     private final ObjectProvider<NamedParameterJdbcTemplate> jdbcTemplateProvider;
     private final SQLQueryLoaderUtil sqlQueryLoaderUtil;
@@ -33,8 +36,9 @@ public class JdbcRegistryReadDao implements RegistryReadDao {
     }
 
     @Override
-    public List<SchemaCatalogRecord> findSchemas(String lifecycleStatusCode) {
+    public List<SchemaCatalogRecord> findSchemas(String clientId, String lifecycleStatusCode) {
         MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("client_id", clientId)
                 .addValue("lifecycle_status_cd", lifecycleStatusCode);
         return jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(SCHEMA_REGISTRY_FIND_ALL),
@@ -44,8 +48,21 @@ public class JdbcRegistryReadDao implements RegistryReadDao {
     }
 
     @Override
-    public List<DataConnectionRecord> findConnections(String engineCode, Boolean activeFlag) {
+    public Optional<SchemaCatalogRecord> findSchema(String clientId, String schemaCode) {
         MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("client_id", clientId)
+                .addValue("schema_cd", schemaCode);
+        return jdbcTemplate().query(
+                sqlQueryLoaderUtil.getQuery(SCHEMA_REGISTRY_FIND_BY_CODE),
+                parameters,
+                schemaCatalogRowMapper()
+        ).stream().findFirst();
+    }
+
+    @Override
+    public List<DataConnectionRecord> findConnections(String clientId, String engineCode, Boolean activeFlag) {
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("client_id", clientId)
                 .addValue("engine_cd", engineCode)
                 .addValue("is_active_flg", activeFlag);
         return jdbcTemplate().query(
@@ -53,6 +70,18 @@ public class JdbcRegistryReadDao implements RegistryReadDao {
                 parameters,
                 dataConnectionRowMapper()
         );
+    }
+
+    @Override
+    public Optional<DataConnectionRecord> findConnection(String clientId, UUID connectionId) {
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("client_id", clientId)
+                .addValue("connection_id", connectionId);
+        return jdbcTemplate().query(
+                sqlQueryLoaderUtil.getQuery(CONNECTION_REGISTRY_FIND_BY_ID),
+                parameters,
+                dataConnectionRowMapper()
+        ).stream().findFirst();
     }
 
     private NamedParameterJdbcTemplate jdbcTemplate() {
