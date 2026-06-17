@@ -1,4 +1,4 @@
-package lextr.taxonomy
+package lextr.semantic.taxonomy
 
 default evaluate := {
     "allowed": false,

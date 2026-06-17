@@ -1,6 +1,6 @@
-package lextr.taxonomy_test
+package lextr.semantic.taxonomy_test
 
-import data.lextr.taxonomy
+import data.lextr.semantic.taxonomy
 
 test_evaluate_allows_valid_mdrm_input if {
     decision := taxonomy.evaluate with input as {
