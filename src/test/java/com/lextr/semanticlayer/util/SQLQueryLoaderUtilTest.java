@@ -18,6 +18,10 @@ class SQLQueryLoaderUtilTest {
         String schemaByCodeQuery = loader.getQuery("schema_registry.find_by_code");
         String connectionQuery = loader.getQuery("connection_registry.find_all");
         String connectionByIdQuery = loader.getQuery("connection_registry.find_by_id");
+        String insertDraftObjectQuery = loader.getQuery("object_registration.insert_draft_object");
+        String insertAttributeQuery = loader.getQuery("object_registration.insert_attribute");
+        String insertWorkflowTaskQuery = loader.getQuery("object_registration.insert_workflow_task");
+        String insertMetadataChangeHistoryQuery = loader.getQuery("object_registration.insert_metadata_change_history");
 
         assertTrue(schemaQuery.contains("schema_cd"));
         assertTrue(schemaQuery.contains("client_id"));
@@ -31,6 +35,15 @@ class SQLQueryLoaderUtilTest {
         assertTrue(connectionQuery.contains(":is_active_flg"));
         assertTrue(connectionByIdQuery.contains(":connection_id"));
         assertFalse(connectionQuery.contains("secrets_ref"));
+        assertTrue(insertDraftObjectQuery.contains("INSERT INTO meta.object_catalog"));
+        assertTrue(insertDraftObjectQuery.contains(":object_cd"));
+        assertTrue(insertDraftObjectQuery.contains("lifecycle_status_cd"));
+        assertTrue(insertAttributeQuery.contains("INSERT INTO meta.attribute_catalog"));
+        assertTrue(insertAttributeQuery.contains(":taxonomy_jurisdiction_cd"));
+        assertTrue(insertWorkflowTaskQuery.contains("INSERT INTO wkfl.workflow_task"));
+        assertTrue(insertWorkflowTaskQuery.contains(":task_status_cd"));
+        assertTrue(insertMetadataChangeHistoryQuery.contains("INSERT INTO meta.metadata_change_history"));
+        assertTrue(insertMetadataChangeHistoryQuery.contains(":change_summary_txt"));
     }
 
     @Test
