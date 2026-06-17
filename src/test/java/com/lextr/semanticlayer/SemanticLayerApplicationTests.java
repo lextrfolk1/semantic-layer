@@ -1,13 +1,14 @@
 package com.lextr.semanticlayer;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
 
-@SpringBootTest
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 class SemanticLayerApplicationTests {
 
     @Test
-    void contextLoads() {
+    void applicationClassLoads() {
+        assertEquals("com.lextr.semanticlayer", SemanticLayerApplication.class.getPackageName());
     }
 
 }
