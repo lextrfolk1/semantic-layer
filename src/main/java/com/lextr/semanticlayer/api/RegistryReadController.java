@@ -1,7 +1,7 @@
 package com.lextr.semanticlayer.api;
 
-import com.lextr.semanticlayer.model.DataConnectionRecord;
-import com.lextr.semanticlayer.model.SchemaCatalogRecord;
+import com.lextr.semanticlayer.dto.DataConnectionDto;
+import com.lextr.semanticlayer.dto.SchemaCatalogDto;
 import com.lextr.semanticlayer.service.RegistryReadService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -23,21 +23,21 @@ public class RegistryReadController {
     }
 
     @GetMapping("/schemas")
-    public List<SchemaCatalogRecord> findSchemas(
+    public List<SchemaCatalogDto> findSchemas(
             @RequestParam("client_id") String clientId,
             @RequestParam(value = "lifecycle_status_cd", required = false) String lifecycleStatusCode) {
         return registryReadService.findSchemas(clientId, lifecycleStatusCode);
     }
 
     @GetMapping("/schemas/{schema_code}")
-    public SchemaCatalogRecord findSchema(
+    public SchemaCatalogDto findSchema(
             @RequestParam("client_id") String clientId,
             @PathVariable("schema_code") String schemaCode) {
         return registryReadService.findSchema(clientId, schemaCode);
     }
 
     @GetMapping("/connections")
-    public List<DataConnectionRecord> findConnections(
+    public List<DataConnectionDto> findConnections(
             @RequestParam("client_id") String clientId,
             @RequestParam(value = "engine_cd", required = false) String engineCode,
             @RequestParam(value = "is_active_flg", required = false) Boolean activeFlag) {
@@ -45,7 +45,7 @@ public class RegistryReadController {
     }
 
     @GetMapping("/connections/{connection_id}")
-    public DataConnectionRecord findConnection(
+    public DataConnectionDto findConnection(
             @RequestParam("client_id") String clientId,
             @PathVariable("connection_id") UUID connectionId) {
         return registryReadService.findConnection(clientId, connectionId);

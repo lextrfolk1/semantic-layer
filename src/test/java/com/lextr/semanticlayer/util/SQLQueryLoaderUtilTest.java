@@ -21,10 +21,12 @@ class SQLQueryLoaderUtilTest {
 
         assertTrue(schemaQuery.contains("schema_cd"));
         assertTrue(schemaQuery.contains("client_id"));
+        assertTrue(schemaQuery.contains("effective_schema_nm"));
         assertTrue(schemaQuery.contains(":lifecycle_status_cd"));
         assertTrue(schemaByCodeQuery.contains(":schema_cd"));
         assertTrue(connectionQuery.contains("connection_id"));
         assertTrue(connectionQuery.contains("client_id"));
+        assertTrue(connectionQuery.contains("effective_connection_nm"));
         assertTrue(connectionQuery.contains(":engine_cd"));
         assertTrue(connectionQuery.contains(":is_active_flg"));
         assertTrue(connectionByIdQuery.contains(":connection_id"));

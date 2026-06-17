@@ -1,18 +1,18 @@
 package com.lextr.semanticlayer.service;
 
-import com.lextr.semanticlayer.model.DataConnectionRecord;
-import com.lextr.semanticlayer.model.SchemaCatalogRecord;
+import com.lextr.semanticlayer.dto.DataConnectionDto;
+import com.lextr.semanticlayer.dto.SchemaCatalogDto;
 
 import java.util.List;
 import java.util.UUID;
 
 public interface RegistryReadService {
 
-    List<SchemaCatalogRecord> findSchemas(String clientId, String lifecycleStatusCode);
+    List<SchemaCatalogDto> findSchemas(String clientId, String lifecycleStatusCode);
 
-    SchemaCatalogRecord findSchema(String clientId, String schemaCode);
+    SchemaCatalogDto findSchema(String clientId, String schemaCode);
 
-    List<DataConnectionRecord> findConnections(String clientId, String engineCode, Boolean activeFlag);
+    List<DataConnectionDto> findConnections(String clientId, String engineCode, Boolean activeFlag);
 
-    DataConnectionRecord findConnection(String clientId, UUID connectionId);
+    DataConnectionDto findConnection(String clientId, UUID connectionId);
 }

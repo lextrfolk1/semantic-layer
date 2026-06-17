@@ -96,6 +96,7 @@ public class JdbcRegistryReadDao implements RegistryReadDao {
         return (resultSet, rowNum) -> new SchemaCatalogRecord(
                 resultSet.getString("schema_cd"),
                 resultSet.getString("schema_nm"),
+                resultSet.getString("effective_schema_nm"),
                 resultSet.getString("schema_purpose_txt"),
                 resultSet.getString("lifecycle_status_cd"),
                 getOffsetDateTime(resultSet, "created_ts"),
@@ -110,6 +111,7 @@ public class JdbcRegistryReadDao implements RegistryReadDao {
                 getUuid(resultSet, "connection_id"),
                 resultSet.getString("connection_cd"),
                 resultSet.getString("connection_nm"),
+                resultSet.getString("effective_connection_nm"),
                 resultSet.getString("engine_cd"),
                 resultSet.getString("connection_type_cd"),
                 resultSet.getString("source_mode_cd"),

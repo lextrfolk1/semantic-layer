@@ -31,6 +31,7 @@ class RegistryReadControllerTest {
                 "client-a", List.of(new SchemaCatalogRecord(
                         "meta",
                         "Metadata",
+                        "Metadata",
                         "Semantic system of record",
                         "ACTIVE",
                         OffsetDateTime.parse("2026-06-16T10:15:30+05:30"),
@@ -60,6 +61,7 @@ class RegistryReadControllerTest {
                 "client-a", List.of(new DataConnectionRecord(
                         connectionId,
                         "LEXTR_PG",
+                        "Lextr PostgreSQL",
                         "Lextr PostgreSQL",
                         "POSTGRES",
                         "PRIMARY",

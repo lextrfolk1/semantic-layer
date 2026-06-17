@@ -1,13 +1,12 @@
-package com.lextr.semanticlayer.model;
+package com.lextr.semanticlayer.dto;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
-public record DataConnectionRecord(
+public record DataConnectionDto(
         UUID connection_id,
         String connection_cd,
         String connection_nm,
-        String effective_connection_nm,
         String engine_cd,
         String connection_type_cd,
         String source_mode_cd,

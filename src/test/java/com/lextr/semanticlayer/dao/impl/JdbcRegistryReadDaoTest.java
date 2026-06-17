@@ -38,6 +38,7 @@ class JdbcRegistryReadDaoTest {
         RecordingNamedParameterJdbcTemplate jdbcTemplate = new RecordingNamedParameterJdbcTemplate(List.of(Map.of(
                 "schema_cd", "meta",
                 "schema_nm", "Metadata",
+                "effective_schema_nm", "Metadata",
                 "schema_purpose_txt", "Semantic system of record",
                 "lifecycle_status_cd", "ACTIVE",
                 "created_ts", OffsetDateTime.parse("2026-06-16T10:15:30+05:30"),
@@ -54,6 +55,7 @@ class JdbcRegistryReadDaoTest {
         assertEquals("ACTIVE", jdbcTemplate.recordedParameters.get("lifecycle_status_cd"));
         assertEquals(1, results.size());
         assertEquals("meta", results.get(0).schema_cd());
+        assertEquals("Metadata", results.get(0).effective_schema_nm());
         assertEquals("ACTIVE", results.get(0).lifecycle_status_cd());
     }
 
@@ -62,6 +64,7 @@ class JdbcRegistryReadDaoTest {
         RecordingNamedParameterJdbcTemplate jdbcTemplate = new RecordingNamedParameterJdbcTemplate(List.of(Map.of(
                 "schema_cd", "meta",
                 "schema_nm", "Metadata",
+                "effective_schema_nm", "Metadata Override",
                 "schema_purpose_txt", "Semantic system of record",
                 "lifecycle_status_cd", "ACTIVE",
                 "created_ts", OffsetDateTime.parse("2026-06-16T10:15:30+05:30"),
@@ -77,6 +80,7 @@ class JdbcRegistryReadDaoTest {
         assertEquals("client-a", jdbcTemplate.recordedParameters.get("client_id"));
         assertEquals("meta", jdbcTemplate.recordedParameters.get("schema_cd"));
         assertEquals("Metadata", result.schema_nm());
+        assertEquals("Metadata Override", result.effective_schema_nm());
     }
 
     @Test
@@ -88,12 +92,14 @@ class JdbcRegistryReadDaoTest {
         List<DataConnectionRecord> results = dao.findConnections("client-a", "POSTGRES", true);
 
         assertTrue(jdbcTemplate.recordedSql.contains("client_id = :client_id"));
+        assertTrue(jdbcTemplate.recordedSql.contains("effective_connection_nm"));
         assertFalse(jdbcTemplate.recordedSql.contains("secrets_ref"));
         assertEquals("client-a", jdbcTemplate.recordedParameters.get("client_id"));
         assertEquals("POSTGRES", jdbcTemplate.recordedParameters.get("engine_cd"));
         assertEquals(Boolean.TRUE, jdbcTemplate.recordedParameters.get("is_active_flg"));
         assertEquals(1, results.size());
         assertEquals(connectionId, results.get(0).connection_id());
+        assertEquals("Lextr PostgreSQL Override", results.get(0).effective_connection_nm());
         assertEquals("meta", results.get(0).schema_nm_default());
     }
 
@@ -109,6 +115,7 @@ class JdbcRegistryReadDaoTest {
         assertEquals("client-a", jdbcTemplate.recordedParameters.get("client_id"));
         assertEquals(connectionId, jdbcTemplate.recordedParameters.get("connection_id"));
         assertEquals("LEXTR_PG", result.connection_cd());
+        assertEquals("Lextr PostgreSQL Override", result.effective_connection_nm());
     }
 
     @Test
@@ -152,6 +159,7 @@ class JdbcRegistryReadDaoTest {
         row.put("connection_id", connectionId);
         row.put("connection_cd", "LEXTR_PG");
         row.put("connection_nm", "Lextr PostgreSQL");
+        row.put("effective_connection_nm", "Lextr PostgreSQL Override");
         row.put("engine_cd", "POSTGRES");
         row.put("connection_type_cd", "PRIMARY");
         row.put("source_mode_cd", "METADATA_PLUS_EXECUTION");
