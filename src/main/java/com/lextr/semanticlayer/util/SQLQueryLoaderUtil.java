@@ -1,6 +1,7 @@
 package com.lextr.semanticlayer.util;
 
 import com.lextr.semanticlayer.exception.SemanticLayerException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Component;
@@ -16,6 +17,7 @@ public class SQLQueryLoaderUtil {
 
     private final Properties queries = new Properties();
 
+    @Autowired
     public SQLQueryLoaderUtil(ResourceLoader resourceLoader) {
         this(resourceLoader, DEFAULT_RESOURCE_LOCATION);
     }
