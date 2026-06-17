@@ -167,6 +167,15 @@ class ObjectExposureReadControllerTest {
         }
 
         @Override
+        public Optional<ObjectExposureRecord> findObject(String schemaCode, String objectCode) {
+            return objectsByClient.values().stream()
+                    .flatMap(List::stream)
+                    .filter(record -> schemaCode.equals(record.schema_cd()))
+                    .filter(record -> objectCode.equals(record.object_cd()))
+                    .findFirst();
+        }
+
+        @Override
         public List<AttributeExposureRecord> findAttributes(String clientId, UUID objectId) {
             return attributesByObjectId.getOrDefault(objectId, List.of()).stream()
                     .filter(record -> clientId.equals(record.client_id()))

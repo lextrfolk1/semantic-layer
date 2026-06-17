@@ -23,6 +23,7 @@ public class JdbcObjectExposureReadDao implements ObjectExposureReadDao {
 
     static final String OBJECT_EXPOSURE_FIND_ALL = "object_exposure.find_all";
     static final String OBJECT_EXPOSURE_FIND_BY_ID = "object_exposure.find_by_id";
+    static final String OBJECT_EXPOSURE_FIND_BY_SCHEMA_AND_CODE = "object_exposure.find_by_schema_and_code";
     static final String OBJECT_EXPOSURE_FIND_ATTRIBUTES_BY_OBJECT_ID = "object_exposure.find_attributes_by_object_id";
 
     private final ObjectProvider<NamedParameterJdbcTemplate> jdbcTemplateProvider;
@@ -54,6 +55,18 @@ public class JdbcObjectExposureReadDao implements ObjectExposureReadDao {
                 .addValue("object_id", objectId);
         return jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(OBJECT_EXPOSURE_FIND_BY_ID),
+                parameters,
+                objectExposureRowMapper()
+        ).stream().findFirst();
+    }
+
+    @Override
+    public Optional<ObjectExposureRecord> findObject(String schemaCode, String objectCode) {
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("schema_cd", schemaCode)
+                .addValue("object_cd", objectCode);
+        return jdbcTemplate().query(
+                sqlQueryLoaderUtil.getQuery(OBJECT_EXPOSURE_FIND_BY_SCHEMA_AND_CODE),
                 parameters,
                 objectExposureRowMapper()
         ).stream().findFirst();

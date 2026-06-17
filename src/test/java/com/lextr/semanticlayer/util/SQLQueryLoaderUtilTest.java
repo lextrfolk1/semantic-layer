@@ -25,6 +25,7 @@ class SQLQueryLoaderUtilTest {
         String insertRelationshipQuery = loader.getQuery("relationship_registration.insert_relationship");
         String objectListQuery = loader.getQuery("object_exposure.find_all");
         String objectByIdQuery = loader.getQuery("object_exposure.find_by_id");
+        String objectBySchemaAndCodeQuery = loader.getQuery("object_exposure.find_by_schema_and_code");
         String attributeByObjectIdQuery = loader.getQuery("object_exposure.find_attributes_by_object_id");
 
         assertTrue(schemaQuery.contains("schema_cd"));
@@ -58,6 +59,9 @@ class SQLQueryLoaderUtilTest {
         assertTrue(objectListQuery.contains(":schema_cd"));
         assertTrue(objectListQuery.contains(":lifecycle_status_cd"));
         assertTrue(objectByIdQuery.contains(":object_id"));
+        assertTrue(objectBySchemaAndCodeQuery.contains(":schema_cd"));
+        assertTrue(objectBySchemaAndCodeQuery.contains(":object_cd"));
+        assertTrue(objectBySchemaAndCodeQuery.contains("effective_object_nm"));
         assertTrue(attributeByObjectIdQuery.contains("FROM meta.attribute_catalog"));
         assertTrue(attributeByObjectIdQuery.contains("effective_attribute_nm"));
         assertTrue(attributeByObjectIdQuery.contains(":object_id"));

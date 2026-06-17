@@ -13,5 +13,7 @@ public interface ObjectExposureReadDao {
 
     Optional<ObjectExposureRecord> findObject(String clientId, UUID objectId);
 
+    Optional<ObjectExposureRecord> findObject(String schemaCode, String objectCode);
+
     List<AttributeExposureRecord> findAttributes(String clientId, UUID objectId);
 }

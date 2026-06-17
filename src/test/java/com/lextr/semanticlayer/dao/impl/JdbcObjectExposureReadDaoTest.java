@@ -68,6 +68,22 @@ class JdbcObjectExposureReadDaoTest {
     }
 
     @Test
+    void findsSingleObjectBySchemaAndCode() {
+        UUID objectId = UUID.fromString("00000000-0000-0000-0000-000000000101");
+        UUID connectionId = UUID.fromString("00000000-0000-0000-0000-000000000201");
+        RecordingNamedParameterJdbcTemplate jdbcTemplate = new RecordingNamedParameterJdbcTemplate(List.of(objectRow(objectId, connectionId)));
+        JdbcObjectExposureReadDao dao = new JdbcObjectExposureReadDao(providerOf(jdbcTemplate), new SQLQueryLoaderUtil(new DefaultResourceLoader()));
+
+        ObjectExposureRecord result = dao.findObject("meta", "GL_BALANCE").orElseThrow();
+
+        assertTrue(jdbcTemplate.recordedSql.contains("schema_cd = :schema_cd"));
+        assertEquals("meta", jdbcTemplate.recordedParameters.get("schema_cd"));
+        assertEquals("GL_BALANCE", jdbcTemplate.recordedParameters.get("object_cd"));
+        assertEquals(objectId, result.object_id());
+        assertEquals("GL Balance", result.effective_object_nm());
+    }
+
+    @Test
     void bindsAttributeParametersAndMapsEffectiveAttributeColumns() {
         UUID objectId = UUID.fromString("00000000-0000-0000-0000-000000000101");
         UUID attributeId = UUID.fromString("00000000-0000-0000-0000-000000000102");

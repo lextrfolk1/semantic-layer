@@ -161,6 +161,14 @@ class ObjectExposureReadServiceImplTest {
         }
 
         @Override
+        public Optional<ObjectExposureRecord> findObject(String schemaCode, String objectCode) {
+            return objects.stream()
+                    .filter(record -> schemaCode.equals(record.schema_cd()))
+                    .filter(record -> objectCode.equals(record.object_cd()))
+                    .findFirst();
+        }
+
+        @Override
         public List<AttributeExposureRecord> findAttributes(String clientId, UUID objectId) {
             return attributes.stream().filter(record -> objectId.equals(record.object_id())).toList();
         }
