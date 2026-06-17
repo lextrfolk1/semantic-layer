@@ -22,6 +22,9 @@ class SQLQueryLoaderUtilTest {
         String insertAttributeQuery = loader.getQuery("object_registration.insert_attribute");
         String insertWorkflowTaskQuery = loader.getQuery("object_registration.insert_workflow_task");
         String insertMetadataChangeHistoryQuery = loader.getQuery("object_registration.insert_metadata_change_history");
+        String objectListQuery = loader.getQuery("object_exposure.find_all");
+        String objectByIdQuery = loader.getQuery("object_exposure.find_by_id");
+        String attributeByObjectIdQuery = loader.getQuery("object_exposure.find_attributes_by_object_id");
 
         assertTrue(schemaQuery.contains("schema_cd"));
         assertTrue(schemaQuery.contains("client_id"));
@@ -44,6 +47,14 @@ class SQLQueryLoaderUtilTest {
         assertTrue(insertWorkflowTaskQuery.contains(":task_status_cd"));
         assertTrue(insertMetadataChangeHistoryQuery.contains("INSERT INTO meta.metadata_change_history"));
         assertTrue(insertMetadataChangeHistoryQuery.contains(":change_summary_txt"));
+        assertTrue(objectListQuery.contains("FROM meta.object_catalog"));
+        assertTrue(objectListQuery.contains("effective_object_nm"));
+        assertTrue(objectListQuery.contains(":schema_cd"));
+        assertTrue(objectListQuery.contains(":lifecycle_status_cd"));
+        assertTrue(objectByIdQuery.contains(":object_id"));
+        assertTrue(attributeByObjectIdQuery.contains("FROM meta.attribute_catalog"));
+        assertTrue(attributeByObjectIdQuery.contains("effective_attribute_nm"));
+        assertTrue(attributeByObjectIdQuery.contains(":object_id"));
     }
 
     @Test
