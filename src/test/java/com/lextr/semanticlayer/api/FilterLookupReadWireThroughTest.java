@@ -107,6 +107,35 @@ class FilterLookupReadWireThroughTest {
     }
 
     @Test
+    void honorsGovernanceEnforcedReviewPeriodContractEndToEnd() throws Exception {
+        jdbcTemplate.setResponses(List.of(
+                List.of(policyPresetRow()),
+                List.of(filterLookupRow("LEDGER_SCOPE", 120)),
+                List.of(valueCountRow(5L))
+        ));
+
+        mockMvc.perform(get("/api/filter-lookups/{lookup_code}", "LEDGER_SCOPE")
+                        .queryParam("client_id", "client-a"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.lookup_cd").value("LEDGER_SCOPE"))
+                .andExpect(jsonPath("$.review_period_days_override").value(120))
+                .andExpect(jsonPath("$.effective_review_period_days").value(90))
+                .andExpect(jsonPath("$.effective_review_period_source_cd").value("GOV_ENFORCED"))
+                .andExpect(jsonPath("$.health_status_cd").value("PENDING"))
+                .andExpect(jsonPath("$.value_count").value(5))
+                .andExpect(jsonPath("$.next_review_due_dt").value("2026-08-02"));
+
+        assertEquals(3, jdbcTemplate.recordedSqls().size());
+        assertTrue(jdbcTemplate.recordedSqls().get(0).contains("FROM governance.policy_preset"));
+        assertTrue(jdbcTemplate.recordedSqls().get(1).contains("lookup_cd = :lookup_cd"));
+        assertTrue(jdbcTemplate.recordedSqls().get(2).contains("FROM meta.filter_lookup_value"));
+        assertEquals("client-a", jdbcTemplate.recordedParameters().get(1).get("client_id"));
+        assertEquals("LEDGER_SCOPE", jdbcTemplate.recordedParameters().get(1).get("lookup_cd"));
+        assertEquals("client-a", jdbcTemplate.recordedParameters().get(2).get("client_id"));
+        assertEquals("LEDGER_SCOPE", jdbcTemplate.recordedParameters().get(2).get("lookup_cd"));
+    }
+
+    @Test
     void returnsNotFoundEndToEndWhenLookupUnknown() throws Exception {
         jdbcTemplate.setResponses(List.of(
                 List.of(policyPresetRow()),
