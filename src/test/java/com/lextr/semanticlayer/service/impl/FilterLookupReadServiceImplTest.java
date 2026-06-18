@@ -5,6 +5,7 @@ import com.lextr.semanticlayer.dao.GovernancePolicyPresetReadDao;
 import com.lextr.semanticlayer.dto.FilterLookupEffectiveReviewDto;
 import com.lextr.semanticlayer.exception.RegistryResourceNotFoundException;
 import com.lextr.semanticlayer.exception.SemanticLayerException;
+import com.lextr.semanticlayer.model.FilterLookupPreviewValueRecord;
 import com.lextr.semanticlayer.model.GovernancePolicyPresetRecord;
 import com.lextr.semanticlayer.model.SemanticFilterLookupRecord;
 import org.junit.jupiter.api.Test;
@@ -167,6 +168,11 @@ class FilterLookupReadServiceImplTest {
         @Override
         public Optional<SemanticFilterLookupRecord> findLookup(String clientId, String lookupCode) {
             return lookups.stream().filter(record -> lookupCode.equals(record.lookup_cd())).findFirst();
+        }
+
+        @Override
+        public List<FilterLookupPreviewValueRecord> findManualValues(String clientId, String lookupCode) {
+            return List.of();
         }
 
         @Override

@@ -1,5 +1,6 @@
 package com.lextr.semanticlayer.dao;
 
+import com.lextr.semanticlayer.model.FilterLookupPreviewValueRecord;
 import com.lextr.semanticlayer.model.SemanticFilterLookupRecord;
 
 import java.util.List;
@@ -13,6 +14,8 @@ public interface FilterLookupReadDao {
                                                  String lifecycleStatusCode);
 
     Optional<SemanticFilterLookupRecord> findLookup(String clientId, String lookupCode);
+
+    List<FilterLookupPreviewValueRecord> findManualValues(String clientId, String lookupCode);
 
     long countValues(String clientId, String lookupCode);
 }

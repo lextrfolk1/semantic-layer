@@ -1,6 +1,7 @@
 package com.lextr.semanticlayer.dao.impl;
 
 import com.lextr.semanticlayer.exception.SemanticLayerException;
+import com.lextr.semanticlayer.model.FilterLookupPreviewValueRecord;
 import com.lextr.semanticlayer.model.SemanticFilterLookupRecord;
 import com.lextr.semanticlayer.util.SQLQueryLoaderUtil;
 import org.junit.jupiter.api.Test;
@@ -70,6 +71,25 @@ class JdbcFilterLookupReadDaoTest {
     }
 
     @Test
+    void bindsManualValueParametersAndMapsPreviewSnakeCaseColumns() {
+        RecordingNamedParameterJdbcTemplate jdbcTemplate =
+                new RecordingNamedParameterJdbcTemplate(List.of(previewValueRow("LEDGER_100")));
+        JdbcFilterLookupReadDao dao = new JdbcFilterLookupReadDao(providerOf(jdbcTemplate), new SQLQueryLoaderUtil(new DefaultResourceLoader()));
+
+        List<FilterLookupPreviewValueRecord> results = dao.findManualValues("client-a", "LEDGER_SCOPE");
+
+        assertTrue(jdbcTemplate.recordedSql.contains("FROM meta.filter_lookup_value flv"));
+        assertTrue(jdbcTemplate.recordedSql.contains("JOIN meta.semantic_filter_lookup sfl ON sfl.lookup_cd = flv.lookup_cd"));
+        assertEquals("client-a", jdbcTemplate.recordedParameters.get("client_id"));
+        assertEquals("LEDGER_SCOPE", jdbcTemplate.recordedParameters.get("lookup_cd"));
+        assertEquals(1, results.size());
+        assertEquals("client-a", results.get(0).client_id());
+        assertEquals("LEDGER_100", results.get(0).value_cd());
+        assertEquals("ACTIVE", results.get(0).lifecycle_status_cd());
+        assertEquals(LocalDate.parse("2026-07-01"), results.get(0).anticipated_dt());
+    }
+
+    @Test
     void countsLookupValuesWithinClientScope() {
         RecordingNamedParameterJdbcTemplate jdbcTemplate =
                 new RecordingNamedParameterJdbcTemplate(List.of(valueCountRow(3L)));
@@ -80,6 +100,7 @@ class JdbcFilterLookupReadDaoTest {
         assertTrue(jdbcTemplate.recordedSql.contains("COUNT(*) AS value_count"));
         assertEquals("client-a", jdbcTemplate.recordedParameters.get("client_id"));
         assertEquals("LEDGER_SCOPE", jdbcTemplate.recordedParameters.get("lookup_cd"));
+        assertTrue(jdbcTemplate.recordedSql.contains("JOIN meta.semantic_filter_lookup sfl ON sfl.lookup_cd = flv.lookup_cd"));
         assertEquals(3L, result);
     }
 
@@ -168,6 +189,27 @@ class JdbcFilterLookupReadDaoTest {
     private static Map<String, Object> valueCountRow(long valueCount) {
         Map<String, Object> row = new HashMap<>();
         row.put("value_count", valueCount);
+        return row;
+    }
+
+    private static Map<String, Object> previewValueRow(String valueCode) {
+        Map<String, Object> row = new HashMap<>();
+        row.put("lookup_cd", "LEDGER_SCOPE");
+        row.put("client_id", "client-a");
+        row.put("value_cd", valueCode);
+        row.put("value_desc", "Ledger 100");
+        row.put("lifecycle_status_cd", "ACTIVE");
+        row.put("validated_flg", true);
+        row.put("anticipated_dt", LocalDate.parse("2026-07-01"));
+        row.put("workflow_ref", "WKFL-100");
+        row.put("last_seen_in_source_ts", OffsetDateTime.parse("2026-06-18T10:15:30Z"));
+        row.put("auto_expire_after_days", 14);
+        row.put("alert_txt", "Pending activation");
+        row.put("added_by", "producer");
+        row.put("added_ts", OffsetDateTime.parse("2026-06-18T09:15:30Z"));
+        row.put("certified_by", "reviewer");
+        row.put("certified_ts", OffsetDateTime.parse("2026-06-18T11:15:30Z"));
+        row.put("updated_ts", OffsetDateTime.parse("2026-06-18T12:15:30Z"));
         return row;
     }
 

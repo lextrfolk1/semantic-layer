@@ -18,7 +18,9 @@ class FilterLookupQueryAssetsTest {
         String governancePresetQuery = loader.getQuery("governance_policy_preset.find_by_code");
         String effectiveLookupListQuery = loader.getQuery("filter_lookup_effective_review.find_all");
         String effectiveLookupQuery = loader.getQuery("filter_lookup_effective_review.find_lookup_by_code");
+        String manualPreviewQuery = loader.getQuery("filter_lookup_effective_review.find_manual_values_by_lookup");
         String valueCountQuery = loader.getQuery("filter_lookup_effective_review.count_values_by_lookup");
+        String executionLogInsertQuery = loader.getQuery("filter_lookup_exec_log.insert_execution");
 
         assertTrue(insertLookupQuery.contains("INSERT INTO meta.semantic_filter_lookup"));
         assertTrue(insertLookupQuery.contains(":lookup_cd"));
@@ -87,10 +89,30 @@ class FilterLookupQueryAssetsTest {
         assertTrue(effectiveLookupQuery.contains("created_ts"));
         assertTrue(effectiveLookupQuery.contains("updated_by"));
 
+        assertTrue(manualPreviewQuery.contains("FROM meta.filter_lookup_value flv"));
+        assertTrue(manualPreviewQuery.contains("JOIN meta.semantic_filter_lookup sfl ON sfl.lookup_cd = flv.lookup_cd"));
+        assertTrue(manualPreviewQuery.contains(":client_id"));
+        assertTrue(manualPreviewQuery.contains(":lookup_cd"));
+        assertTrue(manualPreviewQuery.contains("flv.lifecycle_status_cd IN ('ACTIVE','ANTICIPATED')"));
+        assertTrue(manualPreviewQuery.contains("anticipated_dt"));
+        assertTrue(manualPreviewQuery.contains("ORDER BY CASE flv.lifecycle_status_cd"));
+
         assertTrue(valueCountQuery.contains("FROM meta.filter_lookup_value"));
         assertTrue(valueCountQuery.contains(":client_id"));
         assertTrue(valueCountQuery.contains(":lookup_cd"));
+        assertTrue(valueCountQuery.contains("JOIN meta.semantic_filter_lookup sfl ON sfl.lookup_cd = flv.lookup_cd"));
         assertTrue(valueCountQuery.contains("COUNT(*) AS value_count"));
-        assertTrue(valueCountQuery.contains("GROUP BY lookup_cd, client_id"));
+        assertTrue(valueCountQuery.contains("flv.lifecycle_status_cd IN ('ACTIVE','ANTICIPATED')"));
+        assertTrue(valueCountQuery.contains("GROUP BY flv.lookup_cd, sfl.client_id"));
+
+        assertTrue(executionLogInsertQuery.contains("INSERT INTO meta.filter_lookup_exec_log"));
+        assertTrue(executionLogInsertQuery.contains(":lookup_cd"));
+        assertTrue(executionLogInsertQuery.contains(":executed_by"));
+        assertTrue(executionLogInsertQuery.contains(":phase1_duration_ms"));
+        assertTrue(executionLogInsertQuery.contains(":phase1_row_count"));
+        assertTrue(executionLogInsertQuery.contains(":phase1_cache_hit_flg"));
+        assertTrue(executionLogInsertQuery.contains(":execution_strategy_used_cd"));
+        assertTrue(executionLogInsertQuery.contains(":result_status_cd"));
+        assertTrue(executionLogInsertQuery.contains("RETURNING id, lookup_cd, executed_by, executed_ts"));
     }
 }

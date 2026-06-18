@@ -7,6 +7,7 @@ import com.lextr.semanticlayer.dto.FilterLookupEffectiveReviewDto;
 import com.lextr.semanticlayer.dto.FilterLookupRegistrationRequestDto;
 import com.lextr.semanticlayer.dto.FilterLookupRegistrationResponseDto;
 import com.lextr.semanticlayer.model.GovernancePolicyPresetRecord;
+import com.lextr.semanticlayer.model.FilterLookupPreviewValueRecord;
 import com.lextr.semanticlayer.model.SemanticFilterLookupRecord;
 import com.lextr.semanticlayer.service.FilterLookupReadService;
 import com.lextr.semanticlayer.service.FilterLookupRegistrationService;
@@ -167,6 +168,11 @@ class FilterLookupReadControllerTest {
             return lookupsByClient.getOrDefault(clientId, List.of()).stream()
                     .filter(record -> lookupCode.equals(record.lookup_cd()))
                     .findFirst();
+        }
+
+        @Override
+        public List<FilterLookupPreviewValueRecord> findManualValues(String clientId, String lookupCode) {
+            return List.of();
         }
 
         @Override

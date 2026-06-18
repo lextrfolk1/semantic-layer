@@ -2,6 +2,7 @@ package com.lextr.semanticlayer.dao.impl;
 
 import com.lextr.semanticlayer.dao.FilterLookupReadDao;
 import com.lextr.semanticlayer.exception.SemanticLayerException;
+import com.lextr.semanticlayer.model.FilterLookupPreviewValueRecord;
 import com.lextr.semanticlayer.model.SemanticFilterLookupRecord;
 import com.lextr.semanticlayer.util.SQLQueryLoaderUtil;
 import org.springframework.beans.factory.ObjectProvider;
@@ -22,6 +23,7 @@ public class JdbcFilterLookupReadDao implements FilterLookupReadDao {
 
     static final String FIND_ALL = "filter_lookup_effective_review.find_all";
     static final String FIND_BY_CODE = "filter_lookup_effective_review.find_lookup_by_code";
+    static final String FIND_MANUAL_VALUES_BY_LOOKUP = "filter_lookup_effective_review.find_manual_values_by_lookup";
     static final String COUNT_VALUES_BY_LOOKUP = "filter_lookup_effective_review.count_values_by_lookup";
 
     private final ObjectProvider<NamedParameterJdbcTemplate> jdbcTemplateProvider;
@@ -60,6 +62,18 @@ public class JdbcFilterLookupReadDao implements FilterLookupReadDao {
                 parameters,
                 filterLookupRowMapper()
         ).stream().findFirst();
+    }
+
+    @Override
+    public List<FilterLookupPreviewValueRecord> findManualValues(String clientId, String lookupCode) {
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("client_id", clientId)
+                .addValue("lookup_cd", lookupCode);
+        return jdbcTemplate().query(
+                sqlQueryLoaderUtil.getQuery(FIND_MANUAL_VALUES_BY_LOOKUP),
+                parameters,
+                previewValueRowMapper()
+        );
     }
 
     @Override
@@ -115,6 +129,27 @@ public class JdbcFilterLookupReadDao implements FilterLookupReadDao {
                 resultSet.getString("created_by"),
                 getOffsetDateTime(resultSet, "updated_ts"),
                 resultSet.getString("updated_by")
+        );
+    }
+
+    static RowMapper<FilterLookupPreviewValueRecord> previewValueRowMapper() {
+        return (resultSet, rowNum) -> new FilterLookupPreviewValueRecord(
+                resultSet.getString("lookup_cd"),
+                resultSet.getString("client_id"),
+                resultSet.getString("value_cd"),
+                resultSet.getString("value_desc"),
+                resultSet.getString("lifecycle_status_cd"),
+                resultSet.getBoolean("validated_flg"),
+                getLocalDate(resultSet, "anticipated_dt"),
+                resultSet.getString("workflow_ref"),
+                getOffsetDateTime(resultSet, "last_seen_in_source_ts"),
+                getInteger(resultSet, "auto_expire_after_days"),
+                resultSet.getString("alert_txt"),
+                resultSet.getString("added_by"),
+                getOffsetDateTime(resultSet, "added_ts"),
+                resultSet.getString("certified_by"),
+                getOffsetDateTime(resultSet, "certified_ts"),
+                getOffsetDateTime(resultSet, "updated_ts")
         );
     }
 
