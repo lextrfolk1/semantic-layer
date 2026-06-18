@@ -1,5 +1,6 @@
 package com.lextr.semanticlayer.service;
 
+import com.lextr.semanticlayer.dto.FilterLookupBindingPolicyRequestDto;
 import com.lextr.semanticlayer.dto.FilterLookupCertificationPolicyRequestDto;
 import com.lextr.semanticlayer.dto.FilterLookupPolicyDecisionDto;
 import com.lextr.semanticlayer.dto.FilterLookupPreviewPolicyRequestDto;
@@ -14,6 +15,10 @@ public interface FilterLookupPolicyClient {
     }
 
     default FilterLookupPolicyDecisionDto validateCertification(FilterLookupCertificationPolicyRequestDto request) {
+        return new FilterLookupPolicyDecisionDto(true, null, null);
+    }
+
+    default FilterLookupPolicyDecisionDto validateBinding(FilterLookupBindingPolicyRequestDto request) {
         return new FilterLookupPolicyDecisionDto(true, null, null);
     }
 }

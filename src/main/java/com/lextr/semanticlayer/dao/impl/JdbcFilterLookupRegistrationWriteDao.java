@@ -2,6 +2,8 @@ package com.lextr.semanticlayer.dao.impl;
 
 import com.lextr.semanticlayer.dao.FilterLookupRegistrationWriteDao;
 import com.lextr.semanticlayer.exception.SemanticLayerException;
+import com.lextr.semanticlayer.model.FilterLookupBindingRecord;
+import com.lextr.semanticlayer.model.FilterLookupBindingWriteRequest;
 import com.lextr.semanticlayer.model.FilterLookupCertificationWriteRequest;
 import com.lextr.semanticlayer.model.FilterLookupMetadataChangeHistoryRecord;
 import com.lextr.semanticlayer.model.FilterLookupMetadataChangeHistoryWriteRequest;
@@ -25,6 +27,7 @@ public class JdbcFilterLookupRegistrationWriteDao implements FilterLookupRegistr
 
     static final String INSERT_LOOKUP = "filter_lookup_registration.insert_lookup";
     static final String CERTIFY_LOOKUP = "filter_lookup_registration.certify_lookup";
+    static final String INSERT_BINDING = "filter_lookup_registration.insert_binding";
     static final String INSERT_WORKFLOW_TASK = "filter_lookup_registration.insert_workflow_task";
     static final String INSERT_METADATA_CHANGE_HISTORY = "filter_lookup_registration.insert_metadata_change_history";
 
@@ -91,6 +94,40 @@ public class JdbcFilterLookupRegistrationWriteDao implements FilterLookupRegistr
                 parameters,
                 JdbcFilterLookupRegistrationWriteDao::mapFilterLookupRow
         ).stream().findFirst().orElseThrow(() -> new SemanticLayerException("Certify filter lookup returned no rows"));
+    }
+
+    @Override
+    public FilterLookupBindingRecord insertBinding(FilterLookupBindingWriteRequest request) {
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("client_id", request.client_id())
+                .addValue("lookup_cd", request.lookup_cd())
+                .addValue("bound_obj", request.bound_obj())
+                .addValue("bound_attr_cd", request.bound_attr_cd())
+                .addValue("binding_context_cd", request.binding_context_cd())
+                .addValue("binding_ref", request.binding_ref())
+                .addValue("bound_by", request.bound_by())
+                .addValue("bound_ts", request.bound_ts())
+                .addValue("is_active_flg", request.is_active_flg());
+        return jdbcTemplate().query(
+                sqlQueryLoaderUtil.getQuery(INSERT_BINDING),
+                parameters,
+                JdbcFilterLookupRegistrationWriteDao::mapFilterLookupBindingRow
+        ).stream().findFirst().orElseThrow(() -> new SemanticLayerException("Insert filter lookup binding returned no rows"));
+    }
+
+    private static FilterLookupBindingRecord mapFilterLookupBindingRow(ResultSet resultSet, int rowNum) throws SQLException {
+        return new FilterLookupBindingRecord(
+                getLong(resultSet, "id"),
+                resultSet.getString("client_id"),
+                resultSet.getString("lookup_cd"),
+                resultSet.getString("bound_obj"),
+                resultSet.getString("bound_attr_cd"),
+                resultSet.getString("binding_context_cd"),
+                resultSet.getString("binding_ref"),
+                resultSet.getString("bound_by"),
+                getOffsetDateTime(resultSet, "bound_ts"),
+                resultSet.getBoolean("is_active_flg")
+        );
     }
 
     @Override
