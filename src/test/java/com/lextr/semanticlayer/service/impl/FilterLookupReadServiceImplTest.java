@@ -4,6 +4,7 @@ import com.lextr.semanticlayer.dao.FilterLookupReadDao;
 import com.lextr.semanticlayer.dao.GovernancePolicyPresetReadDao;
 import com.lextr.semanticlayer.dto.FilterLookupEffectiveReviewDto;
 import com.lextr.semanticlayer.exception.RegistryResourceNotFoundException;
+import com.lextr.semanticlayer.exception.SemanticLayerException;
 import com.lextr.semanticlayer.model.GovernancePolicyPresetRecord;
 import com.lextr.semanticlayer.model.SemanticFilterLookupRecord;
 import org.junit.jupiter.api.Test;
@@ -68,6 +69,27 @@ class FilterLookupReadServiceImplTest {
         );
 
         assertThrows(RegistryResourceNotFoundException.class, () -> service.findLookup("client-a", "UNKNOWN_LOOKUP"));
+    }
+
+    @Test
+    void failsWhenGovernancePolicyMissing() {
+        FilterLookupReadServiceImpl service = new FilterLookupReadServiceImpl(
+                new FixedFilterLookupReadDao(List.of(filterLookupRecord("LEDGER_SCOPE", 45)), 1L),
+                (policyCode, policyScopeCode, asOfDate) -> Optional.empty()
+        );
+
+        assertThrows(SemanticLayerException.class,
+                () -> service.findLookups("client-a", "REVIEW", "PENDING", "ACTIVE"));
+    }
+
+    @Test
+    void failsWhenGovernancePolicyValueCannotBeParsed() {
+        FilterLookupReadServiceImpl service = new FilterLookupReadServiceImpl(
+                new FixedFilterLookupReadDao(List.of(filterLookupRecord("LEDGER_SCOPE", 45)), 1L),
+                fixedGovernanceDao("not-a-number")
+        );
+
+        assertThrows(SemanticLayerException.class, () -> service.findLookup("client-a", "LEDGER_SCOPE"));
     }
 
     private static SemanticFilterLookupRecord filterLookupRecord(String lookupCode, Integer overrideDays) {
