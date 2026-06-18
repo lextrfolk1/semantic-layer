@@ -1,6 +1,8 @@
 package com.lextr.semanticlayer.dao.impl;
 
 import com.lextr.semanticlayer.exception.SemanticLayerException;
+import com.lextr.semanticlayer.model.FilterLookupBindingRecord;
+import com.lextr.semanticlayer.model.FilterLookupBindingWriteRequest;
 import com.lextr.semanticlayer.model.FilterLookupCertificationWriteRequest;
 import com.lextr.semanticlayer.model.FilterLookupMetadataChangeHistoryRecord;
 import com.lextr.semanticlayer.model.FilterLookupMetadataChangeHistoryWriteRequest;
@@ -125,6 +127,37 @@ class JdbcFilterLookupRegistrationWriteDaoTest {
     }
 
     @Test
+    void bindsBindingInsertParametersAndMapsReturnedColumns() {
+        RecordingNamedParameterJdbcTemplate jdbcTemplate = new RecordingNamedParameterJdbcTemplate(List.of(bindingRow()));
+        JdbcFilterLookupRegistrationWriteDao dao = new JdbcFilterLookupRegistrationWriteDao(
+                providerOf(jdbcTemplate),
+                new SQLQueryLoaderUtil(new DefaultResourceLoader())
+        );
+
+        FilterLookupBindingRecord result = dao.insertBinding(bindingRequest());
+
+        assertTrue(jdbcTemplate.recordedSql.contains("INSERT INTO meta.filter_lookup_binding"));
+        assertEquals("client-a", jdbcTemplate.recordedParameters.get("client_id"));
+        assertEquals("LEDGER_SCOPE", jdbcTemplate.recordedParameters.get("lookup_cd"));
+        assertEquals("meta.gl_balance", jdbcTemplate.recordedParameters.get("bound_obj"));
+        assertEquals("ledger_id", jdbcTemplate.recordedParameters.get("bound_attr_cd"));
+        assertEquals("PIPELINE", jdbcTemplate.recordedParameters.get("binding_context_cd"));
+        assertEquals("daily-pipeline", jdbcTemplate.recordedParameters.get("binding_ref"));
+        assertEquals("binder", jdbcTemplate.recordedParameters.get("bound_by"));
+        assertTrue((Boolean) jdbcTemplate.recordedParameters.get("is_active_flg"));
+
+        assertEquals(501L, result.id());
+        assertEquals("client-a", result.client_id());
+        assertEquals("LEDGER_SCOPE", result.lookup_cd());
+        assertEquals("meta.gl_balance", result.bound_obj());
+        assertEquals("ledger_id", result.bound_attr_cd());
+        assertEquals("PIPELINE", result.binding_context_cd());
+        assertEquals("daily-pipeline", result.binding_ref());
+        assertEquals("binder", result.bound_by());
+        assertTrue(result.is_active_flg());
+    }
+
+    @Test
     void transactionRollsBackFilterLookupWritesOnFailure() {
         TransactionHarness harness = new TransactionHarness();
         TransactionalNamedParameterJdbcTemplate jdbcTemplate = new TransactionalNamedParameterJdbcTemplate(harness);
@@ -168,6 +201,30 @@ class JdbcFilterLookupRegistrationWriteDaoTest {
         assertTrue(jdbcTemplate.committedLookups.isEmpty());
         assertEquals(2, jdbcTemplate.recordedSqls.size());
         assertTrue(jdbcTemplate.recordedSqls.get(0).contains("UPDATE meta.semantic_filter_lookup"));
+        assertTrue(jdbcTemplate.recordedSqls.get(1).contains("INSERT INTO meta.metadata_change_history"));
+    }
+
+    @Test
+    void transactionRollsBackBindingInsertOnFailure() {
+        TransactionHarness harness = new TransactionHarness();
+        TransactionalNamedParameterJdbcTemplate jdbcTemplate = new TransactionalNamedParameterJdbcTemplate(harness);
+        JdbcFilterLookupRegistrationWriteDao dao = new JdbcFilterLookupRegistrationWriteDao(
+                providerOf(jdbcTemplate),
+                new SQLQueryLoaderUtil(new DefaultResourceLoader())
+        );
+        RecordingTransactionOperations transactionOperations = new RecordingTransactionOperations(harness);
+
+        assertThrows(IllegalStateException.class, () -> transactionOperations.execute(status -> {
+            dao.insertBinding(bindingRequest());
+            dao.insertMetadataChangeHistory(metadataChangeRequest());
+            throw new IllegalStateException("binding transaction failed");
+        }));
+
+        assertTrue(harness.rolledBack);
+        assertFalse(harness.committed);
+        assertTrue(jdbcTemplate.committedBindings.isEmpty());
+        assertEquals(2, jdbcTemplate.recordedSqls.size());
+        assertTrue(jdbcTemplate.recordedSqls.get(0).contains("INSERT INTO meta.filter_lookup_binding"));
         assertTrue(jdbcTemplate.recordedSqls.get(1).contains("INSERT INTO meta.metadata_change_history"));
     }
 
@@ -269,6 +326,35 @@ class JdbcFilterLookupRegistrationWriteDaoTest {
                 OffsetDateTime.parse("2026-06-18T10:15:30Z"),
                 "certifier"
         );
+    }
+
+    private static FilterLookupBindingWriteRequest bindingRequest() {
+        return new FilterLookupBindingWriteRequest(
+                "client-a",
+                "LEDGER_SCOPE",
+                "meta.gl_balance",
+                "ledger_id",
+                "PIPELINE",
+                "daily-pipeline",
+                "binder",
+                OffsetDateTime.parse("2026-06-18T10:15:30Z"),
+                true
+        );
+    }
+
+    private static Map<String, Object> bindingRow() {
+        Map<String, Object> row = new HashMap<>();
+        row.put("id", 501L);
+        row.put("client_id", "client-a");
+        row.put("lookup_cd", "LEDGER_SCOPE");
+        row.put("bound_obj", "meta.gl_balance");
+        row.put("bound_attr_cd", "ledger_id");
+        row.put("binding_context_cd", "PIPELINE");
+        row.put("binding_ref", "daily-pipeline");
+        row.put("bound_by", "binder");
+        row.put("bound_ts", OffsetDateTime.parse("2026-06-18T10:15:30Z"));
+        row.put("is_active_flg", true);
+        return row;
     }
 
     private static Map<String, Object> lookupRow() {
@@ -483,6 +569,7 @@ class JdbcFilterLookupRegistrationWriteDaoTest {
         private final TransactionHarness harness;
         private final Map<String, Map<String, Object>> committedLookups = new LinkedHashMap<>();
         private final Map<Long, Map<String, Object>> committedWorkflowTasks = new LinkedHashMap<>();
+        private final Map<Long, Map<String, Object>> committedBindings = new LinkedHashMap<>();
         private final List<String> recordedSqls = new ArrayList<>();
 
         private TransactionalNamedParameterJdbcTemplate(TransactionHarness harness) {
@@ -494,7 +581,7 @@ class JdbcFilterLookupRegistrationWriteDaoTest {
         public <T> List<T> query(String sql, SqlParameterSource paramSource, RowMapper<T> rowMapper) {
             recordedSqls.add(sql);
             Map<String, Object> parameters = paramSource instanceof MapSqlParameterSource source ? source.getValues() : Map.of();
-            TransactionState state = harness.transactionState(committedLookups, committedWorkflowTasks);
+            TransactionState state = harness.transactionState(committedLookups, committedWorkflowTasks, committedBindings);
             Map<String, Object> row;
             if (sql.startsWith("INSERT INTO meta.semantic_filter_lookup")) {
                 row = insertedLookupRow(parameters);
@@ -505,6 +592,9 @@ class JdbcFilterLookupRegistrationWriteDaoTest {
             } else if (sql.startsWith("INSERT INTO wkfl.workflow_task")) {
                 row = insertedWorkflowTaskRow(parameters);
                 state.workflowRows.put(301L, row);
+            } else if (sql.startsWith("INSERT INTO meta.filter_lookup_binding")) {
+                row = insertedBindingRow(parameters);
+                state.bindingRows.put(501L, row);
             } else if (sql.startsWith("INSERT INTO meta.metadata_change_history")) {
                 row = metadataChangeRow();
             } else {
@@ -603,6 +693,21 @@ class JdbcFilterLookupRegistrationWriteDaoTest {
             row.put("approval_note_txt", parameters.get("approval_note_txt"));
             return row;
         }
+
+        private Map<String, Object> insertedBindingRow(Map<String, Object> parameters) {
+            Map<String, Object> row = new HashMap<>();
+            row.put("id", 501L);
+            row.put("client_id", parameters.get("client_id"));
+            row.put("lookup_cd", parameters.get("lookup_cd"));
+            row.put("bound_obj", parameters.get("bound_obj"));
+            row.put("bound_attr_cd", parameters.get("bound_attr_cd"));
+            row.put("binding_context_cd", parameters.get("binding_context_cd"));
+            row.put("binding_ref", parameters.get("binding_ref"));
+            row.put("bound_by", parameters.get("bound_by"));
+            row.put("bound_ts", parameters.get("bound_ts"));
+            row.put("is_active_flg", parameters.get("is_active_flg"));
+            return row;
+        }
     }
 
     private static final class TransactionHarness {
@@ -612,11 +717,13 @@ class JdbcFilterLookupRegistrationWriteDaoTest {
         private boolean rolledBack;
 
         private TransactionState transactionState(Map<String, Map<String, Object>> committedLookups,
-                                                  Map<Long, Map<String, Object>> committedWorkflowTasks) {
+                                                   Map<Long, Map<String, Object>> committedWorkflowTasks,
+                                                   Map<Long, Map<String, Object>> committedBindings) {
             if (state == null) {
                 state = new TransactionState(
                         new LinkedHashMap<>(committedLookups),
-                        new LinkedHashMap<>(committedWorkflowTasks)
+                        new LinkedHashMap<>(committedWorkflowTasks),
+                        new LinkedHashMap<>(committedBindings)
                 );
             }
             return state;
@@ -624,7 +731,8 @@ class JdbcFilterLookupRegistrationWriteDaoTest {
     }
 
     private record TransactionState(Map<String, Map<String, Object>> lookupRows,
-                                    Map<Long, Map<String, Object>> workflowRows) {
+                                    Map<Long, Map<String, Object>> workflowRows,
+                                    Map<Long, Map<String, Object>> bindingRows) {
     }
 
     private static final class RecordingTransactionOperations implements TransactionOperations {
