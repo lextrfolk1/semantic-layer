@@ -24,6 +24,9 @@ class SQLQueryLoaderUtilTest {
         String insertMetadataChangeHistoryQuery = loader.getQuery("object_registration.insert_metadata_change_history");
         String insertRelationshipQuery = loader.getQuery("relationship_registration.insert_relationship");
         String updateRelationshipProjectionSyncQuery = loader.getQuery("relationship_registration.update_neo4j_projection_sync");
+        String insertFilterLookupQuery = loader.getQuery("filter_lookup_registration.insert_lookup");
+        String insertFilterLookupWorkflowTaskQuery = loader.getQuery("filter_lookup_registration.insert_workflow_task");
+        String governancePolicyPresetByCodeQuery = loader.getQuery("governance_policy_preset.find_by_code");
         String objectListQuery = loader.getQuery("object_exposure.find_all");
         String objectByIdQuery = loader.getQuery("object_exposure.find_by_id");
         String objectBySchemaAndCodeQuery = loader.getQuery("object_exposure.find_by_schema_and_code");
@@ -58,6 +61,18 @@ class SQLQueryLoaderUtilTest {
         assertTrue(updateRelationshipProjectionSyncQuery.contains("UPDATE meta.semantic_relationship_catalog"));
         assertTrue(updateRelationshipProjectionSyncQuery.contains(":neo4j_synced_ts"));
         assertTrue(updateRelationshipProjectionSyncQuery.contains("WHERE relationship_cd = :relationship_cd"));
+        assertTrue(insertFilterLookupQuery.contains("INSERT INTO meta.semantic_filter_lookup"));
+        assertTrue(insertFilterLookupQuery.contains(":lookup_cd"));
+        assertTrue(insertFilterLookupQuery.contains(":review_period_days_override"));
+        assertTrue(insertFilterLookupQuery.contains("governance_status_cd"));
+        assertTrue(insertFilterLookupQuery.contains("next_review_due_dt"));
+        assertTrue(insertFilterLookupWorkflowTaskQuery.contains("INSERT INTO wkfl.workflow_task"));
+        assertTrue(insertFilterLookupWorkflowTaskQuery.contains(":entity_ref"));
+        assertTrue(insertFilterLookupWorkflowTaskQuery.contains(":submitted_ts"));
+        assertTrue(governancePolicyPresetByCodeQuery.contains("FROM governance.policy_preset"));
+        assertTrue(governancePolicyPresetByCodeQuery.contains(":policy_cd"));
+        assertTrue(governancePolicyPresetByCodeQuery.contains(":policy_scope_cd"));
+        assertTrue(governancePolicyPresetByCodeQuery.contains(":as_of_dt"));
         assertTrue(objectListQuery.contains("FROM meta.object_catalog"));
         assertTrue(objectListQuery.contains("effective_object_nm"));
         assertTrue(objectListQuery.contains(":schema_cd"));
