@@ -136,6 +136,35 @@ class AttributePairingRegistrationServiceImplTest {
         assertEquals(true, policyClient.requests.get(0).is_cross_engine_flg());
     }
 
+    @Test
+    void rollsBackPendingDaoWritesWhenAuditInsertFails() {
+        TransactionHarness harness = new TransactionHarness();
+        RecordingObjectExposureReadDao objectReadDao = new RecordingObjectExposureReadDao();
+        objectReadDao.object = objectRecord();
+        objectReadDao.attributes = List.of(attribute("customer_nm"), attribute("customer_id"));
+        RecordingAttributePairingRegistrationWriteDao writeDao = new RecordingAttributePairingRegistrationWriteDao(harness);
+        writeDao.failMetadataChangeInsert = true;
+        AttributePairingRegistrationServiceImpl service = new AttributePairingRegistrationServiceImpl(
+                objectReadDao,
+                writeDao,
+                new RecordingAttributePairingResolutionDao(true),
+                request -> new AttributePairingPolicyDecisionDto(true, null, null),
+                new RecordingTransactionOperations(harness)
+        );
+
+        AttributePairingRegistrationServiceException exception = assertThrows(
+                AttributePairingRegistrationServiceException.class,
+                () -> service.registerPairing(request(false))
+        );
+
+        assertTrue(exception.getMessage().contains("Unable to register attribute pairing"));
+        assertEquals(0, writeDao.committedPairings.size());
+        assertEquals(0, writeDao.committedWorkflowTasks.size());
+        assertEquals(0, writeDao.committedMetadataChanges.size());
+        assertTrue(harness.rolledBack);
+        assertTrue(!harness.committed);
+    }
+
     private static AttributePairingRegistrationRequestDto request(boolean crossEngine) {
         return new AttributePairingRegistrationRequestDto(
                 "client-a",
@@ -285,6 +314,7 @@ class AttributePairingRegistrationServiceImplTest {
         private AttributePairingCatalogWriteRequest pairingRequest;
         private FilterLookupWorkflowTaskWriteRequest workflowTaskRequest;
         private FilterLookupMetadataChangeHistoryWriteRequest metadataChangeRequest;
+        private boolean failMetadataChangeInsert;
 
         private RecordingAttributePairingRegistrationWriteDao(TransactionHarness harness) {
             this.harness = harness;
@@ -355,6 +385,9 @@ class AttributePairingRegistrationServiceImplTest {
                 FilterLookupMetadataChangeHistoryWriteRequest request
         ) {
             metadataChangeRequest = request;
+            if (failMetadataChangeInsert) {
+                throw new RuntimeException("metadata change insert failed");
+            }
             FilterLookupMetadataChangeHistoryRecord record = new FilterLookupMetadataChangeHistoryRecord(
                     301L,
                     request.entity_type_cd(),
