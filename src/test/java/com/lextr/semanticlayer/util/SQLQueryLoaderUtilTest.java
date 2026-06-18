@@ -28,6 +28,7 @@ class SQLQueryLoaderUtilTest {
         String insertFilterLookupWorkflowTaskQuery = loader.getQuery("filter_lookup_registration.insert_workflow_task");
         String insertFilterLookupMetadataChangeHistoryQuery = loader.getQuery("filter_lookup_registration.insert_metadata_change_history");
         String governancePolicyPresetByCodeQuery = loader.getQuery("governance_policy_preset.find_by_code");
+        String effectiveFilterLookupListQuery = loader.getQuery("filter_lookup_effective_review.find_all");
         String effectiveFilterLookupByCodeQuery = loader.getQuery("filter_lookup_effective_review.find_lookup_by_code");
         String filterLookupValueCountQuery = loader.getQuery("filter_lookup_effective_review.count_values_by_lookup");
         String objectListQuery = loader.getQuery("object_exposure.find_all");
@@ -79,6 +80,12 @@ class SQLQueryLoaderUtilTest {
         assertTrue(governancePolicyPresetByCodeQuery.contains(":policy_cd"));
         assertTrue(governancePolicyPresetByCodeQuery.contains(":policy_scope_cd"));
         assertTrue(governancePolicyPresetByCodeQuery.contains(":as_of_dt"));
+        assertTrue(effectiveFilterLookupListQuery.contains("FROM meta.semantic_filter_lookup"));
+        assertTrue(effectiveFilterLookupListQuery.contains(":client_id"));
+        assertTrue(effectiveFilterLookupListQuery.contains(":governance_status_cd"));
+        assertTrue(effectiveFilterLookupListQuery.contains(":health_status_cd"));
+        assertTrue(effectiveFilterLookupListQuery.contains(":lifecycle_status_cd"));
+        assertTrue(effectiveFilterLookupListQuery.contains("ORDER BY lookup_cd"));
         assertTrue(effectiveFilterLookupByCodeQuery.contains("FROM meta.semantic_filter_lookup"));
         assertTrue(effectiveFilterLookupByCodeQuery.contains(":client_id"));
         assertTrue(effectiveFilterLookupByCodeQuery.contains(":lookup_cd"));

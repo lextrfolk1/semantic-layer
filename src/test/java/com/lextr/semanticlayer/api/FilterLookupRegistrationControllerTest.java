@@ -5,6 +5,7 @@ import com.lextr.semanticlayer.dto.FilterLookupRegistrationRequestDto;
 import com.lextr.semanticlayer.dto.FilterLookupRegistrationResponseDto;
 import com.lextr.semanticlayer.exception.FilterLookupRegistrationServiceException;
 import com.lextr.semanticlayer.exception.PolicyViolationException;
+import com.lextr.semanticlayer.service.FilterLookupReadService;
 import com.lextr.semanticlayer.service.FilterLookupRegistrationService;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
@@ -103,7 +104,7 @@ class FilterLookupRegistrationControllerTest {
     }
 
     private static MockMvc mockMvc(FilterLookupRegistrationService service) {
-        FilterLookupRegistrationController controller = new FilterLookupRegistrationController(service);
+        FilterLookupRegistrationController controller = new FilterLookupRegistrationController(service, new NoOpFilterLookupReadService());
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
@@ -155,6 +156,22 @@ class FilterLookupRegistrationControllerTest {
                 throw error;
             }
             return response;
+        }
+    }
+
+    private static final class NoOpFilterLookupReadService implements FilterLookupReadService {
+
+        @Override
+        public java.util.List<com.lextr.semanticlayer.dto.FilterLookupEffectiveReviewDto> findLookups(String clientId,
+                                                                                                      String governanceStatusCode,
+                                                                                                      String healthStatusCode,
+                                                                                                      String lifecycleStatusCode) {
+            throw new UnsupportedOperationException("Not used in registration tests");
+        }
+
+        @Override
+        public com.lextr.semanticlayer.dto.FilterLookupEffectiveReviewDto findLookup(String clientId, String lookupCode) {
+            throw new UnsupportedOperationException("Not used in registration tests");
         }
     }
 }
