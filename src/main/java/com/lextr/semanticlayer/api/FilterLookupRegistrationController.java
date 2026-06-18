@@ -1,11 +1,17 @@
 package com.lextr.semanticlayer.api;
 
+import com.lextr.semanticlayer.dto.FilterLookupPreviewRequestDto;
+import com.lextr.semanticlayer.dto.FilterLookupPreviewResponseDto;
 import com.lextr.semanticlayer.dto.FilterLookupEffectiveReviewDto;
 import com.lextr.semanticlayer.dto.FilterLookupRegistrationRequestDto;
 import com.lextr.semanticlayer.dto.FilterLookupRegistrationResponseDto;
+import com.lextr.semanticlayer.exception.FilterLookupPreviewServiceException;
+import com.lextr.semanticlayer.service.FilterLookupPreviewService;
 import com.lextr.semanticlayer.service.FilterLookupReadService;
 import com.lextr.semanticlayer.service.FilterLookupRegistrationService;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -24,11 +30,32 @@ public class FilterLookupRegistrationController {
 
     private final FilterLookupRegistrationService filterLookupRegistrationService;
     private final FilterLookupReadService filterLookupReadService;
+    private final FilterLookupPreviewService filterLookupPreviewService;
 
-    public FilterLookupRegistrationController(FilterLookupRegistrationService filterLookupRegistrationService,
-                                              FilterLookupReadService filterLookupReadService) {
+    @Autowired
+    public FilterLookupRegistrationController(
+            FilterLookupRegistrationService filterLookupRegistrationService,
+            FilterLookupReadService filterLookupReadService,
+            ObjectProvider<FilterLookupPreviewService> filterLookupPreviewServiceProvider
+    ) {
+        this(
+                filterLookupRegistrationService,
+                filterLookupReadService,
+                filterLookupPreviewServiceProvider.getIfAvailable(MissingFilterLookupPreviewService::new)
+        );
+    }
+
+    FilterLookupRegistrationController(FilterLookupRegistrationService filterLookupRegistrationService,
+                                       FilterLookupReadService filterLookupReadService) {
+        this(filterLookupRegistrationService, filterLookupReadService, new MissingFilterLookupPreviewService());
+    }
+
+    FilterLookupRegistrationController(FilterLookupRegistrationService filterLookupRegistrationService,
+                                       FilterLookupReadService filterLookupReadService,
+                                       FilterLookupPreviewService filterLookupPreviewService) {
         this.filterLookupRegistrationService = filterLookupRegistrationService;
         this.filterLookupReadService = filterLookupReadService;
+        this.filterLookupPreviewService = filterLookupPreviewService;
     }
 
     @PostMapping
@@ -36,6 +63,12 @@ public class FilterLookupRegistrationController {
     public FilterLookupRegistrationResponseDto registerFilterLookup(
             @Valid @RequestBody FilterLookupRegistrationRequestDto request) {
         return filterLookupRegistrationService.registerFilterLookup(request);
+    }
+
+    @PostMapping("/preview")
+    public List<FilterLookupPreviewResponseDto> previewLookups(
+            @Valid @RequestBody FilterLookupPreviewRequestDto request) {
+        return filterLookupPreviewService.previewLookups(request);
     }
 
     @GetMapping
@@ -52,5 +85,13 @@ public class FilterLookupRegistrationController {
             @RequestParam("client_id") String clientId,
             @PathVariable("lookup_code") String lookupCode) {
         return filterLookupReadService.findLookup(clientId, lookupCode);
+    }
+
+    private static final class MissingFilterLookupPreviewService implements FilterLookupPreviewService {
+
+        @Override
+        public List<FilterLookupPreviewResponseDto> previewLookups(FilterLookupPreviewRequestDto request) {
+            throw new FilterLookupPreviewServiceException("FilterLookupPreviewService is not configured");
+        }
     }
 }
