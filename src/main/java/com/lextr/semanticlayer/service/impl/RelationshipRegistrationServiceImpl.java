@@ -14,9 +14,12 @@ import com.lextr.semanticlayer.exception.RelationshipRegistrationServiceExceptio
 import com.lextr.semanticlayer.model.DataConnectionRecord;
 import com.lextr.semanticlayer.model.MetadataChangeHistoryWriteRequest;
 import com.lextr.semanticlayer.model.ObjectExposureRecord;
+import com.lextr.semanticlayer.model.RelationshipGraphProjectionRequest;
 import com.lextr.semanticlayer.model.SemanticRelationshipCatalogRecord;
 import com.lextr.semanticlayer.model.SemanticRelationshipCatalogWriteRequest;
+import com.lextr.semanticlayer.model.SemanticRelationshipProjectionSyncWriteRequest;
 import com.lextr.semanticlayer.model.WorkflowTaskWriteRequest;
+import com.lextr.semanticlayer.service.RelationshipGraphProjectionClient;
 import com.lextr.semanticlayer.service.RelationshipPolicyClient;
 import com.lextr.semanticlayer.service.RelationshipRegistrationService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,6 +47,7 @@ public class RelationshipRegistrationServiceImpl implements RelationshipRegistra
     private final ObjectRegistrationWriteDao objectRegistrationWriteDao;
     private final ObjectExposureReadDao objectExposureReadDao;
     private final RegistryReadDao registryReadDao;
+    private final RelationshipGraphProjectionClient relationshipGraphProjectionClient;
     private final RelationshipPolicyClient relationshipPolicyClient;
     private final TransactionOperations transactionOperations;
 
@@ -52,6 +56,7 @@ public class RelationshipRegistrationServiceImpl implements RelationshipRegistra
                                                ObjectRegistrationWriteDao objectRegistrationWriteDao,
                                                ObjectExposureReadDao objectExposureReadDao,
                                                RegistryReadDao registryReadDao,
+                                               ObjectProvider<RelationshipGraphProjectionClient> relationshipGraphProjectionClientProvider,
                                                ObjectProvider<RelationshipPolicyClient> relationshipPolicyClientProvider,
                                                ObjectProvider<TransactionOperations> transactionOperationsProvider) {
         this(
@@ -59,6 +64,7 @@ public class RelationshipRegistrationServiceImpl implements RelationshipRegistra
                 objectRegistrationWriteDao,
                 objectExposureReadDao,
                 registryReadDao,
+                relationshipGraphProjectionClientProvider.getIfAvailable(() -> request -> false),
                 relationshipPolicyClientProvider.getIfAvailable(() -> request -> new RelationshipPolicyDecisionDto(true, null, null)),
                 transactionOperationsProvider.getIfAvailable(NoOpTransactionOperations::new)
         );
@@ -68,12 +74,14 @@ public class RelationshipRegistrationServiceImpl implements RelationshipRegistra
                                         ObjectRegistrationWriteDao objectRegistrationWriteDao,
                                         ObjectExposureReadDao objectExposureReadDao,
                                         RegistryReadDao registryReadDao,
+                                        RelationshipGraphProjectionClient relationshipGraphProjectionClient,
                                         RelationshipPolicyClient relationshipPolicyClient,
                                         TransactionOperations transactionOperations) {
         this.relationshipRegistrationWriteDao = relationshipRegistrationWriteDao;
         this.objectRegistrationWriteDao = objectRegistrationWriteDao;
         this.objectExposureReadDao = objectExposureReadDao;
         this.registryReadDao = registryReadDao;
+        this.relationshipGraphProjectionClient = relationshipGraphProjectionClient;
         this.relationshipPolicyClient = relationshipPolicyClient;
         this.transactionOperations = transactionOperations;
     }
@@ -99,6 +107,8 @@ public class RelationshipRegistrationServiceImpl implements RelationshipRegistra
                     request,
                     clientId,
                     crossEngine,
+                    parentConnection.engine_cd(),
+                    childConnection.engine_cd(),
                     now,
                     relationshipEntityId,
                     workflowTaskId,
@@ -133,6 +143,8 @@ public class RelationshipRegistrationServiceImpl implements RelationshipRegistra
     private RelationshipRegistrationResponseDto persistRegistration(RelationshipRegistrationRequestDto request,
                                                                     String clientId,
                                                                     boolean crossEngine,
+                                                                    String parentEngineCode,
+                                                                    String childEngineCode,
                                                                     OffsetDateTime now,
                                                                     UUID relationshipEntityId,
                                                                     UUID workflowTaskId,
@@ -186,7 +198,15 @@ public class RelationshipRegistrationServiceImpl implements RelationshipRegistra
                 request.registered_by()
         ));
 
-        return toResponse(record);
+        SemanticRelationshipCatalogRecord projectedRecord = projectRelationshipGraph(
+                request,
+                record,
+                parentEngineCode,
+                childEngineCode,
+                now
+        );
+
+        return toResponse(projectedRecord);
     }
 
     private RelationshipRegistrationResponseDto toResponse(SemanticRelationshipCatalogRecord record) {
@@ -254,6 +274,44 @@ public class RelationshipRegistrationServiceImpl implements RelationshipRegistra
         } catch (RuntimeException exception) {
             throw new SemanticLayerException("Unable to derive relationship entity identifier", exception);
         }
+    }
+
+    private SemanticRelationshipCatalogRecord projectRelationshipGraph(RelationshipRegistrationRequestDto request,
+                                                                       SemanticRelationshipCatalogRecord record,
+                                                                       String parentEngineCode,
+                                                                       String childEngineCode,
+                                                                       OffsetDateTime projectedAt) {
+        boolean projected = relationshipGraphProjectionClient.projectRelationship(new RelationshipGraphProjectionRequest(
+                record.relationship_cd(),
+                record.parent_schema_cd(),
+                record.parent_object_cd(),
+                record.parent_attribute_cd(),
+                parentEngineCode,
+                record.child_schema_cd(),
+                record.child_object_cd(),
+                record.child_attribute_cd(),
+                childEngineCode,
+                record.relationship_type_cd(),
+                record.cardinality_cd(),
+                record.join_type_cd(),
+                record.is_enforced_flg(),
+                record.is_nullable_flg(),
+                record.is_cross_engine_flg(),
+                record.relationship_desc(),
+                record.ai_join_guidance_txt(),
+                record.lifecycle_status_cd(),
+                projectedAt,
+                request.registered_by()
+        ));
+        if (!projected) {
+            return record;
+        }
+        return relationshipRegistrationWriteDao.updateNeo4jProjectionSync(new SemanticRelationshipProjectionSyncWriteRequest(
+                record.relationship_cd(),
+                projectedAt,
+                projectedAt,
+                request.registered_by()
+        ));
     }
 
     private static final class NoOpTransactionOperations implements TransactionOperations {

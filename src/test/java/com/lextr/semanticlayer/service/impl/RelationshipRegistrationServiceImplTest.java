@@ -16,6 +16,7 @@ import com.lextr.semanticlayer.model.MetadataChangeHistoryWriteRequest;
 import com.lextr.semanticlayer.model.ObjectCatalogRecord;
 import com.lextr.semanticlayer.model.ObjectCatalogWriteRequest;
 import com.lextr.semanticlayer.model.ObjectExposureRecord;
+import com.lextr.semanticlayer.model.RelationshipGraphProjectionRequest;
 import com.lextr.semanticlayer.exception.PolicyViolationException;
 import com.lextr.semanticlayer.exception.RelationshipRegistrationServiceException;
 import com.lextr.semanticlayer.model.SemanticRelationshipCatalogRecord;
@@ -23,6 +24,7 @@ import com.lextr.semanticlayer.model.SemanticRelationshipCatalogWriteRequest;
 import com.lextr.semanticlayer.model.SemanticRelationshipProjectionSyncWriteRequest;
 import com.lextr.semanticlayer.model.WorkflowTaskRecord;
 import com.lextr.semanticlayer.model.WorkflowTaskWriteRequest;
+import com.lextr.semanticlayer.service.RelationshipGraphProjectionClient;
 import com.lextr.semanticlayer.service.RelationshipPolicyClient;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.TransactionStatus;
@@ -82,11 +84,13 @@ class RelationshipRegistrationServiceImplTest {
         RecordingRelationshipPolicyClient policyClient = new RecordingRelationshipPolicyClient(
                 new RelationshipPolicyDecisionDto(true, null, null)
         );
+        RecordingRelationshipGraphProjectionClient projectionClient = new RecordingRelationshipGraphProjectionClient(true);
         RelationshipRegistrationServiceImpl service = new RelationshipRegistrationServiceImpl(
                 relationshipDao,
                 sideEffectDao,
                 objectReadDao,
                 registryReadDao,
+                projectionClient,
                 policyClient,
                 new RecordingTransactionOperations(harness)
         );
@@ -125,9 +129,15 @@ class RelationshipRegistrationServiceImplTest {
         assertEquals("PENDING_APPROVAL", sideEffectDao.workflowTaskRequest.task_status_cd());
         assertEquals("REGISTERED", sideEffectDao.metadataChangeHistoryRequest.change_type_cd());
         assertTrue(sideEffectDao.metadataChangeHistoryRequest.change_summary_txt().contains("GL_TO_LEDGER"));
+        assertEquals(1, projectionClient.requests.size());
+        assertEquals("POSTGRES", projectionClient.requests.get(0).parent_engine_cd());
+        assertEquals("POSTGRES", projectionClient.requests.get(0).child_engine_cd());
+        assertNotNull(relationshipDao.syncRequest);
+        assertEquals("GL_TO_LEDGER", relationshipDao.syncRequest.relationship_cd());
         assertEquals(101L, response.id());
         assertEquals("ACTIVE", response.lifecycle_status_cd());
         assertEquals("FOREIGN_KEY", response.relationship_type_cd());
+        assertNotNull(response.neo4j_synced_ts());
     }
 
     @Test
@@ -151,6 +161,9 @@ class RelationshipRegistrationServiceImplTest {
                 sideEffectDao,
                 objectReadDao,
                 registryReadDao,
+                request -> {
+                    throw new UnsupportedOperationException("Projection should not run for denied requests");
+                },
                 policyClient,
                 new RecordingTransactionOperations(harness)
         );
@@ -224,6 +237,7 @@ class RelationshipRegistrationServiceImplTest {
                 sideEffectDao,
                 objectReadDao,
                 registryReadDao,
+                request -> true,
                 request -> new RelationshipPolicyDecisionDto(true, null, null),
                 new RecordingTransactionOperations(harness)
         );
@@ -258,6 +272,7 @@ class RelationshipRegistrationServiceImplTest {
 
         private final TransactionHarness harness;
         private SemanticRelationshipCatalogWriteRequest lastRequest;
+        private SemanticRelationshipProjectionSyncWriteRequest syncRequest;
         private SemanticRelationshipCatalogRecord response;
         private final List<SemanticRelationshipCatalogRecord> committedRelationships = new ArrayList<>();
 
@@ -274,7 +289,48 @@ class RelationshipRegistrationServiceImplTest {
 
         @Override
         public SemanticRelationshipCatalogRecord updateNeo4jProjectionSync(SemanticRelationshipProjectionSyncWriteRequest request) {
-            throw new UnsupportedOperationException("Not used in relationship service tests");
+            syncRequest = request;
+            response = new SemanticRelationshipCatalogRecord(
+                    response.id(),
+                    response.relationship_cd(),
+                    response.parent_schema_cd(),
+                    response.parent_object_cd(),
+                    response.parent_attribute_cd(),
+                    response.child_schema_cd(),
+                    response.child_object_cd(),
+                    response.child_attribute_cd(),
+                    response.relationship_type_cd(),
+                    response.cardinality_cd(),
+                    response.join_type_cd(),
+                    response.is_enforced_flg(),
+                    response.is_nullable_flg(),
+                    response.is_cross_engine_flg(),
+                    response.relationship_desc(),
+                    response.ai_join_guidance_txt(),
+                    request.neo4j_synced_ts(),
+                    response.lifecycle_status_cd(),
+                    response.created_ts(),
+                    response.created_by(),
+                    request.updated_ts(),
+                    request.updated_by()
+            );
+            return response;
+        }
+    }
+
+    private static final class RecordingRelationshipGraphProjectionClient implements RelationshipGraphProjectionClient {
+
+        private final boolean result;
+        private final List<RelationshipGraphProjectionRequest> requests = new ArrayList<>();
+
+        private RecordingRelationshipGraphProjectionClient(boolean result) {
+            this.result = result;
+        }
+
+        @Override
+        public boolean projectRelationship(RelationshipGraphProjectionRequest request) {
+            requests.add(request);
+            return result;
         }
     }
 
