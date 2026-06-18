@@ -17,6 +17,7 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.regex.Pattern;
 
 @Repository
 public class JdbcFilterLookupReadDao implements FilterLookupReadDao {
@@ -24,7 +25,10 @@ public class JdbcFilterLookupReadDao implements FilterLookupReadDao {
     static final String FIND_ALL = "filter_lookup_effective_review.find_all";
     static final String FIND_BY_CODE = "filter_lookup_effective_review.find_lookup_by_code";
     static final String FIND_MANUAL_VALUES_BY_LOOKUP = "filter_lookup_effective_review.find_manual_values_by_lookup";
+    static final String FIND_SQL_VALUES_TEMPLATE = "filter_lookup_effective_review.find_sql_values_template";
     static final String COUNT_VALUES_BY_LOOKUP = "filter_lookup_effective_review.count_values_by_lookup";
+    private static final Pattern SQL_IDENTIFIER = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
+    private static final int DEFAULT_MAX_OUTPUT_ROWS = 10_000;
 
     private final ObjectProvider<NamedParameterJdbcTemplate> jdbcTemplateProvider;
     private final SQLQueryLoaderUtil sqlQueryLoaderUtil;
@@ -77,6 +81,19 @@ public class JdbcFilterLookupReadDao implements FilterLookupReadDao {
     }
 
     @Override
+    public List<FilterLookupPreviewValueRecord> findSqlValues(String clientId, SemanticFilterLookupRecord lookup) {
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("lookup_cd", lookup.lookup_cd())
+                .addValue("client_id", clientId)
+                .addValue("max_output_rows", lookup.max_output_rows() == null ? DEFAULT_MAX_OUTPUT_ROWS : lookup.max_output_rows());
+        return jdbcTemplate().query(
+                sqlPreviewQuery(lookup),
+                parameters,
+                previewValueRowMapper()
+        );
+    }
+
+    @Override
     public long countValues(String clientId, String lookupCode) {
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("client_id", clientId)
@@ -88,12 +105,55 @@ public class JdbcFilterLookupReadDao implements FilterLookupReadDao {
         ).stream().findFirst().orElse(0L);
     }
 
+    private String sqlPreviewQuery(SemanticFilterLookupRecord lookup) {
+        String template = sqlQueryLoaderUtil.getQuery(FIND_SQL_VALUES_TEMPLATE);
+        return String.format(
+                template,
+                requiredIdentifier(lookup.filter_attr_cd(), "filter_attr_cd"),
+                requiredQualifiedName(lookup.filter_obj(), "filter_obj"),
+                safeCondition(lookup.filter_condition_txt())
+        );
+    }
+
     private NamedParameterJdbcTemplate jdbcTemplate() {
         NamedParameterJdbcTemplate jdbcTemplate = jdbcTemplateProvider.getIfAvailable();
         if (jdbcTemplate == null) {
             throw new SemanticLayerException("NamedParameterJdbcTemplate is not configured");
         }
         return jdbcTemplate;
+    }
+
+    private String requiredIdentifier(String candidate, String fieldName) {
+        if (candidate == null || candidate.isBlank() || !SQL_IDENTIFIER.matcher(candidate).matches()) {
+            throw new SemanticLayerException("Invalid SQL identifier for " + fieldName);
+        }
+        return candidate;
+    }
+
+    private String requiredQualifiedName(String candidate, String fieldName) {
+        if (candidate == null || candidate.isBlank()) {
+            throw new SemanticLayerException("Invalid qualified SQL name for " + fieldName);
+        }
+        String[] parts = candidate.split("\\.");
+        if (parts.length == 0 || parts.length > 2) {
+            throw new SemanticLayerException("Invalid qualified SQL name for " + fieldName);
+        }
+        for (String part : parts) {
+            if (!SQL_IDENTIFIER.matcher(part).matches()) {
+                throw new SemanticLayerException("Invalid qualified SQL name for " + fieldName);
+            }
+        }
+        return String.join(".", parts);
+    }
+
+    private String safeCondition(String condition) {
+        if (condition == null || condition.isBlank()) {
+            return "TRUE";
+        }
+        if (condition.contains(";") || condition.contains("--") || condition.contains("/*") || condition.contains("*/")) {
+            throw new SemanticLayerException("Unsafe SQL filter condition");
+        }
+        return condition;
     }
 
     static RowMapper<SemanticFilterLookupRecord> filterLookupRowMapper() {

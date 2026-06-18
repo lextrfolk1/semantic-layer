@@ -17,5 +17,9 @@ public interface FilterLookupReadDao {
 
     List<FilterLookupPreviewValueRecord> findManualValues(String clientId, String lookupCode);
 
+    default List<FilterLookupPreviewValueRecord> findSqlValues(String clientId, SemanticFilterLookupRecord lookup) {
+        return List.of();
+    }
+
     long countValues(String clientId, String lookupCode);
 }
