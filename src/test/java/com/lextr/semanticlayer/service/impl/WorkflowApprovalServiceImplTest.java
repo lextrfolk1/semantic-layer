@@ -1,0 +1,456 @@
+package com.lextr.semanticlayer.service.impl;
+
+import com.lextr.semanticlayer.dao.FilterLookupRegistrationWriteDao;
+import com.lextr.semanticlayer.dao.WorkflowApprovalDao;
+import com.lextr.semanticlayer.dto.WorkflowApprovalRequestDto;
+import com.lextr.semanticlayer.dto.WorkflowTaskResponseDto;
+import com.lextr.semanticlayer.dto.WorkflowPolicyDecisionDto;
+import com.lextr.semanticlayer.dto.WorkflowPolicyRequestDto;
+import com.lextr.semanticlayer.exception.PolicyViolationException;
+import com.lextr.semanticlayer.exception.RegistryResourceNotFoundException;
+import com.lextr.semanticlayer.exception.WorkflowApprovalServiceException;
+import com.lextr.semanticlayer.exception.WorkflowTaskAlreadyApprovedException;
+import com.lextr.semanticlayer.model.FilterLookupWorkflowTaskRecord;
+import com.lextr.semanticlayer.model.FilterLookupMetadataChangeHistoryRecord;
+import com.lextr.semanticlayer.model.FilterLookupMetadataChangeHistoryWriteRequest;
+import com.lextr.semanticlayer.service.WorkflowPolicyClient;
+import org.junit.jupiter.api.Test;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.support.TransactionOperations;
+
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+class WorkflowApprovalServiceImplTest {
+
+    @Test
+    void approvesTaskAtomicallyAndWritesAudit() {
+        TransactionHarness harness = new TransactionHarness();
+        RecordingWorkflowApprovalDao dao = new RecordingWorkflowApprovalDao();
+        OffsetDateTime submittedTs = OffsetDateTime.parse("2026-06-18T10:15:30Z");
+        dao.tasks.put(301L, new FilterLookupWorkflowTaskRecord(
+                301L,
+                "FILTER_LOOKUP_REGISTRATION",
+                "FILTER_LOOKUP",
+                "LEDGER_SCOPE",
+                "PENDING",
+                "producer",
+                submittedTs,
+                null,
+                LocalDate.parse("2026-09-16"),
+                "Review filter lookup LEDGER_SCOPE",
+                "client-a",
+                null,
+                null,
+                null
+        ));
+
+        RecordingFilterLookupRegistrationWriteDao writeDao = new RecordingFilterLookupRegistrationWriteDao();
+        RecordingWorkflowPolicyClient policyClient = new RecordingWorkflowPolicyClient(
+                new WorkflowPolicyDecisionDto(true, null, null)
+        );
+
+        WorkflowApprovalServiceImpl service = new WorkflowApprovalServiceImpl(
+                dao,
+                writeDao,
+                policyClient,
+                new RecordingTransactionOperations(harness)
+        );
+
+        WorkflowTaskResponseDto response = service.approveTask(
+                301L,
+                new WorkflowApprovalRequestDto("client-a", "approver", "looks good")
+        );
+
+        assertTrue(harness.committed);
+        assertEquals("APPROVED", response.task_status_cd());
+        assertEquals("approver", response.approved_by());
+        assertEquals("looks good", response.approval_note_txt());
+        assertNotNull(response.approved_ts());
+
+        // Side effect verified
+        assertEquals("ACTIVE", dao.lookupStatus.get("LEDGER_SCOPE"));
+
+        // Audit verified
+        assertEquals(1, writeDao.metadataChanges.size());
+        assertEquals("APPROVED", writeDao.metadataChanges.get(0).change_type_cd());
+        assertEquals("LEDGER_SCOPE", writeDao.metadataChanges.get(0).entity_ref());
+
+        // Policy checked
+        assertEquals(1, policyClient.requests.size());
+        assertEquals("approver", policyClient.requests.get(0).approved_by());
+    }
+
+    @Test
+    void appliesOverrideSideEffectOnApproval() {
+        TransactionHarness harness = new TransactionHarness();
+        RecordingWorkflowApprovalDao dao = new RecordingWorkflowApprovalDao();
+        dao.tasks.put(302L, new FilterLookupWorkflowTaskRecord(
+                302L,
+                "ATTRIBUTE_LOGICAL_NAME_OVERRIDE",
+                "ATTRIBUTE",
+                "402",
+                "PENDING",
+                "producer",
+                OffsetDateTime.now(),
+                null,
+                null,
+                "Review override",
+                "client-a",
+                null,
+                null,
+                null
+        ));
+
+        RecordingFilterLookupRegistrationWriteDao writeDao = new RecordingFilterLookupRegistrationWriteDao();
+        WorkflowApprovalServiceImpl service = new WorkflowApprovalServiceImpl(
+                dao,
+                writeDao,
+                new RecordingWorkflowPolicyClient(new WorkflowPolicyDecisionDto(true, null, null)),
+                new RecordingTransactionOperations(harness)
+        );
+
+        service.approveTask(302L, new WorkflowApprovalRequestDto("client-a", "approver", "approved"));
+        assertEquals("ACTIVE", dao.overrideStatus.get(402L));
+    }
+
+    @Test
+    void appliesValueSideEffectOnApproval() {
+        TransactionHarness harness = new TransactionHarness();
+        RecordingWorkflowApprovalDao dao = new RecordingWorkflowApprovalDao();
+        dao.tasks.put(303L, new FilterLookupWorkflowTaskRecord(
+                303L,
+                "FILTER_LOOKUP_VALUE",
+                "FILTER_LOOKUP",
+                "LEDGER_SCOPE:USD",
+                "PENDING",
+                "producer",
+                OffsetDateTime.now(),
+                null,
+                null,
+                "Review USD value",
+                "client-a",
+                null,
+                null,
+                null
+        ));
+
+        RecordingFilterLookupRegistrationWriteDao writeDao = new RecordingFilterLookupRegistrationWriteDao();
+        WorkflowApprovalServiceImpl service = new WorkflowApprovalServiceImpl(
+                dao,
+                writeDao,
+                new RecordingWorkflowPolicyClient(new WorkflowPolicyDecisionDto(true, null, null)),
+                new RecordingTransactionOperations(harness)
+        );
+
+        service.approveTask(303L, new WorkflowApprovalRequestDto("client-a", "approver", "approved"));
+        assertEquals("ACTIVE", dao.valueStatus.get("LEDGER_SCOPE:USD"));
+        assertTrue(dao.valueValidated.get("LEDGER_SCOPE:USD"));
+    }
+
+    @Test
+    void surfacesPolicyBlockAndDoesNotWriteToDb() {
+        TransactionHarness harness = new TransactionHarness();
+        RecordingWorkflowApprovalDao dao = new RecordingWorkflowApprovalDao();
+        dao.tasks.put(301L, new FilterLookupWorkflowTaskRecord(
+                301L,
+                "FILTER_LOOKUP_REGISTRATION",
+                "FILTER_LOOKUP",
+                "LEDGER_SCOPE",
+                "PENDING",
+                "producer",
+                OffsetDateTime.now(),
+                null,
+                null,
+                "Review",
+                "client-a",
+                null,
+                null,
+                null
+        ));
+
+        RecordingFilterLookupRegistrationWriteDao writeDao = new RecordingFilterLookupRegistrationWriteDao();
+        RecordingWorkflowPolicyClient policyClient = new RecordingWorkflowPolicyClient(
+                new WorkflowPolicyDecisionDto(false, "POL-SV-003", "Approver cannot be the same as submitter")
+        );
+
+        WorkflowApprovalServiceImpl service = new WorkflowApprovalServiceImpl(
+                dao,
+                writeDao,
+                policyClient,
+                new RecordingTransactionOperations(harness)
+        );
+
+        PolicyViolationException exception = assertThrows(PolicyViolationException.class, () ->
+                service.approveTask(301L, new WorkflowApprovalRequestDto("client-a", "producer", "self approval"))
+        );
+
+        assertEquals("POL-SV-003", exception.code());
+        assertEquals("Approver cannot be the same as submitter", exception.getMessage());
+        assertFalse(harness.committed);
+        assertNull(dao.lookupStatus.get("LEDGER_SCOPE"));
+        assertEquals(0, writeDao.metadataChanges.size());
+    }
+
+    @Test
+    void throwsTaskAlreadyApprovedWhenStatusNotPending() {
+        TransactionHarness harness = new TransactionHarness();
+        RecordingWorkflowApprovalDao dao = new RecordingWorkflowApprovalDao();
+        dao.tasks.put(301L, new FilterLookupWorkflowTaskRecord(
+                301L,
+                "FILTER_LOOKUP_REGISTRATION",
+                "FILTER_LOOKUP",
+                "LEDGER_SCOPE",
+                "APPROVED",
+                "producer",
+                OffsetDateTime.now(),
+                null,
+                null,
+                "Review",
+                "client-a",
+                "approver1",
+                OffsetDateTime.now(),
+                "done"
+        ));
+
+        WorkflowApprovalServiceImpl service = new WorkflowApprovalServiceImpl(
+                dao,
+                new RecordingFilterLookupRegistrationWriteDao(),
+                new RecordingWorkflowPolicyClient(new WorkflowPolicyDecisionDto(true, null, null)),
+                new RecordingTransactionOperations(harness)
+        );
+
+        assertThrows(WorkflowTaskAlreadyApprovedException.class, () ->
+                service.approveTask(301L, new WorkflowApprovalRequestDto("client-a", "approver2", "re-approve"))
+        );
+    }
+
+    @Test
+    void throwsResourceNotFoundForUnknownTask() {
+        TransactionHarness harness = new TransactionHarness();
+        RecordingWorkflowApprovalDao dao = new RecordingWorkflowApprovalDao();
+
+        WorkflowApprovalServiceImpl service = new WorkflowApprovalServiceImpl(
+                dao,
+                new RecordingFilterLookupRegistrationWriteDao(),
+                new RecordingWorkflowPolicyClient(new WorkflowPolicyDecisionDto(true, null, null)),
+                new RecordingTransactionOperations(harness)
+        );
+
+        assertThrows(RegistryResourceNotFoundException.class, () ->
+                service.approveTask(999L, new WorkflowApprovalRequestDto("client-a", "approver", "looks good"))
+        );
+    }
+
+    @Test
+    void rollsBackAndWrapsExceptions() {
+        TransactionHarness harness = new TransactionHarness();
+        RecordingWorkflowApprovalDao dao = new RecordingWorkflowApprovalDao() {
+            @Override
+            public FilterLookupWorkflowTaskRecord approveTask(String clientId, Long id, String approvedBy, OffsetDateTime approvedTs, String approvalNote) {
+                throw new RuntimeException("DB Connection Lost");
+            }
+        };
+        dao.tasks.put(301L, new FilterLookupWorkflowTaskRecord(
+                301L,
+                "FILTER_LOOKUP_REGISTRATION",
+                "FILTER_LOOKUP",
+                "LEDGER_SCOPE",
+                "PENDING",
+                "producer",
+                OffsetDateTime.now(),
+                null,
+                null,
+                "Review",
+                "client-a",
+                null,
+                null,
+                null
+        ));
+
+        WorkflowApprovalServiceImpl service = new WorkflowApprovalServiceImpl(
+                dao,
+                new RecordingFilterLookupRegistrationWriteDao(),
+                new RecordingWorkflowPolicyClient(new WorkflowPolicyDecisionDto(true, null, null)),
+                new RecordingTransactionOperations(harness)
+        );
+
+        assertThrows(WorkflowApprovalServiceException.class, () ->
+                service.approveTask(301L, new WorkflowApprovalRequestDto("client-a", "approver", "approve"))
+        );
+
+        assertTrue(harness.rolledBack);
+    }
+
+    private static class RecordingWorkflowApprovalDao implements WorkflowApprovalDao {
+        private final Map<Long, FilterLookupWorkflowTaskRecord> tasks = new HashMap<>();
+        private final Map<String, String> lookupStatus = new HashMap<>();
+        private final Map<Long, String> overrideStatus = new HashMap<>();
+        private final Map<String, String> valueStatus = new HashMap<>();
+        private final Map<String, Boolean> valueValidated = new HashMap<>();
+
+        @Override
+        public FilterLookupWorkflowTaskRecord findTaskById(String clientId, Long id) {
+            FilterLookupWorkflowTaskRecord record = tasks.get(id);
+            if (record != null && record.client_id().equals(clientId)) {
+                return record;
+            }
+            return null;
+        }
+
+        @Override
+        public FilterLookupWorkflowTaskRecord approveTask(String clientId, Long id, String approvedBy, OffsetDateTime approvedTs, String approvalNote) {
+            FilterLookupWorkflowTaskRecord record = tasks.get(id);
+            if (record == null || !record.client_id().equals(clientId)) {
+                throw new IllegalArgumentException("Task not found");
+            }
+            FilterLookupWorkflowTaskRecord approved = new FilterLookupWorkflowTaskRecord(
+                    record.id(),
+                    record.task_type_cd(),
+                    record.entity_type_cd(),
+                    record.entity_ref(),
+                    "APPROVED",
+                    record.submitted_by(),
+                    record.submitted_ts(),
+                    record.assigned_to(),
+                    record.due_dt(),
+                    record.description_txt(),
+                    record.client_id(),
+                    approvedBy,
+                    approvedTs,
+                    approvalNote
+            );
+            tasks.put(id, approved);
+            return approved;
+        }
+
+        @Override
+        public void approveLookup(String clientId, String lookupCd, String governanceStatus, OffsetDateTime updatedTs, String updatedBy) {
+            lookupStatus.put(lookupCd, governanceStatus);
+        }
+
+        @Override
+        public void approveAttributeOverride(String clientId, Long id, String lifecycleStatus, OffsetDateTime updatedTs, String updatedBy) {
+            overrideStatus.put(id, lifecycleStatus);
+        }
+
+        @Override
+        public void approveFilterLookupValue(String lookupCd, String valueCd, String lifecycleStatus, boolean validated, OffsetDateTime updatedTs) {
+            valueStatus.put(lookupCd + ":" + valueCd, lifecycleStatus);
+            valueValidated.put(lookupCd + ":" + valueCd, validated);
+        }
+    }
+
+    private static final class RecordingFilterLookupRegistrationWriteDao implements FilterLookupRegistrationWriteDao {
+        private final List<FilterLookupMetadataChangeHistoryWriteRequest> metadataChanges = new ArrayList<>();
+
+        @Override
+        public com.lextr.semanticlayer.model.SemanticFilterLookupRecord insertLookup(com.lextr.semanticlayer.model.SemanticFilterLookupWriteRequest request) {
+            return null;
+        }
+
+        @Override
+        public com.lextr.semanticlayer.model.FilterLookupWorkflowTaskRecord insertWorkflowTask(com.lextr.semanticlayer.model.FilterLookupWorkflowTaskWriteRequest request) {
+            return null;
+        }
+
+        @Override
+        public FilterLookupMetadataChangeHistoryRecord insertMetadataChangeHistory(FilterLookupMetadataChangeHistoryWriteRequest request) {
+            metadataChanges.add(request);
+            return new FilterLookupMetadataChangeHistoryRecord(
+                    401L,
+                    request.entity_type_cd(),
+                    request.entity_ref(),
+                    request.change_type_cd(),
+                    request.changed_by(),
+                    request.changed_ts(),
+                    request.old_value_json(),
+                    request.new_value_json(),
+                    request.change_reason_txt()
+            );
+        }
+    }
+
+    private static final class RecordingWorkflowPolicyClient implements WorkflowPolicyClient {
+        private final WorkflowPolicyDecisionDto decision;
+        private final List<WorkflowPolicyRequestDto> requests = new ArrayList<>();
+
+        private RecordingWorkflowPolicyClient(WorkflowPolicyDecisionDto decision) {
+            this.decision = decision;
+        }
+
+        @Override
+        public WorkflowPolicyDecisionDto validateApproval(WorkflowPolicyRequestDto request) {
+            requests.add(request);
+            return decision;
+        }
+    }
+
+    private static final class RecordingTransactionOperations implements TransactionOperations {
+        private final TransactionHarness harness;
+
+        private RecordingTransactionOperations(TransactionHarness harness) {
+            this.harness = harness;
+        }
+
+        @Override
+        public <T> T execute(TransactionCallback<T> action) {
+            harness.begin();
+            try {
+                T result = action.doInTransaction(new SimpleTransactionStatus());
+                harness.commit();
+                return result;
+            } catch (RuntimeException exception) {
+                harness.rollback();
+                throw exception;
+            }
+        }
+    }
+
+    private static final class TransactionHarness {
+        private boolean committed;
+        private boolean rolledBack;
+
+        private void begin() {
+            committed = false;
+            rolledBack = false;
+        }
+
+        private void commit() {
+            committed = true;
+        }
+
+        private void rollback() {
+            rolledBack = true;
+        }
+    }
+
+    private static final class SimpleTransactionStatus implements TransactionStatus {
+        @Override
+        public boolean isNewTransaction() { return true; }
+        @Override
+        public boolean hasSavepoint() { return false; }
+        @Override
+        public void setRollbackOnly() {}
+        @Override
+        public boolean isRollbackOnly() { return false; }
+        @Override
+        public void flush() {}
+        @Override
+        public boolean isCompleted() { return false; }
+        @Override
+        public Object createSavepoint() { return null; }
+        @Override
+        public void rollbackToSavepoint(Object savepoint) {}
+        @Override
+        public void releaseSavepoint(Object savepoint) {}
+    }
+}
