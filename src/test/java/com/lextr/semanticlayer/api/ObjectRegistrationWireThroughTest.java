@@ -330,13 +330,17 @@ class ObjectRegistrationWireThroughTest {
         private ResultSet resultSet(Map<String, Object> row) {
             return (ResultSet) Proxy.newProxyInstance(
                     ResultSet.class.getClassLoader(),
-                    new Class[]{ResultSet.class},
-                    (proxy, method, args) -> switch (method.getName()) {
-                        case "getString" -> (String) row.get(args[0]);
-                        case "getObject" -> {
-                            if (args.length == 1) {
-                                yield row.get(args[0]);
-                            }
+                new Class[]{ResultSet.class},
+                (proxy, method, args) -> switch (method.getName()) {
+                    case "getString" -> (String) row.get(args[0]);
+                    case "getBoolean" -> {
+                        Object value = row.get(args[0]);
+                        yield value != null && (Boolean) value;
+                    }
+                    case "getObject" -> {
+                        if (args.length == 1) {
+                            yield row.get(args[0]);
+                        }
                             Object value = row.get(args[0]);
                             yield value == null ? null : ((Class<?>) args[1]).cast(value);
                         }

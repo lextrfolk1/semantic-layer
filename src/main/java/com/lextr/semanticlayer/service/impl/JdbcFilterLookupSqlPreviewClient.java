@@ -5,13 +5,9 @@ import com.lextr.semanticlayer.dto.FilterLookupPreviewValueDto;
 import com.lextr.semanticlayer.model.FilterLookupPreviewValueRecord;
 import com.lextr.semanticlayer.model.SemanticFilterLookupRecord;
 import com.lextr.semanticlayer.service.FilterLookupSqlPreviewClient;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.stereotype.Service;
 
 import java.util.List;
 
-@Service
-@ConditionalOnMissingBean(FilterLookupSqlPreviewClient.class)
 public class JdbcFilterLookupSqlPreviewClient implements FilterLookupSqlPreviewClient {
 
     private final FilterLookupReadDao filterLookupReadDao;
