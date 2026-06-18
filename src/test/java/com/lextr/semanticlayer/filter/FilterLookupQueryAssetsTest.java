@@ -19,6 +19,7 @@ class FilterLookupQueryAssetsTest {
         String effectiveLookupListQuery = loader.getQuery("filter_lookup_effective_review.find_all");
         String effectiveLookupQuery = loader.getQuery("filter_lookup_effective_review.find_lookup_by_code");
         String manualPreviewQuery = loader.getQuery("filter_lookup_effective_review.find_manual_values_by_lookup");
+        String sqlPreviewQuery = loader.getQuery("filter_lookup_effective_review.find_sql_values_template");
         String valueCountQuery = loader.getQuery("filter_lookup_effective_review.count_values_by_lookup");
         String executionLogInsertQuery = loader.getQuery("filter_lookup_exec_log.insert_execution");
 
@@ -96,6 +97,11 @@ class FilterLookupQueryAssetsTest {
         assertTrue(manualPreviewQuery.contains("flv.lifecycle_status_cd IN ('ACTIVE','ANTICIPATED')"));
         assertTrue(manualPreviewQuery.contains("anticipated_dt"));
         assertTrue(manualPreviewQuery.contains("ORDER BY CASE flv.lifecycle_status_cd"));
+        assertTrue(sqlPreviewQuery.contains("SELECT DISTINCT :lookup_cd AS lookup_cd"));
+        assertTrue(sqlPreviewQuery.contains("CAST(%1$s AS varchar(100)) AS value_cd"));
+        assertTrue(sqlPreviewQuery.contains("FROM %2$s"));
+        assertTrue(sqlPreviewQuery.contains("WHERE %3$s"));
+        assertTrue(sqlPreviewQuery.contains("LIMIT :max_output_rows"));
 
         assertTrue(valueCountQuery.contains("FROM meta.filter_lookup_value"));
         assertTrue(valueCountQuery.contains(":client_id"));

@@ -31,6 +31,7 @@ class SQLQueryLoaderUtilTest {
         String effectiveFilterLookupListQuery = loader.getQuery("filter_lookup_effective_review.find_all");
         String effectiveFilterLookupByCodeQuery = loader.getQuery("filter_lookup_effective_review.find_lookup_by_code");
         String manualFilterLookupPreviewQuery = loader.getQuery("filter_lookup_effective_review.find_manual_values_by_lookup");
+        String sqlFilterLookupPreviewQuery = loader.getQuery("filter_lookup_effective_review.find_sql_values_template");
         String filterLookupValueCountQuery = loader.getQuery("filter_lookup_effective_review.count_values_by_lookup");
         String filterLookupExecutionLogInsertQuery = loader.getQuery("filter_lookup_exec_log.insert_execution");
         String objectListQuery = loader.getQuery("object_exposure.find_all");
@@ -103,6 +104,11 @@ class SQLQueryLoaderUtilTest {
         assertTrue(manualFilterLookupPreviewQuery.contains("flv.lifecycle_status_cd IN ('ACTIVE','ANTICIPATED')"));
         assertTrue(manualFilterLookupPreviewQuery.contains("anticipated_dt"));
         assertTrue(manualFilterLookupPreviewQuery.contains("ORDER BY CASE flv.lifecycle_status_cd"));
+        assertTrue(sqlFilterLookupPreviewQuery.contains("SELECT DISTINCT :lookup_cd AS lookup_cd"));
+        assertTrue(sqlFilterLookupPreviewQuery.contains("CAST(%1$s AS varchar(100)) AS value_cd"));
+        assertTrue(sqlFilterLookupPreviewQuery.contains("FROM %2$s"));
+        assertTrue(sqlFilterLookupPreviewQuery.contains("WHERE %3$s"));
+        assertTrue(sqlFilterLookupPreviewQuery.contains("LIMIT :max_output_rows"));
         assertTrue(filterLookupValueCountQuery.contains("FROM meta.filter_lookup_value"));
         assertTrue(filterLookupValueCountQuery.contains(":client_id"));
         assertTrue(filterLookupValueCountQuery.contains(":lookup_cd"));

@@ -14,6 +14,8 @@ import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 import org.springframework.jdbc.datasource.AbstractDataSource;
 
 import javax.sql.DataSource;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.lang.reflect.Proxy;
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -90,6 +92,63 @@ class JdbcFilterLookupReadDaoTest {
     }
 
     @Test
+    void buildsSqlPreviewQueryFromLookupMetadataAndMapsDistinctValues() {
+        RecordingNamedParameterJdbcTemplate jdbcTemplate =
+                new RecordingNamedParameterJdbcTemplate(List.of(sqlPreviewValueRow("LEDGER_100")));
+        JdbcFilterLookupReadDao dao = new JdbcFilterLookupReadDao(providerOf(jdbcTemplate), new SQLQueryLoaderUtil(new DefaultResourceLoader()));
+
+        List<FilterLookupPreviewValueRecord> results = dao.findSqlValues("client-a", filterLookupRowRecord(
+                "SQL_LEDGER_SCOPE",
+                "SQL_QUERY",
+                "meta.gl_balance",
+                "ledger_id",
+                "ledger_status = 'ACTIVE'",
+                250
+        ));
+
+        assertTrue(jdbcTemplate.recordedSql.contains("SELECT DISTINCT :lookup_cd AS lookup_cd"));
+        assertTrue(jdbcTemplate.recordedSql.contains("CAST(ledger_id AS varchar(100)) AS value_cd"));
+        assertTrue(jdbcTemplate.recordedSql.contains("FROM meta.gl_balance"));
+        assertTrue(jdbcTemplate.recordedSql.contains("WHERE ledger_status = 'ACTIVE'"));
+        assertEquals("SQL_LEDGER_SCOPE", jdbcTemplate.recordedParameters.get("lookup_cd"));
+        assertEquals("client-a", jdbcTemplate.recordedParameters.get("client_id"));
+        assertEquals(250, jdbcTemplate.recordedParameters.get("max_output_rows"));
+        assertEquals(1, results.size());
+        assertEquals("LEDGER_100", results.get(0).value_cd());
+        assertEquals("ACTIVE", results.get(0).lifecycle_status_cd());
+    }
+
+    @Test
+    void rejectsUnsafeSqlPreviewMetadata() {
+        RecordingNamedParameterJdbcTemplate jdbcTemplate = new RecordingNamedParameterJdbcTemplate(List.of());
+        JdbcFilterLookupReadDao dao = new JdbcFilterLookupReadDao(providerOf(jdbcTemplate), new SQLQueryLoaderUtil(new DefaultResourceLoader()));
+
+        assertThrows(
+                SemanticLayerException.class,
+                () -> dao.findSqlValues("client-a", filterLookupRowRecord(
+                        "SQL_LEDGER_SCOPE",
+                        "SQL_QUERY",
+                        "meta.gl_balance; DROP TABLE meta.semantic_filter_lookup",
+                        "ledger_id",
+                        "ledger_status = 'ACTIVE'",
+                        250
+                ))
+        );
+
+        assertThrows(
+                SemanticLayerException.class,
+                () -> dao.findSqlValues("client-a", filterLookupRowRecord(
+                        "SQL_LEDGER_SCOPE",
+                        "SQL_QUERY",
+                        "meta.gl_balance",
+                        "ledger_id",
+                        "ledger_status = 'ACTIVE'; DELETE FROM meta.filter_lookup_exec_log",
+                        250
+                ))
+        );
+    }
+
+    @Test
     void countsLookupValuesWithinClientScope() {
         RecordingNamedParameterJdbcTemplate jdbcTemplate =
                 new RecordingNamedParameterJdbcTemplate(List.of(valueCountRow(3L)));
@@ -119,6 +178,18 @@ class JdbcFilterLookupReadDaoTest {
         JdbcFilterLookupReadDao dao = new JdbcFilterLookupReadDao(providerOf(null), new SQLQueryLoaderUtil(new DefaultResourceLoader()));
 
         assertThrows(SemanticLayerException.class, () -> dao.findLookups("client-a", null, null, null));
+    }
+
+    @Test
+    void usesNamedParameterJdbcTemplateAndDoesNotUseJpa() throws Exception {
+        Path daoPath = Path.of("src/main/java/com/lextr/semanticlayer/dao/impl/JdbcFilterLookupReadDao.java");
+        String source = Files.readString(daoPath);
+
+        assertTrue(source.contains("NamedParameterJdbcTemplate"));
+        assertTrue(!source.contains("JpaRepository"));
+        assertTrue(!source.contains("EntityManager"));
+        assertTrue(!source.contains("jakarta.persistence"));
+        assertTrue(!source.contains("javax.persistence"));
     }
 
     private static ObjectProvider<NamedParameterJdbcTemplate> providerOf(NamedParameterJdbcTemplate jdbcTemplate) {
@@ -192,6 +263,47 @@ class JdbcFilterLookupReadDaoTest {
         return row;
     }
 
+    private static SemanticFilterLookupRecord filterLookupRowRecord(String lookupCode,
+                                                                   String constructionTypeCode,
+                                                                   String filterObject,
+                                                                   String filterAttributeCode,
+                                                                   String filterCondition,
+                                                                   Integer maxOutputRows) {
+        return new SemanticFilterLookupRecord(
+                101L,
+                lookupCode,
+                constructionTypeCode,
+                "HAND_TYPED",
+                filterObject,
+                filterCondition,
+                filterAttributeCode,
+                "meta.ledger",
+                "ledger_id",
+                "ledger_id",
+                "IN_LIST",
+                500,
+                maxOutputRows,
+                60,
+                null,
+                true,
+                true,
+                false,
+                false,
+                "Ledger scope values",
+                "client-a",
+                "ACTIVE",
+                "HEALTHY",
+                OffsetDateTime.parse("2026-06-16T10:15:30Z"),
+                "certifier",
+                LocalDate.parse("2026-08-02"),
+                "ACTIVE",
+                OffsetDateTime.parse("2026-06-16T10:15:30Z"),
+                "producer",
+                OffsetDateTime.parse("2026-06-17T10:15:30Z"),
+                "platform"
+        );
+    }
+
     private static Map<String, Object> previewValueRow(String valueCode) {
         Map<String, Object> row = new HashMap<>();
         row.put("lookup_cd", "LEDGER_SCOPE");
@@ -210,6 +322,21 @@ class JdbcFilterLookupReadDaoTest {
         row.put("certified_by", "reviewer");
         row.put("certified_ts", OffsetDateTime.parse("2026-06-18T11:15:30Z"));
         row.put("updated_ts", OffsetDateTime.parse("2026-06-18T12:15:30Z"));
+        return row;
+    }
+
+    private static Map<String, Object> sqlPreviewValueRow(String valueCode) {
+        Map<String, Object> row = previewValueRow(valueCode);
+        row.put("lookup_cd", "SQL_LEDGER_SCOPE");
+        row.put("workflow_ref", null);
+        row.put("anticipated_dt", null);
+        row.put("added_by", null);
+        row.put("added_ts", null);
+        row.put("certified_by", null);
+        row.put("certified_ts", null);
+        row.put("updated_ts", null);
+        row.put("auto_expire_after_days", null);
+        row.put("alert_txt", null);
         return row;
     }
 
