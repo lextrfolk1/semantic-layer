@@ -1,5 +1,7 @@
 package com.lextr.semanticlayer.dao;
 
+import com.lextr.semanticlayer.exception.SemanticLayerException;
+import com.lextr.semanticlayer.model.FilterLookupCertificationWriteRequest;
 import com.lextr.semanticlayer.model.FilterLookupMetadataChangeHistoryRecord;
 import com.lextr.semanticlayer.model.FilterLookupMetadataChangeHistoryWriteRequest;
 import com.lextr.semanticlayer.model.FilterLookupWorkflowTaskRecord;
@@ -10,6 +12,10 @@ import com.lextr.semanticlayer.model.SemanticFilterLookupWriteRequest;
 public interface FilterLookupRegistrationWriteDao {
 
     SemanticFilterLookupRecord insertLookup(SemanticFilterLookupWriteRequest request);
+
+    default SemanticFilterLookupRecord certifyLookup(FilterLookupCertificationWriteRequest request) {
+        throw new SemanticLayerException("FilterLookupRegistrationWriteDao does not support filter lookup certification");
+    }
 
     FilterLookupWorkflowTaskRecord insertWorkflowTask(FilterLookupWorkflowTaskWriteRequest request);
 
