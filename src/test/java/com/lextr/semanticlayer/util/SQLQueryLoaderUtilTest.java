@@ -28,6 +28,8 @@ class SQLQueryLoaderUtilTest {
         String insertFilterLookupWorkflowTaskQuery = loader.getQuery("filter_lookup_registration.insert_workflow_task");
         String insertFilterLookupMetadataChangeHistoryQuery = loader.getQuery("filter_lookup_registration.insert_metadata_change_history");
         String governancePolicyPresetByCodeQuery = loader.getQuery("governance_policy_preset.find_by_code");
+        String effectiveFilterLookupByCodeQuery = loader.getQuery("filter_lookup_effective_review.find_lookup_by_code");
+        String filterLookupValueCountQuery = loader.getQuery("filter_lookup_effective_review.count_values_by_lookup");
         String objectListQuery = loader.getQuery("object_exposure.find_all");
         String objectByIdQuery = loader.getQuery("object_exposure.find_by_id");
         String objectBySchemaAndCodeQuery = loader.getQuery("object_exposure.find_by_schema_and_code");
@@ -77,6 +79,19 @@ class SQLQueryLoaderUtilTest {
         assertTrue(governancePolicyPresetByCodeQuery.contains(":policy_cd"));
         assertTrue(governancePolicyPresetByCodeQuery.contains(":policy_scope_cd"));
         assertTrue(governancePolicyPresetByCodeQuery.contains(":as_of_dt"));
+        assertTrue(effectiveFilterLookupByCodeQuery.contains("FROM meta.semantic_filter_lookup"));
+        assertTrue(effectiveFilterLookupByCodeQuery.contains(":client_id"));
+        assertTrue(effectiveFilterLookupByCodeQuery.contains(":lookup_cd"));
+        assertTrue(effectiveFilterLookupByCodeQuery.contains("review_period_days_override"));
+        assertTrue(effectiveFilterLookupByCodeQuery.contains("health_status_cd"));
+        assertTrue(effectiveFilterLookupByCodeQuery.contains("last_certified_ts"));
+        assertTrue(effectiveFilterLookupByCodeQuery.contains("next_review_due_dt"));
+        assertTrue(effectiveFilterLookupByCodeQuery.contains("created_ts"));
+        assertTrue(filterLookupValueCountQuery.contains("FROM meta.filter_lookup_value"));
+        assertTrue(filterLookupValueCountQuery.contains(":client_id"));
+        assertTrue(filterLookupValueCountQuery.contains(":lookup_cd"));
+        assertTrue(filterLookupValueCountQuery.contains("COUNT(*) AS value_count"));
+        assertTrue(filterLookupValueCountQuery.contains("GROUP BY lookup_cd, client_id"));
         assertTrue(objectListQuery.contains("FROM meta.object_catalog"));
         assertTrue(objectListQuery.contains("effective_object_nm"));
         assertTrue(objectListQuery.contains(":schema_cd"));
