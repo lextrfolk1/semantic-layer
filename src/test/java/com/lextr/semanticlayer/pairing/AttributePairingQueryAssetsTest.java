@@ -63,6 +63,7 @@ class AttributePairingQueryAssetsTest {
 
         String findByCodeQuery = loader.getQuery("attribute_pairing_resolution.find_pairing_by_code");
         String findActiveByDisplayAttributeQuery = loader.getQuery("attribute_pairing_resolution.find_active_pairing_by_display_attribute");
+        String checkIndexQuery = loader.getQuery("attribute_pairing_resolution.check_filter_attribute_index");
 
         assertTrue(findByCodeQuery.contains("FROM meta.attribute_pairing_catalog"));
         assertTrue(findByCodeQuery.contains("pairing_cd = :pairing_cd"));
@@ -85,6 +86,12 @@ class AttributePairingQueryAssetsTest {
         assertTrue(findActiveByDisplayAttributeQuery.contains("ORDER BY CASE WHEN client_id = :client_id THEN 0 ELSE 1 END"));
         assertTrue(findActiveByDisplayAttributeQuery.contains("version_nbr DESC"));
         assertTrue(findActiveByDisplayAttributeQuery.contains("LIMIT 1"));
+
+        assertTrue(checkIndexQuery.contains("FROM pg_indexes"));
+        assertTrue(checkIndexQuery.contains("schemaname = :schema_cd"));
+        assertTrue(checkIndexQuery.contains("tablename = :object_cd"));
+        assertTrue(checkIndexQuery.contains(":attribute_cd"));
+        assertTrue(checkIndexQuery.contains("AS indexed_flg"));
     }
 
     @Test
