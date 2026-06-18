@@ -203,6 +203,25 @@ class FilterLookupReadControllerTest {
                     "governance-owner"
             ));
         }
+
+        @Override
+        public java.util.List<GovernancePolicyPresetRecord> findPolicyPresets(String policyScopeCode, LocalDate asOfDate) {
+            return java.util.List.of(new GovernancePolicyPresetRecord(
+                    "GOV-FL-001",
+                    "Minimum review frequency (floor, days)",
+                    policyScopeCode,
+                    "90",
+                    "INTEGER",
+                    true,
+                    true,
+                    LocalDate.parse("2026-01-01"),
+                    null,
+                    "governance-owner",
+                    OffsetDateTime.parse("2026-01-01T00:00:00Z"),
+                    OffsetDateTime.parse("2026-01-01T00:00:00Z"),
+                    "governance-owner"
+            ));
+        }
     }
 
     private static final class NoOpFilterLookupRegistrationService implements FilterLookupRegistrationService {

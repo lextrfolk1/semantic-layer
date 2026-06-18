@@ -58,6 +58,29 @@ class JdbcGovernancePolicyPresetReadDaoTest {
     }
 
     @Test
+    void bindsGovernancePolicyPresetsParametersAndMapsReturnedColumns() {
+        RecordingNamedParameterJdbcTemplate jdbcTemplate = new RecordingNamedParameterJdbcTemplate(List.of(policyPresetRow()));
+        JdbcGovernancePolicyPresetReadDao dao = new JdbcGovernancePolicyPresetReadDao(
+                providerOf(jdbcTemplate),
+                new SQLQueryLoaderUtil(new DefaultResourceLoader())
+        );
+
+        List<GovernancePolicyPresetRecord> results = dao.findPolicyPresets(
+                "FILTER_LOOKUP",
+                LocalDate.parse("2026-06-18")
+        );
+
+        assertEquals(1, results.size());
+        GovernancePolicyPresetRecord result = results.get(0);
+        assertTrue(jdbcTemplate.recordedSql.contains("FROM governance.policy_preset"));
+        assertEquals("FILTER_LOOKUP", jdbcTemplate.recordedParameters.get("policy_scope_cd"));
+        assertEquals(LocalDate.parse("2026-06-18"), jdbcTemplate.recordedParameters.get("as_of_dt"));
+        assertEquals("90", result.default_value_txt());
+        assertEquals("INTEGER", result.data_type_cd());
+        assertTrue(result.is_overrideable_flg());
+    }
+
+    @Test
     void failsWhenNamedParameterJdbcTemplateMissing() {
         JdbcGovernancePolicyPresetReadDao dao = new JdbcGovernancePolicyPresetReadDao(
                 providerOf(null),

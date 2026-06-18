@@ -76,7 +76,16 @@ class FilterLookupReadServiceImplTest {
     void failsWhenGovernancePolicyMissing() {
         FilterLookupReadServiceImpl service = new FilterLookupReadServiceImpl(
                 new FixedFilterLookupReadDao(List.of(filterLookupRecord("LEDGER_SCOPE", 45)), 1L),
-                (policyCode, policyScopeCode, asOfDate) -> Optional.empty()
+                new GovernancePolicyPresetReadDao() {
+                    @Override
+                    public Optional<GovernancePolicyPresetRecord> findPolicyPreset(String policyCode, String policyScopeCode, LocalDate asOfDate) {
+                        return Optional.empty();
+                    }
+                    @Override
+                    public List<GovernancePolicyPresetRecord> findPolicyPresets(String policyScopeCode, LocalDate asOfDate) {
+                        return List.of();
+                    }
+                }
         );
 
         assertThrows(SemanticLayerException.class,
@@ -130,21 +139,45 @@ class FilterLookupReadServiceImplTest {
     }
 
     private static GovernancePolicyPresetReadDao fixedGovernanceDao(String value) {
-        return (policyCode, policyScopeCode, asOfDate) -> Optional.of(new GovernancePolicyPresetRecord(
-                policyCode,
-                "Minimum review frequency (floor, days)",
-                policyScopeCode,
-                value,
-                "INTEGER",
-                true,
-                true,
-                LocalDate.parse("2026-01-01"),
-                null,
-                "governance-owner",
-                OffsetDateTime.parse("2026-01-01T00:00:00Z"),
-                OffsetDateTime.parse("2026-01-01T00:00:00Z"),
-                "governance-owner"
-        ));
+        return new GovernancePolicyPresetReadDao() {
+            @Override
+            public Optional<GovernancePolicyPresetRecord> findPolicyPreset(String policyCode, String policyScopeCode, LocalDate asOfDate) {
+                return Optional.of(new GovernancePolicyPresetRecord(
+                        policyCode,
+                        "Minimum review frequency (floor, days)",
+                        policyScopeCode,
+                        value,
+                        "INTEGER",
+                        true,
+                        true,
+                        LocalDate.parse("2026-01-01"),
+                        null,
+                        "governance-owner",
+                        OffsetDateTime.parse("2026-01-01T00:00:00Z"),
+                        OffsetDateTime.parse("2026-01-01T00:00:00Z"),
+                        "governance-owner"
+                ));
+            }
+
+            @Override
+            public List<GovernancePolicyPresetRecord> findPolicyPresets(String policyScopeCode, LocalDate asOfDate) {
+                return List.of(new GovernancePolicyPresetRecord(
+                        "GOV-FL-001",
+                        "Minimum review frequency (floor, days)",
+                        policyScopeCode,
+                        value,
+                        "INTEGER",
+                        true,
+                        true,
+                        LocalDate.parse("2026-01-01"),
+                        null,
+                        "governance-owner",
+                        OffsetDateTime.parse("2026-01-01T00:00:00Z"),
+                        OffsetDateTime.parse("2026-01-01T00:00:00Z"),
+                        "governance-owner"
+                ));
+            }
+        };
     }
 
     private static final class FixedFilterLookupReadDao implements FilterLookupReadDao {

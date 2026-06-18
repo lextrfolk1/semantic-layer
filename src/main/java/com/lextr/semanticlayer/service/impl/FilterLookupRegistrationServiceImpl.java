@@ -257,6 +257,11 @@ public class FilterLookupRegistrationServiceImpl implements FilterLookupRegistra
                                                                        LocalDate asOfDate) {
             return Optional.empty();
         }
+
+        @Override
+        public java.util.List<GovernancePolicyPresetRecord> findPolicyPresets(String policyScopeCode, LocalDate asOfDate) {
+            return java.util.Collections.emptyList();
+        }
     }
 
     private static final class NoOpTransactionOperations implements TransactionOperations {

@@ -208,6 +208,11 @@ class FilterLookupCertificationServiceImplTest {
                                                                        LocalDate asOfDate) {
             return Optional.of(record);
         }
+
+        @Override
+        public java.util.List<GovernancePolicyPresetRecord> findPolicyPresets(String policyScopeCode, LocalDate asOfDate) {
+            return java.util.List.of(record);
+        }
     }
 
     private static final class RecordingFilterLookupReadDao implements FilterLookupReadDao {
