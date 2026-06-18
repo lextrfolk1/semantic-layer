@@ -3,6 +3,7 @@ package com.lextr.semanticlayer.service.impl;
 import com.lextr.semanticlayer.exception.SemanticLayerException;
 import com.lextr.semanticlayer.model.RelationshipGraphProjectionRequest;
 import com.lextr.semanticlayer.service.RelationshipGraphProjectionClient;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.neo4j.core.Neo4jClient;
 import org.springframework.stereotype.Service;
@@ -44,6 +45,7 @@ public class Neo4jRelationshipGraphProjectionClient implements RelationshipGraph
 
     private final RelationshipGraphCypherExecutor cypherExecutor;
 
+    @Autowired
     public Neo4jRelationshipGraphProjectionClient(ObjectProvider<Neo4jClient> neo4jClientProvider) {
         this(new Neo4jClientRelationshipGraphCypherExecutor(neo4jClientProvider));
     }

@@ -23,6 +23,7 @@ import com.lextr.semanticlayer.service.RelationshipGraphProjectionClient;
 import com.lextr.semanticlayer.service.RelationshipPolicyClient;
 import com.lextr.semanticlayer.service.RelationshipRegistrationService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.TransactionStatus;
@@ -58,6 +59,7 @@ public class RelationshipRegistrationServiceImpl implements RelationshipRegistra
                                                RegistryReadDao registryReadDao,
                                                ObjectProvider<RelationshipGraphProjectionClient> relationshipGraphProjectionClientProvider,
                                                ObjectProvider<RelationshipPolicyClient> relationshipPolicyClientProvider,
+                                               @Qualifier("semanticLayerTransactionOperations")
                                                ObjectProvider<TransactionOperations> transactionOperationsProvider) {
         this(
                 relationshipRegistrationWriteDao,

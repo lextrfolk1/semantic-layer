@@ -19,6 +19,7 @@ import com.lextr.semanticlayer.model.WorkflowTaskWriteRequest;
 import com.lextr.semanticlayer.service.ObjectRegistrationService;
 import com.lextr.semanticlayer.service.TaxonomyPolicyClient;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.TransactionStatus;
@@ -45,6 +46,7 @@ public class ObjectRegistrationServiceImpl implements ObjectRegistrationService 
     @Autowired
     public ObjectRegistrationServiceImpl(ObjectRegistrationWriteDao objectRegistrationWriteDao,
                                          ObjectProvider<TaxonomyPolicyClient> taxonomyPolicyClientProvider,
+                                         @Qualifier("semanticLayerTransactionOperations")
                                          ObjectProvider<TransactionOperations> transactionOperationsProvider) {
         this(
                 objectRegistrationWriteDao,
