@@ -8,6 +8,7 @@ import com.lextr.semanticlayer.dto.FilterLookupEffectiveReviewDto;
 import com.lextr.semanticlayer.dto.FilterLookupRegistrationRequestDto;
 import com.lextr.semanticlayer.dto.FilterLookupRegistrationResponseDto;
 import com.lextr.semanticlayer.exception.FilterLookupPreviewServiceException;
+import com.lextr.semanticlayer.exception.PolicyViolationException;
 import com.lextr.semanticlayer.exception.RegistryResourceNotFoundException;
 import com.lextr.semanticlayer.service.FilterLookupPreviewService;
 import com.lextr.semanticlayer.service.FilterLookupReadService;
@@ -106,6 +107,20 @@ class FilterLookupPreviewControllerTest {
                         .contentType("application/json")
                         .content(validRequestJson()))
                 .andExpect(status().isInternalServerError());
+    }
+
+    @Test
+    void mapsPolicyViolationToUnprocessableEntityWithCode() throws Exception {
+        RecordingFilterLookupPreviewService service = new RecordingFilterLookupPreviewService();
+        service.error = new PolicyViolationException("GOV-FL-004", "Anticipated values require approval before preview");
+        MockMvc mockMvc = mockMvc(service);
+
+        mockMvc.perform(post("/api/filter-lookups/preview")
+                        .contentType("application/json")
+                        .content(validRequestJson()))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("GOV-FL-004"))
+                .andExpect(jsonPath("$.message").value("Anticipated values require approval before preview"));
     }
 
     @Test
