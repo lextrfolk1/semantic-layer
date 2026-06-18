@@ -14,6 +14,7 @@ class FilterLookupQueryAssetsTest {
 
         String insertLookupQuery = loader.getQuery("filter_lookup_registration.insert_lookup");
         String insertWorkflowTaskQuery = loader.getQuery("filter_lookup_registration.insert_workflow_task");
+        String insertMetadataChangeHistoryQuery = loader.getQuery("filter_lookup_registration.insert_metadata_change_history");
         String governancePresetQuery = loader.getQuery("governance_policy_preset.find_by_code");
 
         assertTrue(insertLookupQuery.contains("INSERT INTO meta.semantic_filter_lookup"));
@@ -42,6 +43,13 @@ class FilterLookupQueryAssetsTest {
         assertTrue(insertWorkflowTaskQuery.contains("task_status_cd"));
         assertTrue(insertWorkflowTaskQuery.contains("submitted_by"));
         assertTrue(insertWorkflowTaskQuery.contains("submitted_ts"));
+
+        assertTrue(insertMetadataChangeHistoryQuery.contains("INSERT INTO meta.metadata_change_history"));
+        assertTrue(insertMetadataChangeHistoryQuery.contains(":entity_ref"));
+        assertTrue(insertMetadataChangeHistoryQuery.contains(":changed_ts"));
+        assertTrue(insertMetadataChangeHistoryQuery.contains("CAST(:old_value_json AS jsonb)"));
+        assertTrue(insertMetadataChangeHistoryQuery.contains("CAST(:new_value_json AS jsonb)"));
+        assertTrue(insertMetadataChangeHistoryQuery.contains("change_reason_txt"));
 
         assertTrue(governancePresetQuery.contains("FROM governance.policy_preset"));
         assertTrue(governancePresetQuery.contains(":policy_cd"));

@@ -26,6 +26,7 @@ class SQLQueryLoaderUtilTest {
         String updateRelationshipProjectionSyncQuery = loader.getQuery("relationship_registration.update_neo4j_projection_sync");
         String insertFilterLookupQuery = loader.getQuery("filter_lookup_registration.insert_lookup");
         String insertFilterLookupWorkflowTaskQuery = loader.getQuery("filter_lookup_registration.insert_workflow_task");
+        String insertFilterLookupMetadataChangeHistoryQuery = loader.getQuery("filter_lookup_registration.insert_metadata_change_history");
         String governancePolicyPresetByCodeQuery = loader.getQuery("governance_policy_preset.find_by_code");
         String objectListQuery = loader.getQuery("object_exposure.find_all");
         String objectByIdQuery = loader.getQuery("object_exposure.find_by_id");
@@ -69,6 +70,9 @@ class SQLQueryLoaderUtilTest {
         assertTrue(insertFilterLookupWorkflowTaskQuery.contains("INSERT INTO wkfl.workflow_task"));
         assertTrue(insertFilterLookupWorkflowTaskQuery.contains(":entity_ref"));
         assertTrue(insertFilterLookupWorkflowTaskQuery.contains(":submitted_ts"));
+        assertTrue(insertFilterLookupMetadataChangeHistoryQuery.contains("INSERT INTO meta.metadata_change_history"));
+        assertTrue(insertFilterLookupMetadataChangeHistoryQuery.contains(":changed_ts"));
+        assertTrue(insertFilterLookupMetadataChangeHistoryQuery.contains("CAST(:old_value_json AS jsonb)"));
         assertTrue(governancePolicyPresetByCodeQuery.contains("FROM governance.policy_preset"));
         assertTrue(governancePolicyPresetByCodeQuery.contains(":policy_cd"));
         assertTrue(governancePolicyPresetByCodeQuery.contains(":policy_scope_cd"));
