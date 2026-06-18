@@ -154,6 +154,39 @@ class FilterLookupBindingWireThroughTest {
         assertEquals(true, policyRequest.is_overdue());
     }
 
+    @Test
+    void allowsQueryStudioBindingEvenWhenOverdue() throws Exception {
+        OffsetDateTime now = OffsetDateTime.parse("2026-06-18T10:15:30Z");
+        jdbcTemplate.setResponses(List.of(
+                List.of(lookupRow("LEDGER_SCOPE", LocalDate.parse("2026-06-01"))), // overdue on June 18
+                List.of(boundRow(now, "QUERY_STUDIO", "qs-session")),
+                List.of(metadataChangeRow(now))
+        ));
+
+        mockMvc.perform(post("/api/filter-lookups/LEDGER_SCOPE/bindings")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "client_id": "client-a",
+                                  "bound_obj": "meta.gl_balance",
+                                  "bound_attr_cd": "ledger_id",
+                                  "binding_context_cd": "QUERY_STUDIO",
+                                  "binding_ref": "qs-session",
+                                  "bound_by": "binder"
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(501))
+                .andExpect(jsonPath("$.lookup_cd").value("LEDGER_SCOPE"))
+                .andExpect(jsonPath("$.binding_context_cd").value("QUERY_STUDIO"));
+
+        assertEquals(3, jdbcTemplate.recordedSqls().size());
+        assertEquals(1, filterLookupPolicyClient.bindingRequests().size());
+        FilterLookupBindingPolicyRequestDto policyRequest = filterLookupPolicyClient.bindingRequests().get(0);
+        assertEquals("QUERY_STUDIO", policyRequest.binding_context_cd());
+        assertEquals(true, policyRequest.is_overdue());
+    }
+
     private static Map<String, Object> lookupRow(String lookupCode, LocalDate nextReviewDueDate) {
         Map<String, Object> row = new HashMap<>();
         row.put("id", 101L);
@@ -191,14 +224,18 @@ class FilterLookupBindingWireThroughTest {
     }
 
     private static Map<String, Object> boundRow(OffsetDateTime boundTs) {
+        return boundRow(boundTs, "PIPELINE", "daily-pipeline");
+    }
+
+    private static Map<String, Object> boundRow(OffsetDateTime boundTs, String bindingContext, String bindingRef) {
         Map<String, Object> row = new HashMap<>();
         row.put("id", 501L);
         row.put("client_id", "client-a");
         row.put("lookup_cd", "LEDGER_SCOPE");
         row.put("bound_obj", "meta.gl_balance");
         row.put("bound_attr_cd", "ledger_id");
-        row.put("binding_context_cd", "PIPELINE");
-        row.put("binding_ref", "daily-pipeline");
+        row.put("binding_context_cd", bindingContext);
+        row.put("binding_ref", bindingRef);
         row.put("bound_by", "binder");
         row.put("bound_ts", boundTs);
         row.put("is_active_flg", true);
