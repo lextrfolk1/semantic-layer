@@ -27,6 +27,7 @@ public class JdbcFilterLookupReadDao implements FilterLookupReadDao {
     static final String FIND_MANUAL_VALUES_BY_LOOKUP = "filter_lookup_effective_review.find_manual_values_by_lookup";
     static final String FIND_SQL_VALUES_TEMPLATE = "filter_lookup_effective_review.find_sql_values_template";
     static final String COUNT_VALUES_BY_LOOKUP = "filter_lookup_effective_review.count_values_by_lookup";
+    static final String COUNT_STALE_VALUES_BY_LOOKUP = "filter_lookup_effective_review.count_stale_values_by_lookup";
     private static final Pattern SQL_IDENTIFIER = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
     private static final int DEFAULT_MAX_OUTPUT_ROWS = 10_000;
 
@@ -102,6 +103,18 @@ public class JdbcFilterLookupReadDao implements FilterLookupReadDao {
                 sqlQueryLoaderUtil.getQuery(COUNT_VALUES_BY_LOOKUP),
                 parameters,
                 (resultSet, rowNum) -> getLong(resultSet, "value_count")
+        ).stream().findFirst().orElse(0L);
+    }
+
+    @Override
+    public long countStaleValues(String clientId, String lookupCode) {
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("client_id", clientId)
+                .addValue("lookup_cd", lookupCode);
+        return jdbcTemplate().query(
+                sqlQueryLoaderUtil.getQuery(COUNT_STALE_VALUES_BY_LOOKUP),
+                parameters,
+                (resultSet, rowNum) -> getLong(resultSet, "stale_value_count")
         ).stream().findFirst().orElse(0L);
     }
 

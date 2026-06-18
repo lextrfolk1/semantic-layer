@@ -174,6 +174,31 @@ class JdbcFilterLookupReadDaoTest {
     }
 
     @Test
+    void countsStaleLookupValuesWithinClientScope() {
+        RecordingNamedParameterJdbcTemplate jdbcTemplate =
+                new RecordingNamedParameterJdbcTemplate(List.of(staleValueCountRow(2L)));
+        JdbcFilterLookupReadDao dao = new JdbcFilterLookupReadDao(providerOf(jdbcTemplate), new SQLQueryLoaderUtil(new DefaultResourceLoader()));
+
+        long result = dao.countStaleValues("client-a", "LEDGER_SCOPE");
+
+        assertTrue(jdbcTemplate.recordedSql.contains("COUNT(*) AS stale_value_count"));
+        assertTrue(jdbcTemplate.recordedSql.contains("flv.lifecycle_status_cd = 'INACTIVE_IN_SOURCE'"));
+        assertEquals("client-a", jdbcTemplate.recordedParameters.get("client_id"));
+        assertEquals("LEDGER_SCOPE", jdbcTemplate.recordedParameters.get("lookup_cd"));
+        assertEquals(2L, result);
+    }
+
+    @Test
+    void defaultsStaleValueCountToZeroWhenNoRowsReturn() {
+        RecordingNamedParameterJdbcTemplate jdbcTemplate = new RecordingNamedParameterJdbcTemplate(List.of());
+        JdbcFilterLookupReadDao dao = new JdbcFilterLookupReadDao(providerOf(jdbcTemplate), new SQLQueryLoaderUtil(new DefaultResourceLoader()));
+
+        long result = dao.countStaleValues("client-a", "LEDGER_SCOPE");
+
+        assertEquals(0L, result);
+    }
+
+    @Test
     void failsWhenNamedParameterJdbcTemplateMissing() {
         JdbcFilterLookupReadDao dao = new JdbcFilterLookupReadDao(providerOf(null), new SQLQueryLoaderUtil(new DefaultResourceLoader()));
 
@@ -260,6 +285,12 @@ class JdbcFilterLookupReadDaoTest {
     private static Map<String, Object> valueCountRow(long valueCount) {
         Map<String, Object> row = new HashMap<>();
         row.put("value_count", valueCount);
+        return row;
+    }
+
+    private static Map<String, Object> staleValueCountRow(long staleValueCount) {
+        Map<String, Object> row = new HashMap<>();
+        row.put("stale_value_count", staleValueCount);
         return row;
     }
 

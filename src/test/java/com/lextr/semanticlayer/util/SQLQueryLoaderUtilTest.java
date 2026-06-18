@@ -25,6 +25,7 @@ class SQLQueryLoaderUtilTest {
         String insertRelationshipQuery = loader.getQuery("relationship_registration.insert_relationship");
         String updateRelationshipProjectionSyncQuery = loader.getQuery("relationship_registration.update_neo4j_projection_sync");
         String insertFilterLookupQuery = loader.getQuery("filter_lookup_registration.insert_lookup");
+        String certifyFilterLookupQuery = loader.getQuery("filter_lookup_registration.certify_lookup");
         String insertFilterLookupWorkflowTaskQuery = loader.getQuery("filter_lookup_registration.insert_workflow_task");
         String insertFilterLookupMetadataChangeHistoryQuery = loader.getQuery("filter_lookup_registration.insert_metadata_change_history");
         String governancePolicyPresetByCodeQuery = loader.getQuery("governance_policy_preset.find_by_code");
@@ -33,6 +34,7 @@ class SQLQueryLoaderUtilTest {
         String manualFilterLookupPreviewQuery = loader.getQuery("filter_lookup_effective_review.find_manual_values_by_lookup");
         String sqlFilterLookupPreviewQuery = loader.getQuery("filter_lookup_effective_review.find_sql_values_template");
         String filterLookupValueCountQuery = loader.getQuery("filter_lookup_effective_review.count_values_by_lookup");
+        String staleFilterLookupValueCountQuery = loader.getQuery("filter_lookup_effective_review.count_stale_values_by_lookup");
         String filterLookupExecutionLogInsertQuery = loader.getQuery("filter_lookup_exec_log.insert_execution");
         String objectListQuery = loader.getQuery("object_exposure.find_all");
         String objectByIdQuery = loader.getQuery("object_exposure.find_by_id");
@@ -73,6 +75,12 @@ class SQLQueryLoaderUtilTest {
         assertTrue(insertFilterLookupQuery.contains(":review_period_days_override"));
         assertTrue(insertFilterLookupQuery.contains("governance_status_cd"));
         assertTrue(insertFilterLookupQuery.contains("next_review_due_dt"));
+        assertTrue(certifyFilterLookupQuery.contains("UPDATE meta.semantic_filter_lookup"));
+        assertTrue(certifyFilterLookupQuery.contains(":health_status_cd"));
+        assertTrue(certifyFilterLookupQuery.contains(":last_certified_ts"));
+        assertTrue(certifyFilterLookupQuery.contains(":last_certified_by"));
+        assertTrue(certifyFilterLookupQuery.contains(":next_review_due_dt"));
+        assertTrue(certifyFilterLookupQuery.contains("WHERE client_id = :client_id AND lookup_cd = :lookup_cd"));
         assertTrue(insertFilterLookupWorkflowTaskQuery.contains("INSERT INTO wkfl.workflow_task"));
         assertTrue(insertFilterLookupWorkflowTaskQuery.contains(":entity_ref"));
         assertTrue(insertFilterLookupWorkflowTaskQuery.contains(":submitted_ts"));
@@ -116,6 +124,12 @@ class SQLQueryLoaderUtilTest {
         assertTrue(filterLookupValueCountQuery.contains("COUNT(*) AS value_count"));
         assertTrue(filterLookupValueCountQuery.contains("flv.lifecycle_status_cd IN ('ACTIVE','ANTICIPATED')"));
         assertTrue(filterLookupValueCountQuery.contains("GROUP BY flv.lookup_cd, sfl.client_id"));
+        assertTrue(staleFilterLookupValueCountQuery.contains("FROM meta.filter_lookup_value"));
+        assertTrue(staleFilterLookupValueCountQuery.contains(":client_id"));
+        assertTrue(staleFilterLookupValueCountQuery.contains(":lookup_cd"));
+        assertTrue(staleFilterLookupValueCountQuery.contains("COUNT(*) AS stale_value_count"));
+        assertTrue(staleFilterLookupValueCountQuery.contains("flv.lifecycle_status_cd = 'INACTIVE_IN_SOURCE'"));
+        assertTrue(staleFilterLookupValueCountQuery.contains("GROUP BY flv.lookup_cd, sfl.client_id"));
         assertTrue(filterLookupExecutionLogInsertQuery.contains("INSERT INTO meta.filter_lookup_exec_log"));
         assertTrue(filterLookupExecutionLogInsertQuery.contains(":lookup_cd"));
         assertTrue(filterLookupExecutionLogInsertQuery.contains(":executed_by"));

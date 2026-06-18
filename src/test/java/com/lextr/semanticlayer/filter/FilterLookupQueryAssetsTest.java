@@ -13,6 +13,7 @@ class FilterLookupQueryAssetsTest {
         SQLQueryLoaderUtil loader = new SQLQueryLoaderUtil(new DefaultResourceLoader());
 
         String insertLookupQuery = loader.getQuery("filter_lookup_registration.insert_lookup");
+        String certifyLookupQuery = loader.getQuery("filter_lookup_registration.certify_lookup");
         String insertWorkflowTaskQuery = loader.getQuery("filter_lookup_registration.insert_workflow_task");
         String insertMetadataChangeHistoryQuery = loader.getQuery("filter_lookup_registration.insert_metadata_change_history");
         String governancePresetQuery = loader.getQuery("governance_policy_preset.find_by_code");
@@ -21,6 +22,7 @@ class FilterLookupQueryAssetsTest {
         String manualPreviewQuery = loader.getQuery("filter_lookup_effective_review.find_manual_values_by_lookup");
         String sqlPreviewQuery = loader.getQuery("filter_lookup_effective_review.find_sql_values_template");
         String valueCountQuery = loader.getQuery("filter_lookup_effective_review.count_values_by_lookup");
+        String staleValueCountQuery = loader.getQuery("filter_lookup_effective_review.count_stale_values_by_lookup");
         String executionLogInsertQuery = loader.getQuery("filter_lookup_exec_log.insert_execution");
 
         assertTrue(insertLookupQuery.contains("INSERT INTO meta.semantic_filter_lookup"));
@@ -37,6 +39,14 @@ class FilterLookupQueryAssetsTest {
         assertTrue(insertLookupQuery.contains("lifecycle_status_cd"));
         assertTrue(insertLookupQuery.contains("created_ts"));
         assertTrue(insertLookupQuery.contains("updated_ts"));
+
+        assertTrue(certifyLookupQuery.contains("UPDATE meta.semantic_filter_lookup"));
+        assertTrue(certifyLookupQuery.contains(":health_status_cd"));
+        assertTrue(certifyLookupQuery.contains(":last_certified_ts"));
+        assertTrue(certifyLookupQuery.contains(":last_certified_by"));
+        assertTrue(certifyLookupQuery.contains(":next_review_due_dt"));
+        assertTrue(certifyLookupQuery.contains("WHERE client_id = :client_id AND lookup_cd = :lookup_cd"));
+        assertTrue(certifyLookupQuery.contains("RETURNING id, lookup_cd"));
 
         assertTrue(insertWorkflowTaskQuery.contains("INSERT INTO wkfl.workflow_task"));
         assertTrue(insertWorkflowTaskQuery.contains(":task_type_cd"));
@@ -110,6 +120,13 @@ class FilterLookupQueryAssetsTest {
         assertTrue(valueCountQuery.contains("COUNT(*) AS value_count"));
         assertTrue(valueCountQuery.contains("flv.lifecycle_status_cd IN ('ACTIVE','ANTICIPATED')"));
         assertTrue(valueCountQuery.contains("GROUP BY flv.lookup_cd, sfl.client_id"));
+
+        assertTrue(staleValueCountQuery.contains("FROM meta.filter_lookup_value"));
+        assertTrue(staleValueCountQuery.contains(":client_id"));
+        assertTrue(staleValueCountQuery.contains(":lookup_cd"));
+        assertTrue(staleValueCountQuery.contains("COUNT(*) AS stale_value_count"));
+        assertTrue(staleValueCountQuery.contains("flv.lifecycle_status_cd = 'INACTIVE_IN_SOURCE'"));
+        assertTrue(staleValueCountQuery.contains("GROUP BY flv.lookup_cd, sfl.client_id"));
 
         assertTrue(executionLogInsertQuery.contains("INSERT INTO meta.filter_lookup_exec_log"));
         assertTrue(executionLogInsertQuery.contains(":lookup_cd"));

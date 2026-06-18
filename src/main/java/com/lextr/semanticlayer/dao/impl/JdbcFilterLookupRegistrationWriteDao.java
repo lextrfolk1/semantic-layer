@@ -2,6 +2,7 @@ package com.lextr.semanticlayer.dao.impl;
 
 import com.lextr.semanticlayer.dao.FilterLookupRegistrationWriteDao;
 import com.lextr.semanticlayer.exception.SemanticLayerException;
+import com.lextr.semanticlayer.model.FilterLookupCertificationWriteRequest;
 import com.lextr.semanticlayer.model.FilterLookupMetadataChangeHistoryRecord;
 import com.lextr.semanticlayer.model.FilterLookupMetadataChangeHistoryWriteRequest;
 import com.lextr.semanticlayer.model.FilterLookupWorkflowTaskRecord;
@@ -23,6 +24,7 @@ import java.time.OffsetDateTime;
 public class JdbcFilterLookupRegistrationWriteDao implements FilterLookupRegistrationWriteDao {
 
     static final String INSERT_LOOKUP = "filter_lookup_registration.insert_lookup";
+    static final String CERTIFY_LOOKUP = "filter_lookup_registration.certify_lookup";
     static final String INSERT_WORKFLOW_TASK = "filter_lookup_registration.insert_workflow_task";
     static final String INSERT_METADATA_CHANGE_HISTORY = "filter_lookup_registration.insert_metadata_change_history";
 
@@ -69,40 +71,26 @@ public class JdbcFilterLookupRegistrationWriteDao implements FilterLookupRegistr
         return jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(INSERT_LOOKUP),
                 parameters,
-                (resultSet, rowNum) -> new SemanticFilterLookupRecord(
-                        getLong(resultSet, "id"),
-                        resultSet.getString("lookup_cd"),
-                        resultSet.getString("construction_type_cd"),
-                        resultSet.getString("manual_subtype_cd"),
-                        resultSet.getString("filter_obj"),
-                        resultSet.getString("filter_condition_txt"),
-                        resultSet.getString("filter_attr_cd"),
-                        resultSet.getString("validation_obj"),
-                        resultSet.getString("validation_attr_cd"),
-                        resultSet.getString("suggested_target_attr_cd"),
-                        resultSet.getString("execution_strategy_cd"),
-                        getInteger(resultSet, "max_input_set_size"),
-                        getInteger(resultSet, "max_output_rows"),
-                        getInteger(resultSet, "cache_ttl_min"),
-                        getInteger(resultSet, "review_period_days_override"),
-                        resultSet.getBoolean("rules_eligible_flg"),
-                        resultSet.getBoolean("qs_eligible_flg"),
-                        resultSet.getBoolean("ai_eligible_flg"),
-                        resultSet.getBoolean("replicate_to_ch_flg"),
-                        resultSet.getString("description_txt"),
-                        resultSet.getString("client_id"),
-                        resultSet.getString("governance_status_cd"),
-                        resultSet.getString("health_status_cd"),
-                        getOffsetDateTime(resultSet, "last_certified_ts"),
-                        resultSet.getString("last_certified_by"),
-                        getLocalDate(resultSet, "next_review_due_dt"),
-                        resultSet.getString("lifecycle_status_cd"),
-                        getOffsetDateTime(resultSet, "created_ts"),
-                        resultSet.getString("created_by"),
-                        getOffsetDateTime(resultSet, "updated_ts"),
-                        resultSet.getString("updated_by")
-                )
+                JdbcFilterLookupRegistrationWriteDao::mapFilterLookupRow
         ).stream().findFirst().orElseThrow(() -> new SemanticLayerException("Insert filter lookup returned no rows"));
+    }
+
+    @Override
+    public SemanticFilterLookupRecord certifyLookup(FilterLookupCertificationWriteRequest request) {
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("client_id", request.client_id())
+                .addValue("lookup_cd", request.lookup_cd())
+                .addValue("health_status_cd", request.health_status_cd())
+                .addValue("last_certified_ts", request.last_certified_ts())
+                .addValue("last_certified_by", request.last_certified_by())
+                .addValue("next_review_due_dt", request.next_review_due_dt())
+                .addValue("updated_ts", request.updated_ts())
+                .addValue("updated_by", request.updated_by());
+        return jdbcTemplate().query(
+                sqlQueryLoaderUtil.getQuery(CERTIFY_LOOKUP),
+                parameters,
+                JdbcFilterLookupRegistrationWriteDao::mapFilterLookupRow
+        ).stream().findFirst().orElseThrow(() -> new SemanticLayerException("Certify filter lookup returned no rows"));
     }
 
     @Override
@@ -179,6 +167,42 @@ public class JdbcFilterLookupRegistrationWriteDao implements FilterLookupRegistr
             throw new SemanticLayerException("NamedParameterJdbcTemplate is not configured");
         }
         return jdbcTemplate;
+    }
+
+    private static SemanticFilterLookupRecord mapFilterLookupRow(ResultSet resultSet, int rowNum) throws SQLException {
+        return new SemanticFilterLookupRecord(
+                getLong(resultSet, "id"),
+                resultSet.getString("lookup_cd"),
+                resultSet.getString("construction_type_cd"),
+                resultSet.getString("manual_subtype_cd"),
+                resultSet.getString("filter_obj"),
+                resultSet.getString("filter_condition_txt"),
+                resultSet.getString("filter_attr_cd"),
+                resultSet.getString("validation_obj"),
+                resultSet.getString("validation_attr_cd"),
+                resultSet.getString("suggested_target_attr_cd"),
+                resultSet.getString("execution_strategy_cd"),
+                getInteger(resultSet, "max_input_set_size"),
+                getInteger(resultSet, "max_output_rows"),
+                getInteger(resultSet, "cache_ttl_min"),
+                getInteger(resultSet, "review_period_days_override"),
+                resultSet.getBoolean("rules_eligible_flg"),
+                resultSet.getBoolean("qs_eligible_flg"),
+                resultSet.getBoolean("ai_eligible_flg"),
+                resultSet.getBoolean("replicate_to_ch_flg"),
+                resultSet.getString("description_txt"),
+                resultSet.getString("client_id"),
+                resultSet.getString("governance_status_cd"),
+                resultSet.getString("health_status_cd"),
+                getOffsetDateTime(resultSet, "last_certified_ts"),
+                resultSet.getString("last_certified_by"),
+                getLocalDate(resultSet, "next_review_due_dt"),
+                resultSet.getString("lifecycle_status_cd"),
+                getOffsetDateTime(resultSet, "created_ts"),
+                resultSet.getString("created_by"),
+                getOffsetDateTime(resultSet, "updated_ts"),
+                resultSet.getString("updated_by")
+        );
     }
 
     private static Long getLong(ResultSet resultSet, String columnLabel) throws SQLException {

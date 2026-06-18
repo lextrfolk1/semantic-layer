@@ -1,6 +1,7 @@
 package com.lextr.semanticlayer.dao.impl;
 
 import com.lextr.semanticlayer.exception.SemanticLayerException;
+import com.lextr.semanticlayer.model.FilterLookupCertificationWriteRequest;
 import com.lextr.semanticlayer.model.FilterLookupMetadataChangeHistoryRecord;
 import com.lextr.semanticlayer.model.FilterLookupMetadataChangeHistoryWriteRequest;
 import com.lextr.semanticlayer.model.FilterLookupWorkflowTaskRecord;
@@ -101,6 +102,29 @@ class JdbcFilterLookupRegistrationWriteDaoTest {
     }
 
     @Test
+    void bindsCertificationUpdateParametersAndMapsReturnedColumns() {
+        RecordingNamedParameterJdbcTemplate jdbcTemplate = new RecordingNamedParameterJdbcTemplate(List.of(certifiedLookupRow()));
+        JdbcFilterLookupRegistrationWriteDao dao = new JdbcFilterLookupRegistrationWriteDao(
+                providerOf(jdbcTemplate),
+                new SQLQueryLoaderUtil(new DefaultResourceLoader())
+        );
+
+        SemanticFilterLookupRecord result = dao.certifyLookup(certificationRequest());
+
+        assertTrue(jdbcTemplate.recordedSql.contains("UPDATE meta.semantic_filter_lookup"));
+        assertTrue(jdbcTemplate.recordedSql.contains("WHERE client_id = :client_id AND lookup_cd = :lookup_cd"));
+        assertEquals("client-a", jdbcTemplate.recordedParameters.get("client_id"));
+        assertEquals("LEDGER_SCOPE", jdbcTemplate.recordedParameters.get("lookup_cd"));
+        assertEquals("HEALTHY", jdbcTemplate.recordedParameters.get("health_status_cd"));
+        assertEquals("certifier", jdbcTemplate.recordedParameters.get("last_certified_by"));
+        assertEquals(LocalDate.parse("2026-09-16"), jdbcTemplate.recordedParameters.get("next_review_due_dt"));
+        assertEquals("HEALTHY", result.health_status_cd());
+        assertEquals("certifier", result.last_certified_by());
+        assertEquals(LocalDate.parse("2026-09-16"), result.next_review_due_dt());
+        assertEquals(OffsetDateTime.parse("2026-06-18T10:15:30Z"), result.last_certified_ts());
+    }
+
+    @Test
     void transactionRollsBackFilterLookupWritesOnFailure() {
         TransactionHarness harness = new TransactionHarness();
         TransactionalNamedParameterJdbcTemplate jdbcTemplate = new TransactionalNamedParameterJdbcTemplate(harness);
@@ -121,6 +145,30 @@ class JdbcFilterLookupRegistrationWriteDaoTest {
         assertTrue(jdbcTemplate.committedLookups.isEmpty());
         assertTrue(jdbcTemplate.committedWorkflowTasks.isEmpty());
         assertEquals(2, jdbcTemplate.recordedSqls.size());
+    }
+
+    @Test
+    void transactionRollsBackCertificationUpdateOnFailure() {
+        TransactionHarness harness = new TransactionHarness();
+        TransactionalNamedParameterJdbcTemplate jdbcTemplate = new TransactionalNamedParameterJdbcTemplate(harness);
+        JdbcFilterLookupRegistrationWriteDao dao = new JdbcFilterLookupRegistrationWriteDao(
+                providerOf(jdbcTemplate),
+                new SQLQueryLoaderUtil(new DefaultResourceLoader())
+        );
+        RecordingTransactionOperations transactionOperations = new RecordingTransactionOperations(harness);
+
+        assertThrows(IllegalStateException.class, () -> transactionOperations.execute(status -> {
+            dao.certifyLookup(certificationRequest());
+            dao.insertMetadataChangeHistory(metadataChangeRequest());
+            throw new IllegalStateException("audit failed");
+        }));
+
+        assertTrue(harness.rolledBack);
+        assertFalse(harness.committed);
+        assertTrue(jdbcTemplate.committedLookups.isEmpty());
+        assertEquals(2, jdbcTemplate.recordedSqls.size());
+        assertTrue(jdbcTemplate.recordedSqls.get(0).contains("UPDATE meta.semantic_filter_lookup"));
+        assertTrue(jdbcTemplate.recordedSqls.get(1).contains("INSERT INTO meta.metadata_change_history"));
     }
 
     @Test
@@ -210,6 +258,19 @@ class JdbcFilterLookupRegistrationWriteDaoTest {
         );
     }
 
+    private static FilterLookupCertificationWriteRequest certificationRequest() {
+        return new FilterLookupCertificationWriteRequest(
+                "client-a",
+                "LEDGER_SCOPE",
+                "HEALTHY",
+                OffsetDateTime.parse("2026-06-18T10:15:30Z"),
+                "certifier",
+                LocalDate.parse("2026-09-16"),
+                OffsetDateTime.parse("2026-06-18T10:15:30Z"),
+                "certifier"
+        );
+    }
+
     private static Map<String, Object> lookupRow() {
         Map<String, Object> row = new HashMap<>();
         row.put("id", 101L);
@@ -276,6 +337,17 @@ class JdbcFilterLookupRegistrationWriteDaoTest {
         row.put("old_value_json", null);
         row.put("new_value_json", null);
         row.put("change_reason_txt", "Registered filter lookup LEDGER_SCOPE");
+        return row;
+    }
+
+    private static Map<String, Object> certifiedLookupRow() {
+        Map<String, Object> row = lookupRow();
+        row.put("health_status_cd", "HEALTHY");
+        row.put("last_certified_ts", OffsetDateTime.parse("2026-06-18T10:15:30Z"));
+        row.put("last_certified_by", "certifier");
+        row.put("next_review_due_dt", LocalDate.parse("2026-09-16"));
+        row.put("updated_ts", OffsetDateTime.parse("2026-06-18T10:15:30Z"));
+        row.put("updated_by", "certifier");
         return row;
     }
 
@@ -427,6 +499,9 @@ class JdbcFilterLookupRegistrationWriteDaoTest {
             if (sql.startsWith("INSERT INTO meta.semantic_filter_lookup")) {
                 row = insertedLookupRow(parameters);
                 state.lookupRows.put((String) parameters.get("lookup_cd"), row);
+            } else if (sql.startsWith("UPDATE meta.semantic_filter_lookup")) {
+                row = certifiedLookupRow(parameters);
+                state.lookupRows.put((String) parameters.get("lookup_cd"), row);
             } else if (sql.startsWith("INSERT INTO wkfl.workflow_task")) {
                 row = insertedWorkflowTaskRow(parameters);
                 state.workflowRows.put(301L, row);
@@ -469,6 +544,42 @@ class JdbcFilterLookupRegistrationWriteDaoTest {
             row.put("lifecycle_status_cd", parameters.get("lifecycle_status_cd"));
             row.put("created_ts", parameters.get("created_ts"));
             row.put("created_by", parameters.get("created_by"));
+            row.put("updated_ts", parameters.get("updated_ts"));
+            row.put("updated_by", parameters.get("updated_by"));
+            return row;
+        }
+
+        private Map<String, Object> certifiedLookupRow(Map<String, Object> parameters) {
+            Map<String, Object> row = new HashMap<>();
+            row.put("id", 101L);
+            row.put("lookup_cd", parameters.get("lookup_cd"));
+            row.put("construction_type_cd", "MANUAL_LIST");
+            row.put("manual_subtype_cd", "HAND_TYPED");
+            row.put("filter_obj", "meta.gl_balance");
+            row.put("filter_condition_txt", "ledger_status = 'ACTIVE'");
+            row.put("filter_attr_cd", "ledger_id");
+            row.put("validation_obj", "meta.ledger");
+            row.put("validation_attr_cd", "ledger_id");
+            row.put("suggested_target_attr_cd", "ledger_id");
+            row.put("execution_strategy_cd", "IN_LIST");
+            row.put("max_input_set_size", 500);
+            row.put("max_output_rows", 10000);
+            row.put("cache_ttl_min", 60);
+            row.put("review_period_days_override", 120);
+            row.put("rules_eligible_flg", true);
+            row.put("qs_eligible_flg", true);
+            row.put("ai_eligible_flg", false);
+            row.put("replicate_to_ch_flg", false);
+            row.put("description_txt", "Ledger scope values");
+            row.put("client_id", parameters.get("client_id"));
+            row.put("governance_status_cd", "REVIEW");
+            row.put("health_status_cd", parameters.get("health_status_cd"));
+            row.put("last_certified_ts", parameters.get("last_certified_ts"));
+            row.put("last_certified_by", parameters.get("last_certified_by"));
+            row.put("next_review_due_dt", parameters.get("next_review_due_dt"));
+            row.put("lifecycle_status_cd", "ACTIVE");
+            row.put("created_ts", OffsetDateTime.parse("2026-06-18T10:15:30Z"));
+            row.put("created_by", "producer");
             row.put("updated_ts", parameters.get("updated_ts"));
             row.put("updated_by", parameters.get("updated_by"));
             return row;
