@@ -1,24 +1,34 @@
 package com.lextr.semanticlayer.api;
 
+import com.lextr.semanticlayer.dto.FilterLookupEffectiveReviewDto;
 import com.lextr.semanticlayer.dto.FilterLookupRegistrationRequestDto;
 import com.lextr.semanticlayer.dto.FilterLookupRegistrationResponseDto;
+import com.lextr.semanticlayer.service.FilterLookupReadService;
 import com.lextr.semanticlayer.service.FilterLookupRegistrationService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/filter-lookups")
 public class FilterLookupRegistrationController {
 
     private final FilterLookupRegistrationService filterLookupRegistrationService;
+    private final FilterLookupReadService filterLookupReadService;
 
-    public FilterLookupRegistrationController(FilterLookupRegistrationService filterLookupRegistrationService) {
+    public FilterLookupRegistrationController(FilterLookupRegistrationService filterLookupRegistrationService,
+                                              FilterLookupReadService filterLookupReadService) {
         this.filterLookupRegistrationService = filterLookupRegistrationService;
+        this.filterLookupReadService = filterLookupReadService;
     }
 
     @PostMapping
@@ -26,5 +36,21 @@ public class FilterLookupRegistrationController {
     public FilterLookupRegistrationResponseDto registerFilterLookup(
             @Valid @RequestBody FilterLookupRegistrationRequestDto request) {
         return filterLookupRegistrationService.registerFilterLookup(request);
+    }
+
+    @GetMapping
+    public List<FilterLookupEffectiveReviewDto> findLookups(
+            @RequestParam("client_id") String clientId,
+            @RequestParam(value = "governance_status_cd", required = false) String governanceStatusCode,
+            @RequestParam(value = "health_status_cd", required = false) String healthStatusCode,
+            @RequestParam(value = "lifecycle_status_cd", required = false) String lifecycleStatusCode) {
+        return filterLookupReadService.findLookups(clientId, governanceStatusCode, healthStatusCode, lifecycleStatusCode);
+    }
+
+    @GetMapping("/{lookup_code}")
+    public FilterLookupEffectiveReviewDto findLookup(
+            @RequestParam("client_id") String clientId,
+            @PathVariable("lookup_code") String lookupCode) {
+        return filterLookupReadService.findLookup(clientId, lookupCode);
     }
 }
