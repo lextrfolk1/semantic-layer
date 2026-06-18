@@ -20,6 +20,7 @@ import com.lextr.semanticlayer.exception.PolicyViolationException;
 import com.lextr.semanticlayer.exception.RelationshipRegistrationServiceException;
 import com.lextr.semanticlayer.model.SemanticRelationshipCatalogRecord;
 import com.lextr.semanticlayer.model.SemanticRelationshipCatalogWriteRequest;
+import com.lextr.semanticlayer.model.SemanticRelationshipProjectionSyncWriteRequest;
 import com.lextr.semanticlayer.model.WorkflowTaskRecord;
 import com.lextr.semanticlayer.model.WorkflowTaskWriteRequest;
 import com.lextr.semanticlayer.service.RelationshipPolicyClient;
@@ -269,6 +270,11 @@ class RelationshipRegistrationServiceImplTest {
             lastRequest = request;
             harness.addRelationship(response, committedRelationships);
             return response;
+        }
+
+        @Override
+        public SemanticRelationshipCatalogRecord updateNeo4jProjectionSync(SemanticRelationshipProjectionSyncWriteRequest request) {
+            throw new UnsupportedOperationException("Not used in relationship service tests");
         }
     }
 

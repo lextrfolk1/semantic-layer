@@ -4,6 +4,7 @@ import com.lextr.semanticlayer.dao.RelationshipRegistrationWriteDao;
 import com.lextr.semanticlayer.exception.SemanticLayerException;
 import com.lextr.semanticlayer.model.SemanticRelationshipCatalogRecord;
 import com.lextr.semanticlayer.model.SemanticRelationshipCatalogWriteRequest;
+import com.lextr.semanticlayer.model.SemanticRelationshipProjectionSyncWriteRequest;
 import com.lextr.semanticlayer.util.SQLQueryLoaderUtil;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -18,6 +19,7 @@ import java.time.OffsetDateTime;
 public class JdbcRelationshipRegistrationWriteDao implements RelationshipRegistrationWriteDao {
 
     static final String INSERT_RELATIONSHIP = "relationship_registration.insert_relationship";
+    static final String UPDATE_NEO4J_PROJECTION_SYNC = "relationship_registration.update_neo4j_projection_sync";
 
     private final ObjectProvider<NamedParameterJdbcTemplate> jdbcTemplateProvider;
     private final SQLQueryLoaderUtil sqlQueryLoaderUtil;
@@ -51,8 +53,40 @@ public class JdbcRelationshipRegistrationWriteDao implements RelationshipRegistr
                 .addValue("created_by", request.created_by())
                 .addValue("updated_ts", request.updated_ts())
                 .addValue("updated_by", request.updated_by());
+        return queryForRelationship(INSERT_RELATIONSHIP, parameters, "Insert relationship returned no rows");
+    }
+
+    @Override
+    public SemanticRelationshipCatalogRecord updateNeo4jProjectionSync(SemanticRelationshipProjectionSyncWriteRequest request) {
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("relationship_cd", request.relationship_cd())
+                .addValue("neo4j_synced_ts", request.neo4j_synced_ts())
+                .addValue("updated_ts", request.updated_ts())
+                .addValue("updated_by", request.updated_by());
+        return queryForRelationship(
+                UPDATE_NEO4J_PROJECTION_SYNC,
+                parameters,
+                "Update relationship projection sync returned no rows"
+        );
+    }
+
+    private NamedParameterJdbcTemplate jdbcTemplate() {
+        NamedParameterJdbcTemplate jdbcTemplate = jdbcTemplateProvider.getIfAvailable();
+        if (jdbcTemplate == null) {
+            throw new SemanticLayerException("NamedParameterJdbcTemplate is not configured");
+        }
+        return jdbcTemplate;
+    }
+
+    private static OffsetDateTime getOffsetDateTime(ResultSet resultSet, String columnLabel) throws SQLException {
+        return resultSet.getObject(columnLabel, OffsetDateTime.class);
+    }
+
+    private SemanticRelationshipCatalogRecord queryForRelationship(String queryKey,
+                                                                   MapSqlParameterSource parameters,
+                                                                   String emptyResultMessage) {
         return jdbcTemplate().query(
-                sqlQueryLoaderUtil.getQuery(INSERT_RELATIONSHIP),
+                sqlQueryLoaderUtil.getQuery(queryKey),
                 parameters,
                 (resultSet, rowNum) -> new SemanticRelationshipCatalogRecord(
                         getLong(resultSet, "id"),
@@ -78,19 +112,7 @@ public class JdbcRelationshipRegistrationWriteDao implements RelationshipRegistr
                         getOffsetDateTime(resultSet, "updated_ts"),
                         resultSet.getString("updated_by")
                 )
-        ).stream().findFirst().orElseThrow(() -> new SemanticLayerException("Insert relationship returned no rows"));
-    }
-
-    private NamedParameterJdbcTemplate jdbcTemplate() {
-        NamedParameterJdbcTemplate jdbcTemplate = jdbcTemplateProvider.getIfAvailable();
-        if (jdbcTemplate == null) {
-            throw new SemanticLayerException("NamedParameterJdbcTemplate is not configured");
-        }
-        return jdbcTemplate;
-    }
-
-    private static OffsetDateTime getOffsetDateTime(ResultSet resultSet, String columnLabel) throws SQLException {
-        return resultSet.getObject(columnLabel, OffsetDateTime.class);
+        ).stream().findFirst().orElseThrow(() -> new SemanticLayerException(emptyResultMessage));
     }
 
     private static Long getLong(ResultSet resultSet, String columnLabel) throws SQLException {

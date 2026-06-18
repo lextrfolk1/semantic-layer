@@ -23,6 +23,7 @@ class SQLQueryLoaderUtilTest {
         String insertWorkflowTaskQuery = loader.getQuery("object_registration.insert_workflow_task");
         String insertMetadataChangeHistoryQuery = loader.getQuery("object_registration.insert_metadata_change_history");
         String insertRelationshipQuery = loader.getQuery("relationship_registration.insert_relationship");
+        String updateRelationshipProjectionSyncQuery = loader.getQuery("relationship_registration.update_neo4j_projection_sync");
         String objectListQuery = loader.getQuery("object_exposure.find_all");
         String objectByIdQuery = loader.getQuery("object_exposure.find_by_id");
         String objectBySchemaAndCodeQuery = loader.getQuery("object_exposure.find_by_schema_and_code");
@@ -54,6 +55,9 @@ class SQLQueryLoaderUtilTest {
         assertTrue(insertRelationshipQuery.contains(":parent_object_cd"));
         assertTrue(insertRelationshipQuery.contains(":child_attribute_cd"));
         assertTrue(insertRelationshipQuery.contains("is_cross_engine_flg"));
+        assertTrue(updateRelationshipProjectionSyncQuery.contains("UPDATE meta.semantic_relationship_catalog"));
+        assertTrue(updateRelationshipProjectionSyncQuery.contains(":neo4j_synced_ts"));
+        assertTrue(updateRelationshipProjectionSyncQuery.contains("WHERE relationship_cd = :relationship_cd"));
         assertTrue(objectListQuery.contains("FROM meta.object_catalog"));
         assertTrue(objectListQuery.contains("effective_object_nm"));
         assertTrue(objectListQuery.contains(":schema_cd"));
