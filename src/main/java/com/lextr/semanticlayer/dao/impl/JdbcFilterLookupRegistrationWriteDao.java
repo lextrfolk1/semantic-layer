@@ -99,7 +99,6 @@ public class JdbcFilterLookupRegistrationWriteDao implements FilterLookupRegistr
     @Override
     public FilterLookupBindingRecord insertBinding(FilterLookupBindingWriteRequest request) {
         MapSqlParameterSource parameters = new MapSqlParameterSource()
-                .addValue("client_id", request.client_id())
                 .addValue("lookup_cd", request.lookup_cd())
                 .addValue("bound_obj", request.bound_obj())
                 .addValue("bound_attr_cd", request.bound_attr_cd())
@@ -118,7 +117,6 @@ public class JdbcFilterLookupRegistrationWriteDao implements FilterLookupRegistr
     private static FilterLookupBindingRecord mapFilterLookupBindingRow(ResultSet resultSet, int rowNum) throws SQLException {
         return new FilterLookupBindingRecord(
                 getLong(resultSet, "id"),
-                resultSet.getString("client_id"),
                 resultSet.getString("lookup_cd"),
                 resultSet.getString("bound_obj"),
                 resultSet.getString("bound_attr_cd"),

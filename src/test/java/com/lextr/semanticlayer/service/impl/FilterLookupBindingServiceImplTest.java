@@ -68,7 +68,6 @@ class FilterLookupBindingServiceImplTest {
         assertEquals(1, writeDao.committedMetadataChanges.size());
 
         assertEquals("LEDGER_SCOPE", writeDao.bindingRequest.lookup_cd());
-        assertEquals("client-a", writeDao.bindingRequest.client_id());
         assertEquals("meta.gl_balance", writeDao.bindingRequest.bound_obj());
         assertEquals("ledger_id", writeDao.bindingRequest.bound_attr_cd());
         assertEquals("PIPELINE", writeDao.bindingRequest.binding_context_cd());
@@ -308,7 +307,6 @@ class FilterLookupBindingServiceImplTest {
             bindingRequest = request;
             FilterLookupBindingRecord record = new FilterLookupBindingRecord(
                     501L,
-                    request.client_id(),
                     request.lookup_cd(),
                     request.bound_obj(),
                     request.bound_attr_cd(),

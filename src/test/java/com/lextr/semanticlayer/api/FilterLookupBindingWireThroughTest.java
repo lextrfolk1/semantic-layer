@@ -101,7 +101,6 @@ class FilterLookupBindingWireThroughTest {
 
         assertEquals("client-a", jdbcTemplate.recordedParameters().get(0).get("client_id"));
         assertEquals("LEDGER_SCOPE", jdbcTemplate.recordedParameters().get(0).get("lookup_cd"));
-        assertEquals("client-a", jdbcTemplate.recordedParameters().get(1).get("client_id"));
         assertEquals("LEDGER_SCOPE", jdbcTemplate.recordedParameters().get(1).get("lookup_cd"));
         assertEquals("meta.gl_balance", jdbcTemplate.recordedParameters().get(1).get("bound_obj"));
         assertEquals("ledger_id", jdbcTemplate.recordedParameters().get(1).get("bound_attr_cd"));
@@ -230,7 +229,6 @@ class FilterLookupBindingWireThroughTest {
     private static Map<String, Object> boundRow(OffsetDateTime boundTs, String bindingContext, String bindingRef) {
         Map<String, Object> row = new HashMap<>();
         row.put("id", 501L);
-        row.put("client_id", "client-a");
         row.put("lookup_cd", "LEDGER_SCOPE");
         row.put("bound_obj", "meta.gl_balance");
         row.put("bound_attr_cd", "ledger_id");

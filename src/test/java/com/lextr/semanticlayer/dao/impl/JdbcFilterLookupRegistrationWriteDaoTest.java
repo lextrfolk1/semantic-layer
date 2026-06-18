@@ -137,7 +137,6 @@ class JdbcFilterLookupRegistrationWriteDaoTest {
         FilterLookupBindingRecord result = dao.insertBinding(bindingRequest());
 
         assertTrue(jdbcTemplate.recordedSql.contains("INSERT INTO meta.filter_lookup_binding"));
-        assertEquals("client-a", jdbcTemplate.recordedParameters.get("client_id"));
         assertEquals("LEDGER_SCOPE", jdbcTemplate.recordedParameters.get("lookup_cd"));
         assertEquals("meta.gl_balance", jdbcTemplate.recordedParameters.get("bound_obj"));
         assertEquals("ledger_id", jdbcTemplate.recordedParameters.get("bound_attr_cd"));
@@ -147,7 +146,6 @@ class JdbcFilterLookupRegistrationWriteDaoTest {
         assertTrue((Boolean) jdbcTemplate.recordedParameters.get("is_active_flg"));
 
         assertEquals(501L, result.id());
-        assertEquals("client-a", result.client_id());
         assertEquals("LEDGER_SCOPE", result.lookup_cd());
         assertEquals("meta.gl_balance", result.bound_obj());
         assertEquals("ledger_id", result.bound_attr_cd());
@@ -330,7 +328,6 @@ class JdbcFilterLookupRegistrationWriteDaoTest {
 
     private static FilterLookupBindingWriteRequest bindingRequest() {
         return new FilterLookupBindingWriteRequest(
-                "client-a",
                 "LEDGER_SCOPE",
                 "meta.gl_balance",
                 "ledger_id",
@@ -345,7 +342,6 @@ class JdbcFilterLookupRegistrationWriteDaoTest {
     private static Map<String, Object> bindingRow() {
         Map<String, Object> row = new HashMap<>();
         row.put("id", 501L);
-        row.put("client_id", "client-a");
         row.put("lookup_cd", "LEDGER_SCOPE");
         row.put("bound_obj", "meta.gl_balance");
         row.put("bound_attr_cd", "ledger_id");
@@ -697,7 +693,6 @@ class JdbcFilterLookupRegistrationWriteDaoTest {
         private Map<String, Object> insertedBindingRow(Map<String, Object> parameters) {
             Map<String, Object> row = new HashMap<>();
             row.put("id", 501L);
-            row.put("client_id", parameters.get("client_id"));
             row.put("lookup_cd", parameters.get("lookup_cd"));
             row.put("bound_obj", parameters.get("bound_obj"));
             row.put("bound_attr_cd", parameters.get("bound_attr_cd"));

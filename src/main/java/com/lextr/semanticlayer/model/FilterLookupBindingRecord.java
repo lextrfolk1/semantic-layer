@@ -4,7 +4,6 @@ import java.time.OffsetDateTime;
 
 public record FilterLookupBindingRecord(
         Long id,
-        String client_id,
         String lookup_cd,
         String bound_obj,
         String bound_attr_cd,

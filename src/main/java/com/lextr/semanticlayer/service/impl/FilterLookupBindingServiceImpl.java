@@ -116,7 +116,6 @@ public class FilterLookupBindingServiceImpl implements FilterLookupBindingServic
                                                            OffsetDateTime now) {
         FilterLookupBindingRecord boundRecord = filterLookupRegistrationWriteDao.insertBinding(
                 new FilterLookupBindingWriteRequest(
-                        request.client_id(),
                         lookupCode,
                         request.bound_obj(),
                         request.bound_attr_cd(),
