@@ -3,8 +3,11 @@ package com.lextr.semanticlayer.api;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lextr.semanticlayer.dto.FilterLookupRegistrationRequestDto;
 import com.lextr.semanticlayer.dto.FilterLookupRegistrationResponseDto;
+import com.lextr.semanticlayer.dto.FilterLookupPreviewRequestDto;
+import com.lextr.semanticlayer.dto.FilterLookupPreviewResponseDto;
 import com.lextr.semanticlayer.exception.FilterLookupRegistrationServiceException;
 import com.lextr.semanticlayer.exception.PolicyViolationException;
+import com.lextr.semanticlayer.service.FilterLookupPreviewService;
 import com.lextr.semanticlayer.service.FilterLookupRegistrationService;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
@@ -103,7 +106,10 @@ class FilterLookupRegistrationControllerTest {
     }
 
     private static MockMvc mockMvc(FilterLookupRegistrationService service) {
-        FilterLookupRegistrationController controller = new FilterLookupRegistrationController(service);
+        FilterLookupRegistrationController controller = new FilterLookupRegistrationController(
+                service,
+                new NoOpFilterLookupPreviewService()
+        );
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
@@ -155,6 +161,14 @@ class FilterLookupRegistrationControllerTest {
                 throw error;
             }
             return response;
+        }
+    }
+
+    private static final class NoOpFilterLookupPreviewService implements FilterLookupPreviewService {
+
+        @Override
+        public FilterLookupPreviewResponseDto previewFilterLookup(FilterLookupPreviewRequestDto request) {
+            throw new UnsupportedOperationException("Not used in registration tests");
         }
     }
 }
