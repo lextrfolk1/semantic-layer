@@ -1,13 +1,17 @@
 package com.lextr.semanticlayer.api;
 
+import com.lextr.semanticlayer.dto.FilterLookupBindingRequestDto;
+import com.lextr.semanticlayer.dto.FilterLookupBindingResponseDto;
 import com.lextr.semanticlayer.dto.FilterLookupCertificationRequestDto;
 import com.lextr.semanticlayer.dto.FilterLookupPreviewRequestDto;
 import com.lextr.semanticlayer.dto.FilterLookupPreviewResponseDto;
 import com.lextr.semanticlayer.dto.FilterLookupEffectiveReviewDto;
 import com.lextr.semanticlayer.dto.FilterLookupRegistrationRequestDto;
 import com.lextr.semanticlayer.dto.FilterLookupRegistrationResponseDto;
+import com.lextr.semanticlayer.exception.FilterLookupBindingServiceException;
 import com.lextr.semanticlayer.exception.FilterLookupCertificationServiceException;
 import com.lextr.semanticlayer.exception.FilterLookupPreviewServiceException;
+import com.lextr.semanticlayer.service.FilterLookupBindingService;
 import com.lextr.semanticlayer.service.FilterLookupCertificationService;
 import com.lextr.semanticlayer.service.FilterLookupPreviewService;
 import com.lextr.semanticlayer.service.FilterLookupReadService;
@@ -33,6 +37,7 @@ public class FilterLookupRegistrationController {
 
     private final FilterLookupRegistrationService filterLookupRegistrationService;
     private final FilterLookupReadService filterLookupReadService;
+    private final FilterLookupBindingService filterLookupBindingService;
     private final FilterLookupCertificationService filterLookupCertificationService;
     private final FilterLookupPreviewService filterLookupPreviewService;
 
@@ -40,12 +45,14 @@ public class FilterLookupRegistrationController {
     public FilterLookupRegistrationController(
             FilterLookupRegistrationService filterLookupRegistrationService,
             FilterLookupReadService filterLookupReadService,
+            ObjectProvider<FilterLookupBindingService> filterLookupBindingServiceProvider,
             ObjectProvider<FilterLookupCertificationService> filterLookupCertificationServiceProvider,
             ObjectProvider<FilterLookupPreviewService> filterLookupPreviewServiceProvider
     ) {
         this(
                 filterLookupRegistrationService,
                 filterLookupReadService,
+                filterLookupBindingServiceProvider.getIfAvailable(MissingFilterLookupBindingService::new),
                 filterLookupCertificationServiceProvider.getIfAvailable(MissingFilterLookupCertificationService::new),
                 filterLookupPreviewServiceProvider.getIfAvailable(MissingFilterLookupPreviewService::new)
         );
@@ -56,6 +63,7 @@ public class FilterLookupRegistrationController {
         this(
                 filterLookupRegistrationService,
                 filterLookupReadService,
+                new MissingFilterLookupBindingService(),
                 new MissingFilterLookupCertificationService(),
                 new MissingFilterLookupPreviewService()
         );
@@ -67,6 +75,7 @@ public class FilterLookupRegistrationController {
         this(
                 filterLookupRegistrationService,
                 filterLookupReadService,
+                new MissingFilterLookupBindingService(),
                 new MissingFilterLookupCertificationService(),
                 filterLookupPreviewService
         );
@@ -76,8 +85,23 @@ public class FilterLookupRegistrationController {
                                        FilterLookupReadService filterLookupReadService,
                                        FilterLookupCertificationService filterLookupCertificationService,
                                        FilterLookupPreviewService filterLookupPreviewService) {
+        this(
+                filterLookupRegistrationService,
+                filterLookupReadService,
+                new MissingFilterLookupBindingService(),
+                filterLookupCertificationService,
+                filterLookupPreviewService
+        );
+    }
+
+    FilterLookupRegistrationController(FilterLookupRegistrationService filterLookupRegistrationService,
+                                       FilterLookupReadService filterLookupReadService,
+                                       FilterLookupBindingService filterLookupBindingService,
+                                       FilterLookupCertificationService filterLookupCertificationService,
+                                       FilterLookupPreviewService filterLookupPreviewService) {
         this.filterLookupRegistrationService = filterLookupRegistrationService;
         this.filterLookupReadService = filterLookupReadService;
+        this.filterLookupBindingService = filterLookupBindingService;
         this.filterLookupCertificationService = filterLookupCertificationService;
         this.filterLookupPreviewService = filterLookupPreviewService;
     }
@@ -93,6 +117,14 @@ public class FilterLookupRegistrationController {
     public List<FilterLookupPreviewResponseDto> previewLookups(
             @Valid @RequestBody FilterLookupPreviewRequestDto request) {
         return filterLookupPreviewService.previewLookups(request);
+    }
+
+    @PostMapping("/{lookup_code}/bindings")
+    @ResponseStatus(HttpStatus.CREATED)
+    public FilterLookupBindingResponseDto bindLookup(
+            @PathVariable("lookup_code") String lookupCode,
+            @Valid @RequestBody FilterLookupBindingRequestDto request) {
+        return filterLookupBindingService.bindLookup(lookupCode, request);
     }
 
     @PostMapping("/{lookup_code}/certify")
@@ -123,6 +155,14 @@ public class FilterLookupRegistrationController {
         @Override
         public FilterLookupEffectiveReviewDto certifyLookup(String lookupCode, FilterLookupCertificationRequestDto request) {
             throw new FilterLookupCertificationServiceException("FilterLookupCertificationService is not configured");
+        }
+    }
+
+    private static final class MissingFilterLookupBindingService implements FilterLookupBindingService {
+
+        @Override
+        public FilterLookupBindingResponseDto bindLookup(String lookupCode, FilterLookupBindingRequestDto request) {
+            throw new FilterLookupBindingServiceException("FilterLookupBindingService is not configured");
         }
     }
 
