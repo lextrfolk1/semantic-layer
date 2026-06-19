@@ -15,6 +15,9 @@ import com.lextr.semanticlayer.model.FilterLookupMetadataChangeHistoryRecord;
 import com.lextr.semanticlayer.model.FilterLookupMetadataChangeHistoryWriteRequest;
 import com.lextr.semanticlayer.service.WorkflowPolicyClient;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionOperations;
@@ -29,6 +32,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@ExtendWith(OutputCaptureExtension.class)
 class WorkflowApprovalServiceImplTest {
 
     @Test
@@ -120,6 +124,43 @@ class WorkflowApprovalServiceImplTest {
 
         service.approveTask(302L, new WorkflowApprovalRequestDto("client-a", "approver", "approved"));
         assertEquals("ACTIVE", dao.overrideStatus.get(402L));
+    }
+
+    @Test
+    void logsWarningWhenOverrideEntityReferenceIsNotNumeric(CapturedOutput output) {
+        TransactionHarness harness = new TransactionHarness();
+        RecordingWorkflowApprovalDao dao = new RecordingWorkflowApprovalDao();
+        dao.tasks.put(302L, new FilterLookupWorkflowTaskRecord(
+                302L,
+                "ATTRIBUTE_LOGICAL_NAME_OVERRIDE",
+                "ATTRIBUTE",
+                "not-a-number",
+                "PENDING",
+                "producer",
+                OffsetDateTime.now(),
+                null,
+                null,
+                "Review override",
+                "client-a",
+                null,
+                null,
+                null
+        ));
+
+        WorkflowApprovalServiceImpl service = new WorkflowApprovalServiceImpl(
+                dao,
+                new RecordingFilterLookupRegistrationWriteDao(),
+                new RecordingWorkflowPolicyClient(new WorkflowPolicyDecisionDto(true, null, null)),
+                new RecordingTransactionOperations(harness)
+        );
+
+        WorkflowTaskResponseDto response =
+                service.approveTask(302L, new WorkflowApprovalRequestDto("client-a", "approver", "approved"));
+
+        assertEquals("APPROVED", response.task_status_cd());
+        assertTrue((output.getOut() + output.getErr()).contains(
+                "Skipping ATTRIBUTE_LOGICAL_NAME_OVERRIDE side effect for workflow task 302 because entity_ref='not-a-number' is not numeric"
+        ));
     }
 
     @Test

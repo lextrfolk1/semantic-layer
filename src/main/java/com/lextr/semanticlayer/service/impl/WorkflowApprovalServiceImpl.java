@@ -14,6 +14,8 @@ import com.lextr.semanticlayer.model.FilterLookupWorkflowTaskRecord;
 import com.lextr.semanticlayer.model.FilterLookupMetadataChangeHistoryWriteRequest;
 import com.lextr.semanticlayer.service.WorkflowApprovalService;
 import com.lextr.semanticlayer.service.WorkflowPolicyClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -25,6 +27,8 @@ import java.time.ZoneOffset;
 
 @Service
 public class WorkflowApprovalServiceImpl implements WorkflowApprovalService {
+
+    private static final Logger logger = LoggerFactory.getLogger(WorkflowApprovalServiceImpl.class);
 
     private final WorkflowApprovalDao workflowApprovalDao;
     private final FilterLookupRegistrationWriteDao filterLookupRegistrationWriteDao;
@@ -132,7 +136,12 @@ public class WorkflowApprovalServiceImpl implements WorkflowApprovalService {
             try {
                 Long overrideId = Long.parseLong(task.entity_ref());
                 workflowApprovalDao.approveAttributeOverride(task.client_id(), overrideId, "ACTIVE", now, approvedBy);
-            } catch (NumberFormatException ignored) {
+            } catch (NumberFormatException exception) {
+                logger.warn(
+                        "Skipping ATTRIBUTE_LOGICAL_NAME_OVERRIDE side effect for workflow task {} because entity_ref='{}' is not numeric",
+                        task.id(),
+                        task.entity_ref()
+                );
             }
         } else if ("FILTER_LOOKUP_VALUE".equalsIgnoreCase(type)) {
             String[] parts = task.entity_ref().split(":", 2);

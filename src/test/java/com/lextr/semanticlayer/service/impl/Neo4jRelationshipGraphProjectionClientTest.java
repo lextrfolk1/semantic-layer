@@ -2,16 +2,23 @@ package com.lextr.semanticlayer.service.impl;
 
 import com.lextr.semanticlayer.model.RelationshipGraphProjectionRequest;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
 import java.time.OffsetDateTime;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@ExtendWith(OutputCaptureExtension.class)
 class Neo4jRelationshipGraphProjectionClientTest {
 
     @Test
@@ -78,6 +85,19 @@ class Neo4jRelationshipGraphProjectionClientTest {
         assertEquals(Boolean.TRUE, executor.parameters.get("is_cross_engine_flg"));
     }
 
+    @Test
+    void logsWarningWhenNeo4jClientIsNotConfigured(CapturedOutput output) {
+        Neo4jClientRelationshipGraphCypherExecutor executor =
+                new Neo4jClientRelationshipGraphCypherExecutor(providerOf(null));
+
+        boolean projected = executor.run("RETURN 1", Map.of());
+
+        assertFalse(projected);
+        assertTrue((output.getOut() + output.getErr()).contains(
+                "Skipping relationship graph projection because Neo4jClient is not configured"
+        ));
+    }
+
     private static RelationshipGraphProjectionRequest request(String relationshipCode,
                                                               String parentEngineCode,
                                                               String childEngineCode,
@@ -126,5 +146,34 @@ class Neo4jRelationshipGraphProjectionClientTest {
             relationshipTimestamps.put(relationshipCode, (OffsetDateTime) parameters.get("projected_ts"));
             return true;
         }
+    }
+
+    private static <T> ObjectProvider<T> providerOf(T value) {
+        return new ObjectProvider<>() {
+            @Override
+            public T getObject(Object... args) {
+                return value;
+            }
+
+            @Override
+            public T getIfAvailable() {
+                return value;
+            }
+
+            @Override
+            public T getIfUnique() {
+                return value;
+            }
+
+            @Override
+            public T getObject() {
+                return value;
+            }
+
+            @Override
+            public Iterator<T> iterator() {
+                return value == null ? java.util.Collections.emptyIterator() : java.util.List.of(value).iterator();
+            }
+        };
     }
 }
