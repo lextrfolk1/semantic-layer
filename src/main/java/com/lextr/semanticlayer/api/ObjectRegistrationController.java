@@ -6,6 +6,9 @@ import com.lextr.semanticlayer.dto.ObjectRegistrationRequestDto;
 import com.lextr.semanticlayer.dto.ObjectRegistrationResponseDto;
 import com.lextr.semanticlayer.service.ObjectExposureReadService;
 import com.lextr.semanticlayer.service.ObjectRegistrationService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,6 +25,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/objects")
+@Tag(name = "Objects", description = "Object registration and object exposure operations.")
 public class ObjectRegistrationController {
 
     private final ObjectRegistrationService objectRegistrationService;
@@ -35,22 +39,25 @@ public class ObjectRegistrationController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Register object", description = "Registers an object and its attributes for the semantic layer.")
     public ObjectRegistrationResponseDto registerObject(@Valid @RequestBody ObjectRegistrationRequestDto request) {
         return objectRegistrationService.registerObject(request);
     }
 
     @GetMapping
+    @Operation(summary = "List objects", description = "Returns registered objects visible for the supplied client.")
     public List<ObjectExposureSummaryDto> findObjects(
-            @RequestParam("client_id") String clientId,
-            @RequestParam(value = "schema_cd", required = false) String schemaCode,
-            @RequestParam(value = "lifecycle_status_cd", required = false) String lifecycleStatusCode) {
+            @Parameter(description = "Tenant identifier.") @RequestParam("client_id") String clientId,
+            @Parameter(description = "Optional schema filter.") @RequestParam(value = "schema_cd", required = false) String schemaCode,
+            @Parameter(description = "Optional lifecycle status filter.") @RequestParam(value = "lifecycle_status_cd", required = false) String lifecycleStatusCode) {
         return objectExposureReadService.findObjects(clientId, schemaCode, lifecycleStatusCode);
     }
 
     @GetMapping("/{object_id}")
+    @Operation(summary = "Get object", description = "Returns one object with its attributes for the supplied client.")
     public ObjectExposureDetailDto findObject(
-            @RequestParam("client_id") String clientId,
-            @PathVariable("object_id") UUID objectId) {
+            @Parameter(description = "Tenant identifier.") @RequestParam("client_id") String clientId,
+            @Parameter(description = "Object identifier.") @PathVariable("object_id") UUID objectId) {
         return objectExposureReadService.findObject(clientId, objectId);
     }
 }
