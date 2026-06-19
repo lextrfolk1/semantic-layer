@@ -3,3 +3,6 @@ spring:
     name: semantic-layer
   jackson:
     property-naming-strategy: SNAKE_CASE
+logging:
+  level:
+    com.lextr.semanticlayer: INFO
