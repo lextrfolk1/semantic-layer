@@ -1,0 +1,12 @@
+spring:
+  config:
+    import: ""
+  cloud:
+    config:
+      enabled: false
+      fail-fast: false
+    bootstrap:
+      enabled: false
+logging:
+  level:
+    com.lextr.semanticlayer: INFO

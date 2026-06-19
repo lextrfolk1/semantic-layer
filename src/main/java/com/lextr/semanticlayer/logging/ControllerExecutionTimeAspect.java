@@ -31,10 +31,17 @@ public class ControllerExecutionTimeAspect {
     private static final Pattern COMPONENT_PATTERN = Pattern.compile("(^|\\.)util(s)?(\\.|$)|Util$|Component$", Pattern.CASE_INSENSITIVE);
 
     @Around("""
-            within(@org.springframework.web.bind.annotation.RestController *) ||
-            within(@org.springframework.stereotype.Service *) ||
-            within(@org.springframework.stereotype.Repository *) ||
-            within(@org.springframework.stereotype.Component *)
+            (
+                within(@org.springframework.web.bind.annotation.RestController *) ||
+                within(@org.springframework.stereotype.Service *) ||
+                within(@org.springframework.stereotype.Repository *) ||
+                within(@org.springframework.stereotype.Component *)
+            ) &&
+            !within(org.springframework..*) &&
+            !within(org.springframework.cloud..*) &&
+            !within(com.lextr.semanticlayer.logging..*) &&
+            !within(java..*) &&
+            !within(jdk..*)
             """)
     public Object logExecutionTime(ProceedingJoinPoint joinPoint) throws Throwable {
         Class<?> targetClass = targetClass(joinPoint);
@@ -77,7 +84,18 @@ public class ControllerExecutionTimeAspect {
     private static boolean shouldSkip(Class<?> targetClass) {
         return targetClass == null
                 || ApiExceptionHandler.class.isAssignableFrom(targetClass)
-                || ControllerExecutionTimeAspect.class.isAssignableFrom(targetClass);
+                || ControllerExecutionTimeAspect.class.isAssignableFrom(targetClass)
+                || !isLoggable(targetClass);
+    }
+
+    private static boolean isLoggable(Class<?> targetClass) {
+        return AnnotatedElementUtils.hasAnnotation(targetClass, RestController.class)
+                || AnnotatedElementUtils.hasAnnotation(targetClass, Service.class)
+                || AnnotatedElementUtils.hasAnnotation(targetClass, Repository.class)
+                || CONTROLLER_PATTERN.matcher(targetClass.getName()).find()
+                || SERVICE_PATTERN.matcher(targetClass.getName()).find()
+                || REPOSITORY_PATTERN.matcher(targetClass.getName()).find()
+                || COMPONENT_PATTERN.matcher(targetClass.getName()).find();
     }
 
     private static String layer(Class<?> targetClass) {
