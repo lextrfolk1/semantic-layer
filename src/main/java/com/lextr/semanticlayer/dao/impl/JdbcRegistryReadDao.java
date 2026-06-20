@@ -140,4 +140,25 @@ public class JdbcRegistryReadDao implements RegistryReadDao {
         Object value = resultSet.getObject(columnLabel);
         return value == null ? null : ((Number) value).intValue();
     }
+
+    @Override
+    public List<java.util.Map<String, Object>> introspectColumns(String schemaCd, String tableCd) {
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("schema_cd", schemaCd)
+                .addValue("table_cd", tableCd);
+        return jdbcTemplate().queryForList(
+                sqlQueryLoaderUtil.getQuery("schema_registry.introspect_columns"),
+                parameters
+        );
+    }
+
+    @Override
+    public List<java.util.Map<String, Object>> introspectTables(String schemaCd) {
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("schema_cd", schemaCd);
+        return jdbcTemplate().queryForList(
+                sqlQueryLoaderUtil.getQuery("schema_registry.introspect_tables"),
+                parameters
+        );
+    }
 }

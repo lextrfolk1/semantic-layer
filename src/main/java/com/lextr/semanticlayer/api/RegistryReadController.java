@@ -58,4 +58,19 @@ public class RegistryReadController {
             @Parameter(description = "Connection identifier.") @PathVariable("connection_id") UUID connectionId) {
         return registryReadService.findConnection(clientId, connectionId);
     }
+
+    @GetMapping("/schemas/{schema_code}/tables/{table_code}/introspect")
+    @Operation(summary = "Introspect database table columns", description = "Returns actual columns from information_schema for a given schema and table.")
+    public List<java.util.Map<String, Object>> introspectTable(
+            @Parameter(description = "Schema code.") @PathVariable("schema_code") String schemaCd,
+            @Parameter(description = "Table/Object code.") @PathVariable("table_code") String tableCd) {
+        return registryReadService.introspectColumns(schemaCd, tableCd);
+    }
+
+    @GetMapping("/schemas/{schema_code}/tables")
+    @Operation(summary = "Introspect database tables in a schema", description = "Returns actual tables and views from information_schema for a given schema.")
+    public List<java.util.Map<String, Object>> introspectTables(
+            @Parameter(description = "Schema code.") @PathVariable("schema_code") String schemaCd) {
+        return registryReadService.introspectTables(schemaCd);
+    }
 }

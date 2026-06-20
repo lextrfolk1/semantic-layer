@@ -86,4 +86,14 @@ public class RegistryReadServiceImpl implements RegistryReadService {
     private String effectiveValue(String effectiveValue, String baseValue) {
         return effectiveValue == null || effectiveValue.isBlank() ? baseValue : effectiveValue;
     }
+
+    @Override
+    public List<java.util.Map<String, Object>> introspectColumns(String schemaCd, String tableCd) {
+        return registryReadDao.introspectColumns(schemaCd, tableCd);
+    }
+
+    @Override
+    public List<java.util.Map<String, Object>> introspectTables(String schemaCd) {
+        return registryReadDao.introspectTables(schemaCd);
+    }
 }
