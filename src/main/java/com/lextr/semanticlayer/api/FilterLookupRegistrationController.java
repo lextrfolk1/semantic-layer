@@ -16,6 +16,9 @@ import com.lextr.semanticlayer.service.FilterLookupCertificationService;
 import com.lextr.semanticlayer.service.FilterLookupPreviewService;
 import com.lextr.semanticlayer.service.FilterLookupReadService;
 import com.lextr.semanticlayer.service.FilterLookupRegistrationService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,6 +36,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/filter-lookups")
+@Tag(name = "Filter Lookups", description = "Filter lookup registration, preview, binding, certification, and read operations.")
 public class FilterLookupRegistrationController {
 
     private final FilterLookupRegistrationService filterLookupRegistrationService;
@@ -108,12 +112,14 @@ public class FilterLookupRegistrationController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Register filter lookup", description = "Registers a governed filter lookup.")
     public FilterLookupRegistrationResponseDto registerFilterLookup(
             @Valid @RequestBody FilterLookupRegistrationRequestDto request) {
         return filterLookupRegistrationService.registerFilterLookup(request);
     }
 
     @PostMapping("/preview")
+    @Operation(summary = "Preview filter lookups", description = "Previews filter lookup output for one or more lookup codes.")
     public List<FilterLookupPreviewResponseDto> previewLookups(
             @Valid @RequestBody FilterLookupPreviewRequestDto request) {
         return filterLookupPreviewService.previewLookups(request);
@@ -121,32 +127,36 @@ public class FilterLookupRegistrationController {
 
     @PostMapping("/{lookup_code}/bindings")
     @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Bind filter lookup", description = "Binds a lookup to an object or attribute context.")
     public FilterLookupBindingResponseDto bindLookup(
-            @PathVariable("lookup_code") String lookupCode,
+            @Parameter(description = "Lookup code.") @PathVariable("lookup_code") String lookupCode,
             @Valid @RequestBody FilterLookupBindingRequestDto request) {
         return filterLookupBindingService.bindLookup(lookupCode, request);
     }
 
     @PostMapping("/{lookup_code}/certify")
+    @Operation(summary = "Certify filter lookup", description = "Certifies a filter lookup and updates its effective review state.")
     public FilterLookupEffectiveReviewDto certifyLookup(
-            @PathVariable("lookup_code") String lookupCode,
+            @Parameter(description = "Lookup code.") @PathVariable("lookup_code") String lookupCode,
             @Valid @RequestBody FilterLookupCertificationRequestDto request) {
         return filterLookupCertificationService.certifyLookup(lookupCode, request);
     }
 
     @GetMapping
+    @Operation(summary = "List filter lookups", description = "Returns governed filter lookups for the supplied client.")
     public List<FilterLookupEffectiveReviewDto> findLookups(
-            @RequestParam("client_id") String clientId,
-            @RequestParam(value = "governance_status_cd", required = false) String governanceStatusCode,
-            @RequestParam(value = "health_status_cd", required = false) String healthStatusCode,
-            @RequestParam(value = "lifecycle_status_cd", required = false) String lifecycleStatusCode) {
+            @Parameter(description = "Tenant identifier.") @RequestParam("client_id") String clientId,
+            @Parameter(description = "Optional governance status filter.") @RequestParam(value = "governance_status_cd", required = false) String governanceStatusCode,
+            @Parameter(description = "Optional health status filter.") @RequestParam(value = "health_status_cd", required = false) String healthStatusCode,
+            @Parameter(description = "Optional lifecycle status filter.") @RequestParam(value = "lifecycle_status_cd", required = false) String lifecycleStatusCode) {
         return filterLookupReadService.findLookups(clientId, governanceStatusCode, healthStatusCode, lifecycleStatusCode);
     }
 
     @GetMapping("/{lookup_code}")
+    @Operation(summary = "Get filter lookup", description = "Returns one governed filter lookup for the supplied client.")
     public FilterLookupEffectiveReviewDto findLookup(
-            @RequestParam("client_id") String clientId,
-            @PathVariable("lookup_code") String lookupCode) {
+            @Parameter(description = "Tenant identifier.") @RequestParam("client_id") String clientId,
+            @Parameter(description = "Lookup code.") @PathVariable("lookup_code") String lookupCode) {
         return filterLookupReadService.findLookup(clientId, lookupCode);
     }
 

@@ -1,5 +1,16 @@
 spring:
   application:
     name: semantic-layer
+  config:
+    import: ${SPRING_CONFIG_IMPORT:optional:configserver:}
+  cloud:
+    config:
+      enabled: ${SPRING_CLOUD_CONFIG_ENABLED:true}
+      uri: ${SPRING_CLOUD_CONFIG_URI:http://config-service:8888}
+      fail-fast: ${SPRING_CLOUD_CONFIG_FAIL_FAST:false}
+      label: ${SPRING_CLOUD_CONFIG_LABEL:main}
   jackson:
     property-naming-strategy: SNAKE_CASE
+logging:
+  level:
+    com.lextr.semanticlayer: INFO

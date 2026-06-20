@@ -1,8 +1,9 @@
 package com.lextr.semanticlayer.service.impl;
 
-import com.lextr.semanticlayer.exception.SemanticLayerException;
 import com.lextr.semanticlayer.model.RelationshipGraphProjectionRequest;
 import com.lextr.semanticlayer.service.RelationshipGraphProjectionClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.neo4j.core.Neo4jClient;
@@ -98,6 +99,8 @@ interface RelationshipGraphCypherExecutor {
 
 final class Neo4jClientRelationshipGraphCypherExecutor implements RelationshipGraphCypherExecutor {
 
+    private static final Logger logger = LoggerFactory.getLogger(Neo4jClientRelationshipGraphCypherExecutor.class);
+
     private final ObjectProvider<Neo4jClient> neo4jClientProvider;
 
     Neo4jClientRelationshipGraphCypherExecutor(ObjectProvider<Neo4jClient> neo4jClientProvider) {
@@ -108,6 +111,7 @@ final class Neo4jClientRelationshipGraphCypherExecutor implements RelationshipGr
     public boolean run(String cypher, Map<String, Object> parameters) {
         Neo4jClient neo4jClient = neo4jClientProvider.getIfAvailable();
         if (neo4jClient == null) {
+            logger.warn("Skipping relationship graph projection because Neo4jClient is not configured");
             return false;
         }
         neo4jClient.query(cypher).bindAll(parameters).run();

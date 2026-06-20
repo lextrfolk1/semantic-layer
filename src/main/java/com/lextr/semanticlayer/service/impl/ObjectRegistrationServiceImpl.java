@@ -117,7 +117,7 @@ public class ObjectRegistrationServiceImpl implements ObjectRegistrationService 
         List<AttributeRegistrationResponseDto> attributes = request.attributes().stream()
                 .map(attribute -> objectRegistrationWriteDao.insertAttribute(new AttributeCatalogWriteRequest(
                         UUID.randomUUID(),
-                        objectId,
+                        object.object_id(),
                         request.client_id(),
                         attribute.attribute_cd(),
                         attribute.attribute_nm(),
@@ -138,7 +138,7 @@ public class ObjectRegistrationServiceImpl implements ObjectRegistrationService 
                 request.client_id(),
                 WORKFLOW_TYPE_CD,
                 ENTITY_TYPE_CD,
-                objectId,
+                object.object_id(),
                 TASK_STATUS_CD,
                 now,
                 request.registered_by(),
@@ -150,7 +150,7 @@ public class ObjectRegistrationServiceImpl implements ObjectRegistrationService 
                 changeHistoryId,
                 request.client_id(),
                 ENTITY_TYPE_CD,
-                objectId,
+                object.object_id(),
                 CHANGE_TYPE_CD,
                 "Registered draft object",
                 now,

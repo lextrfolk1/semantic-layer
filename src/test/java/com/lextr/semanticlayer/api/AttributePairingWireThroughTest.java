@@ -115,7 +115,7 @@ class AttributePairingWireThroughTest {
         assertEquals(6, jdbcTemplate.recordedSqls().size());
         assertTrue(jdbcTemplate.recordedSqls().get(0).contains("FROM meta.object_catalog"));
         assertTrue(jdbcTemplate.recordedSqls().get(1).contains("FROM meta.attribute_catalog"));
-        assertTrue(jdbcTemplate.recordedSqls().get(2).contains("FROM pg_indexes"));
+        assertTrue(jdbcTemplate.recordedSqls().get(2).contains("pg_index"));
         assertTrue(jdbcTemplate.recordedSqls().get(3).contains("INSERT INTO meta.attribute_pairing_catalog"));
         assertTrue(jdbcTemplate.recordedSqls().get(4).contains("INSERT INTO wkfl.workflow_task"));
         assertTrue(jdbcTemplate.recordedSqls().get(5).contains("INSERT INTO meta.metadata_change_history"));
@@ -219,7 +219,7 @@ class AttributePairingWireThroughTest {
         assertEquals(3, jdbcTemplate.recordedSqls().size());
         assertTrue(jdbcTemplate.recordedSqls().get(0).contains("FROM meta.object_catalog"));
         assertTrue(jdbcTemplate.recordedSqls().get(1).contains("FROM meta.attribute_catalog"));
-        assertTrue(jdbcTemplate.recordedSqls().get(2).contains("FROM pg_indexes"));
+        assertTrue(jdbcTemplate.recordedSqls().get(2).contains("pg_index"));
 
         assertEquals(1, attributePairingPolicyClient.recordedRequests().size());
         AttributePairingPolicyRequestDto policyRequest = attributePairingPolicyClient.recordedRequests().get(0);

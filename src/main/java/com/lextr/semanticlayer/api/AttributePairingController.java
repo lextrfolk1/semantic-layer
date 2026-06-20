@@ -8,6 +8,8 @@ import com.lextr.semanticlayer.exception.AttributePairingRegistrationServiceExce
 import com.lextr.semanticlayer.exception.AttributePairingResolutionServiceException;
 import com.lextr.semanticlayer.service.AttributePairingRegistrationService;
 import com.lextr.semanticlayer.service.AttributePairingResolutionService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/attribute-pairings")
+@Tag(name = "Attribute Pairings", description = "Attribute pairing registration and resolution operations.")
 public class AttributePairingController {
 
     private final AttributePairingRegistrationService attributePairingRegistrationService;
@@ -44,12 +47,14 @@ public class AttributePairingController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Register attribute pairing", description = "Registers an attribute pairing for logical display-to-filter resolution.")
     public AttributePairingRegistrationResponseDto registerPairing(
             @Valid @RequestBody AttributePairingRegistrationRequestDto request) {
         return attributePairingRegistrationService.registerPairing(request);
     }
 
     @PostMapping("/resolve")
+    @Operation(summary = "Resolve attribute pairing", description = "Resolves a display value to its filter value using the active pairing.")
     public AttributePairingResolutionResponseDto resolvePairing(
             @Valid @RequestBody AttributePairingResolutionRequestDto request) {
         return attributePairingResolutionService.resolvePairing(request);

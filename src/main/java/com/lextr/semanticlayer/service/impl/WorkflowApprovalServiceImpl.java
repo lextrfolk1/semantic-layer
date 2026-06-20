@@ -14,17 +14,22 @@ import com.lextr.semanticlayer.model.FilterLookupWorkflowTaskRecord;
 import com.lextr.semanticlayer.model.FilterLookupMetadataChangeHistoryWriteRequest;
 import com.lextr.semanticlayer.service.WorkflowApprovalService;
 import com.lextr.semanticlayer.service.WorkflowPolicyClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionOperations;
+import org.springframework.transaction.support.TransactionCallback;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 
 @Service
 public class WorkflowApprovalServiceImpl implements WorkflowApprovalService {
+
+    private static final Logger logger = LoggerFactory.getLogger(WorkflowApprovalServiceImpl.class);
 
     private final WorkflowApprovalDao workflowApprovalDao;
     private final FilterLookupRegistrationWriteDao filterLookupRegistrationWriteDao;
@@ -43,7 +48,7 @@ public class WorkflowApprovalServiceImpl implements WorkflowApprovalService {
                 workflowApprovalDaoProvider.getIfAvailable(),
                 filterLookupRegistrationWriteDaoProvider.getIfAvailable(),
                 workflowPolicyClientProvider.getIfAvailable(() -> request -> new WorkflowPolicyDecisionDto(true, null, null)),
-                transactionOperationsProvider.getIfAvailable()
+                transactionOperationsProvider.getIfAvailable(NoOpTransactionOperations::new)
         );
     }
 
@@ -132,7 +137,12 @@ public class WorkflowApprovalServiceImpl implements WorkflowApprovalService {
             try {
                 Long overrideId = Long.parseLong(task.entity_ref());
                 workflowApprovalDao.approveAttributeOverride(task.client_id(), overrideId, "ACTIVE", now, approvedBy);
-            } catch (NumberFormatException ignored) {
+            } catch (NumberFormatException exception) {
+                logger.warn(
+                        "Skipping ATTRIBUTE_LOGICAL_NAME_OVERRIDE side effect for workflow task {} because entity_ref='{}' is not numeric",
+                        task.id(),
+                        task.entity_ref()
+                );
             }
         } else if ("FILTER_LOOKUP_VALUE".equalsIgnoreCase(type)) {
             String[] parts = task.entity_ref().split(":", 2);
@@ -159,5 +169,33 @@ public class WorkflowApprovalServiceImpl implements WorkflowApprovalService {
                 record.approved_ts(),
                 record.approval_note_txt()
         );
+    }
+
+    private static final class NoOpTransactionOperations implements TransactionOperations {
+        @Override
+        public <T> T execute(TransactionCallback<T> action) {
+            return action.doInTransaction(new NoOpTransactionStatus());
+        }
+    }
+
+    private static final class NoOpTransactionStatus implements org.springframework.transaction.TransactionStatus {
+        @Override
+        public boolean isNewTransaction() { return false; }
+        @Override
+        public boolean hasSavepoint() { return false; }
+        @Override
+        public void setRollbackOnly() {}
+        @Override
+        public boolean isRollbackOnly() { return false; }
+        @Override
+        public void flush() {}
+        @Override
+        public boolean isCompleted() { return false; }
+        @Override
+        public Object createSavepoint() { return null; }
+        @Override
+        public void rollbackToSavepoint(Object savepoint) {}
+        @Override
+        public void releaseSavepoint(Object savepoint) {}
     }
 }
