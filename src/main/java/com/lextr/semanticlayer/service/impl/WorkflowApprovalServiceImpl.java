@@ -21,6 +21,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionOperations;
+import org.springframework.transaction.support.TransactionCallback;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -47,7 +48,7 @@ public class WorkflowApprovalServiceImpl implements WorkflowApprovalService {
                 workflowApprovalDaoProvider.getIfAvailable(),
                 filterLookupRegistrationWriteDaoProvider.getIfAvailable(),
                 workflowPolicyClientProvider.getIfAvailable(() -> request -> new WorkflowPolicyDecisionDto(true, null, null)),
-                transactionOperationsProvider.getIfAvailable()
+                transactionOperationsProvider.getIfAvailable(NoOpTransactionOperations::new)
         );
     }
 
@@ -168,5 +169,33 @@ public class WorkflowApprovalServiceImpl implements WorkflowApprovalService {
                 record.approved_ts(),
                 record.approval_note_txt()
         );
+    }
+
+    private static final class NoOpTransactionOperations implements TransactionOperations {
+        @Override
+        public <T> T execute(TransactionCallback<T> action) {
+            return action.doInTransaction(new NoOpTransactionStatus());
+        }
+    }
+
+    private static final class NoOpTransactionStatus implements org.springframework.transaction.TransactionStatus {
+        @Override
+        public boolean isNewTransaction() { return false; }
+        @Override
+        public boolean hasSavepoint() { return false; }
+        @Override
+        public void setRollbackOnly() {}
+        @Override
+        public boolean isRollbackOnly() { return false; }
+        @Override
+        public void flush() {}
+        @Override
+        public boolean isCompleted() { return false; }
+        @Override
+        public Object createSavepoint() { return null; }
+        @Override
+        public void rollbackToSavepoint(Object savepoint) {}
+        @Override
+        public void releaseSavepoint(Object savepoint) {}
     }
 }

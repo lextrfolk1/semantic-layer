@@ -70,7 +70,7 @@ class JdbcAttributePairingResolutionDaoTest {
         boolean indexed = dao.isAttributeIndexed("meta", "customer", "customer_id");
 
         assertTrue(jdbcTemplate.recordedSqls.get(0).contains("display_attribute_cd = :display_attribute_cd"));
-        assertTrue(jdbcTemplate.recordedSqls.get(1).contains("FROM pg_indexes"));
+        assertTrue(jdbcTemplate.recordedSqls.get(1).contains("pg_index"));
         assertEquals("customer_id", jdbcTemplate.recordedParameters.get(1).get("attribute_cd"));
         assertTrue(pairing.isPresent());
         assertTrue(indexed);

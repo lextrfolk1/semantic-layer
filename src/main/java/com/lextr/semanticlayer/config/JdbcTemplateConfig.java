@@ -1,5 +1,6 @@
 package com.lextr.semanticlayer.config;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.context.annotation.Bean;
@@ -27,17 +28,17 @@ public class JdbcTemplateConfig {
         return new NamedParameterJdbcTemplate(primaryDataSource);
     }
 
-    @Bean
+    @Bean(name = "semanticLayerTransactionManager")
     @ConditionalOnBean(DataSource.class)
-    @ConditionalOnMissingBean(PlatformTransactionManager.class)
+    @ConditionalOnMissingBean(name = "semanticLayerTransactionManager")
     public PlatformTransactionManager semanticLayerTransactionManager(DataSource primaryDataSource) {
         return new DataSourceTransactionManager(primaryDataSource);
     }
 
     @Bean(name = SEMANTIC_LAYER_TRANSACTION_OPERATIONS)
-    @ConditionalOnBean(PlatformTransactionManager.class)
+    @ConditionalOnBean(DataSource.class)
     @ConditionalOnMissingBean(name = SEMANTIC_LAYER_TRANSACTION_OPERATIONS)
-    public TransactionOperations semanticLayerTransactionOperations(PlatformTransactionManager transactionManager) {
+    public TransactionOperations semanticLayerTransactionOperations(@Qualifier("semanticLayerTransactionManager") PlatformTransactionManager transactionManager) {
         return new TransactionTemplate(transactionManager);
     }
 }

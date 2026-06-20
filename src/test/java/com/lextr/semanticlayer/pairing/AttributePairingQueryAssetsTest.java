@@ -87,10 +87,10 @@ class AttributePairingQueryAssetsTest {
         assertTrue(findActiveByDisplayAttributeQuery.contains("version_nbr DESC"));
         assertTrue(findActiveByDisplayAttributeQuery.contains("LIMIT 1"));
 
-        assertTrue(checkIndexQuery.contains("FROM pg_indexes"));
-        assertTrue(checkIndexQuery.contains("schemaname = :schema_cd"));
-        assertTrue(checkIndexQuery.contains("tablename = :object_cd"));
-        assertTrue(checkIndexQuery.contains(":attribute_cd"));
+        assertTrue(checkIndexQuery.contains("pg_index"));
+        assertTrue(checkIndexQuery.contains("LOWER(n.nspname) = LOWER(:schema_cd)"));
+        assertTrue(checkIndexQuery.contains("LOWER(t.relname) = LOWER(:object_cd)"));
+        assertTrue(checkIndexQuery.contains("LOWER(a.attname) = LOWER(:attribute_cd)"));
         assertTrue(checkIndexQuery.contains("AS indexed_flg"));
     }
 
