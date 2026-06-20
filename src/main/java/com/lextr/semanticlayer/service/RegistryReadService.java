@@ -15,4 +15,12 @@ public interface RegistryReadService {
     List<DataConnectionDto> findConnections(String clientId, String engineCode, Boolean activeFlag);
 
     DataConnectionDto findConnection(String clientId, UUID connectionId);
+
+    default List<java.util.Map<String, Object>> introspectColumns(String schemaCd, String tableCd) {
+        return java.util.Collections.emptyList();
+    }
+
+    default List<java.util.Map<String, Object>> introspectTables(String schemaCd) {
+        return java.util.Collections.emptyList();
+    }
 }

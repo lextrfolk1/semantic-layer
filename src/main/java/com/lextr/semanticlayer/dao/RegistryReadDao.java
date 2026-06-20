@@ -16,4 +16,12 @@ public interface RegistryReadDao {
     List<DataConnectionRecord> findConnections(String clientId, String engineCode, Boolean activeFlag);
 
     Optional<DataConnectionRecord> findConnection(String clientId, UUID connectionId);
+
+    default List<java.util.Map<String, Object>> introspectColumns(String schemaCd, String tableCd) {
+        return java.util.Collections.emptyList();
+    }
+
+    default List<java.util.Map<String, Object>> introspectTables(String schemaCd) {
+        return java.util.Collections.emptyList();
+    }
 }
