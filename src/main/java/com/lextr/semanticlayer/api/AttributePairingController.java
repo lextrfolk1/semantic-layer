@@ -6,19 +6,29 @@ import com.lextr.semanticlayer.dto.AttributePairingResolutionRequestDto;
 import com.lextr.semanticlayer.dto.AttributePairingResolutionResponseDto;
 import com.lextr.semanticlayer.exception.AttributePairingRegistrationServiceException;
 import com.lextr.semanticlayer.exception.AttributePairingResolutionServiceException;
+import com.lextr.semanticlayer.exception.SemanticLayerException;
 import com.lextr.semanticlayer.service.AttributePairingRegistrationService;
 import com.lextr.semanticlayer.service.AttributePairingResolutionService;
+import com.lextr.semanticlayer.util.SQLQueryLoaderUtil;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/attribute-pairings")
@@ -27,22 +37,35 @@ public class AttributePairingController {
 
     private final AttributePairingRegistrationService attributePairingRegistrationService;
     private final AttributePairingResolutionService attributePairingResolutionService;
+    private final NamedParameterJdbcTemplate jdbcTemplate;
+    private final SQLQueryLoaderUtil sqlQueryLoaderUtil;
 
     @Autowired
     public AttributePairingController(
             ObjectProvider<AttributePairingRegistrationService> attributePairingRegistrationServiceProvider,
-            ObjectProvider<AttributePairingResolutionService> attributePairingResolutionServiceProvider
+            ObjectProvider<AttributePairingResolutionService> attributePairingResolutionServiceProvider,
+            ObjectProvider<NamedParameterJdbcTemplate> jdbcTemplateProvider,
+            SQLQueryLoaderUtil sqlQueryLoaderUtil
     ) {
-        this(
-                attributePairingRegistrationServiceProvider.getIfAvailable(MissingAttributePairingRegistrationService::new),
-                attributePairingResolutionServiceProvider.getIfAvailable(MissingAttributePairingResolutionService::new)
-        );
+        this.attributePairingRegistrationService = attributePairingRegistrationServiceProvider.getIfAvailable(MissingAttributePairingRegistrationService::new);
+        this.attributePairingResolutionService = attributePairingResolutionServiceProvider.getIfAvailable(MissingAttributePairingResolutionService::new);
+        this.jdbcTemplate = jdbcTemplateProvider.getIfAvailable();
+        this.sqlQueryLoaderUtil = sqlQueryLoaderUtil;
     }
 
-    AttributePairingController(AttributePairingRegistrationService attributePairingRegistrationService,
-                               AttributePairingResolutionService attributePairingResolutionService) {
-        this.attributePairingRegistrationService = attributePairingRegistrationService;
-        this.attributePairingResolutionService = attributePairingResolutionService;
+    @GetMapping
+    @Operation(summary = "List attribute pairings", description = "Returns all registered attribute pairings.")
+    public List<Map<String, Object>> listPairings(
+            @Parameter(description = "Client ID filter.") @RequestParam(value = "client_id", required = false) String clientId) {
+        if (jdbcTemplate == null) {
+            throw new SemanticLayerException("NamedParameterJdbcTemplate is not configured");
+        }
+        MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("client_id", clientId);
+        return jdbcTemplate.queryForList(
+                sqlQueryLoaderUtil.getQuery("attribute_pairing.find_all"),
+                params
+        );
     }
 
     @PostMapping
