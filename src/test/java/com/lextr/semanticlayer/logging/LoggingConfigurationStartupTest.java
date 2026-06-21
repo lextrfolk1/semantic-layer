@@ -16,6 +16,7 @@ import org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.boot.autoconfigure.jdbc.JdbcTemplateAutoConfiguration;
 import org.springframework.boot.autoconfigure.neo4j.Neo4jAutoConfiguration;
+import com.lextr.semanticlayer.util.SQLQueryLoaderUtil;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
@@ -49,7 +50,8 @@ class LoggingConfigurationStartupTest {
     @Import({
             ControllerExecutionTimeAspect.class,
             ApiExceptionHandler.class,
-            WorkflowTaskController.class
+            WorkflowTaskController.class,
+            SQLQueryLoaderUtil.class
     })
     static class TestApplication {
 

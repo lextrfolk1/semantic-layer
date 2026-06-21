@@ -12,10 +12,15 @@ import com.lextr.semanticlayer.exception.RegistryResourceNotFoundException;
 import com.lextr.semanticlayer.service.AttributePairingRegistrationService;
 import com.lextr.semanticlayer.service.AttributePairingResolutionService;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
+
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -190,7 +195,12 @@ class AttributePairingControllerTest {
 
     private static MockMvc mockMvc(AttributePairingRegistrationService registrationService,
                                    AttributePairingResolutionService resolutionService) {
-        AttributePairingController controller = new AttributePairingController(registrationService, resolutionService);
+        AttributePairingController controller = new AttributePairingController(
+                providerOf(registrationService),
+                providerOf(resolutionService),
+                providerOf(null),
+                null
+        );
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
@@ -199,6 +209,35 @@ class AttributePairingControllerTest {
                 .setValidator(validator)
                 .setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))
                 .build();
+    }
+
+    private static <T> ObjectProvider<T> providerOf(T instance) {
+        return new ObjectProvider<>() {
+            @Override
+            public T getObject(Object... args) {
+                return instance;
+            }
+
+            @Override
+            public T getIfAvailable() {
+                return instance;
+            }
+
+            @Override
+            public T getIfUnique() {
+                return instance;
+            }
+
+            @Override
+            public T getObject() {
+                return instance;
+            }
+
+            @Override
+            public Iterator<T> iterator() {
+                return instance == null ? Collections.emptyIterator() : List.of(instance).iterator();
+            }
+        };
     }
 
     private static String validRegistrationRequestJson() {

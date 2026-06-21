@@ -179,7 +179,7 @@ class ControllerExecutionTimeAspectTest {
     }
 
     private static MockMvc mockMvc(WorkflowApprovalService service) {
-        WorkflowTaskController controller = new WorkflowTaskController(service);
+        WorkflowTaskController controller = new WorkflowTaskController(service, providerOf(null), null);
         WorkflowTaskController proxiedController = proxied(controller);
 
         ObjectMapper objectMapper = new ObjectMapper()
