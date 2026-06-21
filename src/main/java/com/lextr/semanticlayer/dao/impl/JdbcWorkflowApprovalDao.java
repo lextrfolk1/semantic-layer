@@ -15,6 +15,7 @@ import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 
 @Repository
 public class JdbcWorkflowApprovalDao implements WorkflowApprovalDao {
@@ -124,6 +125,160 @@ public class JdbcWorkflowApprovalDao implements WorkflowApprovalDao {
                 .addValue("validated_flg", validated)
                 .addValue("updated_ts", updatedTs);
         jdbcTemplate.update(sqlQueryLoaderUtil.getQuery(APPROVE_FILTER_LOOKUP_VALUE), params);
+    }
+
+    @Override
+    public FilterLookupWorkflowTaskRecord findTaskByIdOnly(Long id) {
+        checkJdbcTemplate();
+        MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("id", id);
+        return jdbcTemplate.query(
+                sqlQueryLoaderUtil.getQuery("workflow_approval.find_task_by_id_only"),
+                params,
+                taskRowMapper
+        ).stream().findFirst().orElse(null);
+    }
+
+    @Override
+    public FilterLookupWorkflowTaskRecord rejectTask(Long id, String rejectedBy, OffsetDateTime rejectedTs, String rejectionNote) {
+        checkJdbcTemplate();
+        MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("id", id)
+                .addValue("rejected_by", rejectedBy)
+                .addValue("rejected_ts", rejectedTs)
+                .addValue("rejection_note_txt", rejectionNote);
+        return jdbcTemplate.query(
+                sqlQueryLoaderUtil.getQuery("workflow_approval.reject_task"),
+                params,
+                taskRowMapper
+        ).stream().findFirst().orElseThrow(() -> new SemanticLayerException("Failed to reject task or task not pending: " + id));
+    }
+
+    @Override
+    public void approveObject(String clientId, String objectId, String lifecycleStatus, OffsetDateTime updatedTs, String updatedBy) {
+        checkJdbcTemplate();
+        MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("client_id", clientId)
+                .addValue("object_id", objectId)
+                .addValue("lifecycle_status_cd", lifecycleStatus)
+                .addValue("updated_ts", updatedTs)
+                .addValue("updated_by", updatedBy);
+        jdbcTemplate.update(sqlQueryLoaderUtil.getQuery("workflow_approval.approve_object"), params);
+    }
+
+    @Override
+    public void approvePairing(String clientId, String pairingCd, String lifecycleStatus, OffsetDateTime updatedTs, String updatedBy) {
+        checkJdbcTemplate();
+        MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("client_id", clientId)
+                .addValue("pairing_cd", pairingCd)
+                .addValue("lifecycle_status_cd", lifecycleStatus)
+                .addValue("updated_ts", updatedTs)
+                .addValue("updated_by", updatedBy);
+        jdbcTemplate.update(sqlQueryLoaderUtil.getQuery("workflow_approval.approve_pairing"), params);
+    }
+
+    @Override
+    public void approveRelationship(String relationshipIdStr, String lifecycleStatus, OffsetDateTime updatedTs, String updatedBy) {
+        checkJdbcTemplate();
+        String relationshipCd = resolveRelationshipCd(relationshipIdStr);
+        if (relationshipCd == null) {
+            throw new SemanticLayerException("Could not resolve relationship_cd for relationship UUID: " + relationshipIdStr);
+        }
+        MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("relationship_cd", relationshipCd)
+                .addValue("lifecycle_status_cd", lifecycleStatus)
+                .addValue("updated_ts", updatedTs)
+                .addValue("updated_by", updatedBy);
+        jdbcTemplate.update(sqlQueryLoaderUtil.getQuery("workflow_approval.approve_relationship"), params);
+    }
+
+    @Override
+    public void rejectLookup(String clientId, String lookupCd, String governanceStatus, String lifecycleStatus, OffsetDateTime updatedTs, String updatedBy) {
+        checkJdbcTemplate();
+        MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("client_id", clientId)
+                .addValue("lookup_cd", lookupCd)
+                .addValue("governance_status_cd", governanceStatus)
+                .addValue("lifecycle_status_cd", lifecycleStatus)
+                .addValue("updated_ts", updatedTs)
+                .addValue("updated_by", updatedBy);
+        jdbcTemplate.update(sqlQueryLoaderUtil.getQuery("workflow_approval.reject_lookup"), params);
+    }
+
+    @Override
+    public void rejectAttributeOverride(String clientId, Long id, String overrideStatus, OffsetDateTime updatedTs, String updatedBy) {
+        checkJdbcTemplate();
+        MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("client_id", clientId)
+                .addValue("id", id)
+                .addValue("override_status_cd", overrideStatus)
+                .addValue("updated_ts", updatedTs)
+                .addValue("updated_by", updatedBy);
+        jdbcTemplate.update(sqlQueryLoaderUtil.getQuery("workflow_approval.reject_attribute_override"), params);
+    }
+
+    @Override
+    public void rejectObject(String clientId, String objectId, String lifecycleStatus, String governanceReviewStatus, OffsetDateTime updatedTs, String updatedBy) {
+        checkJdbcTemplate();
+        MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("client_id", clientId)
+                .addValue("object_id", objectId)
+                .addValue("lifecycle_status_cd", lifecycleStatus)
+                .addValue("governance_review_status_cd", governanceReviewStatus)
+                .addValue("updated_ts", updatedTs)
+                .addValue("updated_by", updatedBy);
+        jdbcTemplate.update(sqlQueryLoaderUtil.getQuery("workflow_approval.reject_object"), params);
+    }
+
+    @Override
+    public void rejectPairing(String clientId, String pairingCd, String lifecycleStatus, String governanceReviewStatus, OffsetDateTime updatedTs, String updatedBy) {
+        checkJdbcTemplate();
+        MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("client_id", clientId)
+                .addValue("pairing_cd", pairingCd)
+                .addValue("lifecycle_status_cd", lifecycleStatus)
+                .addValue("governance_review_status_cd", governanceReviewStatus)
+                .addValue("updated_ts", updatedTs)
+                .addValue("updated_by", updatedBy);
+        jdbcTemplate.update(sqlQueryLoaderUtil.getQuery("workflow_approval.reject_pairing"), params);
+    }
+
+    @Override
+    public void rejectRelationship(String relationshipIdStr, String lifecycleStatus, OffsetDateTime updatedTs, String updatedBy) {
+        checkJdbcTemplate();
+        String relationshipCd = resolveRelationshipCd(relationshipIdStr);
+        if (relationshipCd == null) {
+            throw new SemanticLayerException("Could not resolve relationship_cd for relationship UUID: " + relationshipIdStr);
+        }
+        MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("relationship_cd", relationshipCd)
+                .addValue("lifecycle_status_cd", lifecycleStatus)
+                .addValue("updated_ts", updatedTs)
+                .addValue("updated_by", updatedBy);
+        jdbcTemplate.update(sqlQueryLoaderUtil.getQuery("workflow_approval.reject_relationship"), params);
+    }
+
+    private String resolveRelationshipCd(String relationshipIdStr) {
+        java.util.UUID targetId;
+        try {
+            targetId = java.util.UUID.fromString(relationshipIdStr);
+        } catch (IllegalArgumentException e) {
+            return relationshipIdStr;
+        }
+
+        List<String> codes = jdbcTemplate.queryForList(
+                "SELECT relationship_cd FROM meta.semantic_relationship_catalog",
+                new MapSqlParameterSource(),
+                String.class
+        );
+        for (String code : codes) {
+            java.util.UUID id = java.util.UUID.nameUUIDFromBytes(code.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            if (id.equals(targetId)) {
+                return code;
+            }
+        }
+        return null;
     }
 
     private static OffsetDateTime getOffsetDateTime(java.sql.ResultSet resultSet, String columnName) throws java.sql.SQLException {

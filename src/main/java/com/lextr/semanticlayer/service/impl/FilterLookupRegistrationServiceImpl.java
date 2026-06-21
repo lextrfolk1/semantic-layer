@@ -37,7 +37,7 @@ public class FilterLookupRegistrationServiceImpl implements FilterLookupRegistra
     private static final String POLICY_SCOPE_CD = "FILTER_LOOKUP";
     private static final String GOVERNANCE_STATUS_CD = "REVIEW";
     private static final String HEALTH_STATUS_CD = "PENDING";
-    private static final String LIFECYCLE_STATUS_CD = "ACTIVE";
+    private static final String LIFECYCLE_STATUS_CD = "DRAFT";
     private static final String WORKFLOW_TASK_TYPE_CD = "FILTER_LOOKUP_REGISTRATION";
     private static final String WORKFLOW_ENTITY_TYPE_CD = "FILTER_LOOKUP";
     private static final String WORKFLOW_TASK_STATUS_CD = "PENDING";

@@ -27,7 +27,7 @@ class WorkflowApprovalQueryTest {
         assertTrue(findTaskQuery.contains("task_status_cd"));
 
         assertTrue(approveTaskQuery.contains("UPDATE wkfl.workflow_task"));
-        assertTrue(approveTaskQuery.contains("SET task_status_cd = :task_status_cd"));
+        assertTrue(approveTaskQuery.contains("SET task_status_cd ="));
         assertTrue(approveTaskQuery.contains("approved_by = :approved_by"));
         assertTrue(approveTaskQuery.contains("approved_ts = :approved_ts"));
         assertTrue(approveTaskQuery.contains("approval_note_txt = :approval_note_txt"));
@@ -40,9 +40,9 @@ class WorkflowApprovalQueryTest {
         assertTrue(approveLookupQuery.contains("RETURNING id, lookup_cd, governance_status_cd"));
 
         assertTrue(approveOverrideQuery.contains("UPDATE meta.attribute_logical_name_override"));
-        assertTrue(approveOverrideQuery.contains("lifecycle_status_cd = :lifecycle_status_cd"));
+        assertTrue(approveOverrideQuery.contains("override_status_cd = :lifecycle_status_cd"));
         assertTrue(approveOverrideQuery.contains("WHERE client_id = :client_id AND id = :id"));
-        assertTrue(approveOverrideQuery.contains("RETURNING id, client_id, attribute_cd, logical_name_override"));
+        assertTrue(approveOverrideQuery.contains("RETURNING id, client_id, attribute_cd, override_nm"));
 
         assertTrue(approveValueQuery.contains("UPDATE meta.filter_lookup_value"));
         assertTrue(approveValueQuery.contains("lifecycle_status_cd = :lifecycle_status_cd"));

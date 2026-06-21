@@ -82,6 +82,40 @@ class ObjectRegistrationServiceImplTest {
     }
 
     @Test
+    void deduplicatesAttributesByAttributeCodeKeepingFirstOccurrence() {
+        TransactionHarness harness = new TransactionHarness();
+        RecordingObjectRegistrationWriteDao dao = new RecordingObjectRegistrationWriteDao(harness);
+        ObjectRegistrationServiceImpl service = new ObjectRegistrationServiceImpl(
+                dao,
+                request -> new TaxonomyPolicyDecisionDto(true, null, null),
+                new RecordingTransactionOperations(harness)
+        );
+
+        ObjectRegistrationResponseDto result = service.registerObject(new ObjectRegistrationRequestDto(
+                "client-a",
+                "GL_BALANCE",
+                "GL Balance",
+                "TABLE",
+                "meta",
+                UUID.fromString("00000000-0000-0000-0000-000000000201"),
+                "producer",
+                List.of(
+                        new AttributeRegistrationRequestDto("AMOUNT", "Amount", "DECIMAL", "MDRM12345678", "MDRM", "US"),
+                        new AttributeRegistrationRequestDto("AMOUNT", "Amount Dup", "INTEGER", "MDRM99999999", "MDRM", "US"),
+                        new AttributeRegistrationRequestDto("BALANCE", "Balance", "DECIMAL", "MDRM12345678", "MDRM", "US")
+                )
+        ));
+
+        assertTrue(harness.committed);
+        assertEquals(2, dao.committedAttributes.size(), "Duplicate attribute_cd should be deduplicated");
+        assertEquals(2, result.attributes().size());
+        assertEquals("AMOUNT", result.attributes().get(0).attribute_cd());
+        assertEquals("BALANCE", result.attributes().get(1).attribute_cd());
+        // Verify the first occurrence wins — attribute_nm should be "Amount", not "Amount Dup"
+        assertEquals("Amount", dao.attributeRequests.get(0).attribute_nm());
+    }
+
+    @Test
     void surfacesPolicyBlockBeforePersistingWrites() {
         TransactionHarness harness = new TransactionHarness();
         RecordingObjectRegistrationWriteDao dao = new RecordingObjectRegistrationWriteDao(harness);

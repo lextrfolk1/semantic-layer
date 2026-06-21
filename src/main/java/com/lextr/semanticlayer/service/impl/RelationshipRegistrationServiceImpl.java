@@ -38,7 +38,7 @@ import java.util.UUID;
 @Service
 public class RelationshipRegistrationServiceImpl implements RelationshipRegistrationService {
 
-    private static final String ACTIVE_LIFECYCLE_STATUS_CD = "ACTIVE";
+    private static final String ACTIVE_LIFECYCLE_STATUS_CD = "DRAFT";
     private static final String WORKFLOW_TYPE_CD = "RELATIONSHIP_REGISTRATION";
     private static final String ENTITY_TYPE_CD = "RELATIONSHIP";
     private static final String TASK_STATUS_CD = "PENDING_APPROVAL";

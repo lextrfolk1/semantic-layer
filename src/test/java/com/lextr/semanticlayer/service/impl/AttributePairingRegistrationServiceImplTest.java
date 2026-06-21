@@ -63,7 +63,7 @@ class AttributePairingRegistrationServiceImplTest {
         assertEquals("CUSTOMER_NAME_TO_ID", writeDao.pairingRequest.pairing_cd());
         assertEquals("customer_nm", writeDao.pairingRequest.display_attribute_cd());
         assertEquals("customer_id", writeDao.pairingRequest.filter_attribute_cd());
-        assertEquals("ACTIVE", writeDao.pairingRequest.lifecycle_status_cd());
+        assertEquals("DRAFT", writeDao.pairingRequest.lifecycle_status_cd());
         assertEquals("PENDING", writeDao.workflowTaskRequest.task_status_cd());
         assertEquals("ATTRIBUTE_PAIRING_REGISTRATION", writeDao.workflowTaskRequest.task_type_cd());
         assertEquals("REGISTERED", writeDao.metadataChangeRequest.change_type_cd());
@@ -73,7 +73,7 @@ class AttributePairingRegistrationServiceImplTest {
         assertEquals(false, policyClient.requests.get(0).is_cross_engine_flg());
         assertEquals("customer_nm", response.display_attribute_cd());
         assertEquals("customer_id", response.filter_attribute_cd());
-        assertEquals("ACTIVE", response.lifecycle_status_cd());
+        assertEquals("DRAFT", response.lifecycle_status_cd());
     }
 
     @Test

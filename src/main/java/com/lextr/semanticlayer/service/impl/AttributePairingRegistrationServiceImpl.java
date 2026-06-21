@@ -39,7 +39,7 @@ public class AttributePairingRegistrationServiceImpl implements AttributePairing
     private static final String CHANGE_TYPE_CD = "REGISTERED";
     private static final String TASK_TYPE_CD = "ATTRIBUTE_PAIRING_REGISTRATION";
     private static final String TASK_STATUS_CD = "PENDING";
-    private static final String LIFECYCLE_STATUS_CD = "ACTIVE";
+    private static final String LIFECYCLE_STATUS_CD = "DRAFT";
     private static final String GOVERNANCE_REVIEW_STATUS_CD = "PENDING";
 
     private final ObjectExposureReadDao objectExposureReadDao;

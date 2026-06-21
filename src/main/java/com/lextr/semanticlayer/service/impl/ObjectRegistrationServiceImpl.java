@@ -1,6 +1,7 @@
 package com.lextr.semanticlayer.service.impl;
 
 import com.lextr.semanticlayer.dao.ObjectRegistrationWriteDao;
+import com.lextr.semanticlayer.dto.AttributeRegistrationRequestDto;
 import com.lextr.semanticlayer.dto.AttributeRegistrationResponseDto;
 import com.lextr.semanticlayer.dto.ObjectRegistrationRequestDto;
 import com.lextr.semanticlayer.dto.ObjectRegistrationResponseDto;
@@ -28,8 +29,11 @@ import org.springframework.transaction.support.TransactionOperations;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 public class ObjectRegistrationServiceImpl implements ObjectRegistrationService {
@@ -115,6 +119,14 @@ public class ObjectRegistrationServiceImpl implements ObjectRegistrationService 
         ));
 
         List<AttributeRegistrationResponseDto> attributes = request.attributes().stream()
+                .collect(Collectors.toMap(
+                        AttributeRegistrationRequestDto::attribute_cd,
+                        Function.identity(),
+                        (first, duplicate) -> first,
+                        LinkedHashMap::new
+                ))
+                .values()
+                .stream()
                 .map(attribute -> objectRegistrationWriteDao.insertAttribute(new AttributeCatalogWriteRequest(
                         UUID.randomUUID(),
                         object.object_id(),

@@ -113,7 +113,7 @@ class RelationshipRegistrationWireThroughTest {
         assertEquals("FOREIGN_KEY", response.get("relationship_type_cd"));
         assertEquals(false, response.get("is_cross_engine_flg"));
         assertEquals("2026-06-18T04:45:30Z", response.get("neo4j_synced_ts"));
-        assertEquals("ACTIVE", response.get("lifecycle_status_cd"));
+        assertEquals("DRAFT", response.get("lifecycle_status_cd"));
 
         assertEquals(8, jdbcTemplate.recordedSqls().size());
         assertTrue(jdbcTemplate.recordedSqls().get(0).contains("FROM meta.object_catalog"));
@@ -128,7 +128,7 @@ class RelationshipRegistrationWireThroughTest {
         assertEquals("client-a", jdbcTemplate.recordedParameters().get(2).get("client_id"));
         assertEquals(parentConnectionId, jdbcTemplate.recordedParameters().get(2).get("connection_id"));
         assertEquals("GL_TO_LEDGER", jdbcTemplate.recordedParameters().get(4).get("relationship_cd"));
-        assertEquals("ACTIVE", jdbcTemplate.recordedParameters().get(4).get("lifecycle_status_cd"));
+        assertEquals("DRAFT", jdbcTemplate.recordedParameters().get(4).get("lifecycle_status_cd"));
         assertEquals("PENDING_APPROVAL", jdbcTemplate.recordedParameters().get(5).get("task_status_cd"));
         assertEquals("REGISTERED", jdbcTemplate.recordedParameters().get(6).get("change_type_cd"));
         assertEquals("GL_TO_LEDGER", jdbcTemplate.recordedParameters().get(7).get("relationship_cd"));
@@ -261,7 +261,7 @@ class RelationshipRegistrationWireThroughTest {
         row.put("relationship_desc", "GL balances map to ledger master rows");
         row.put("ai_join_guidance_txt", "Join on ledger identifier");
         row.put("neo4j_synced_ts", neo4jSyncedTs);
-        row.put("lifecycle_status_cd", "ACTIVE");
+        row.put("lifecycle_status_cd", "DRAFT");
         row.put("created_ts", createdTs);
         row.put("created_by", "producer");
         row.put("updated_ts", updatedTs);
