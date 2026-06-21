@@ -13,6 +13,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -34,6 +35,7 @@ public class RelationshipRegistrationController {
     private final NamedParameterJdbcTemplate jdbcTemplate;
     private final SQLQueryLoaderUtil sqlQueryLoaderUtil;
 
+    @Autowired
     public RelationshipRegistrationController(
             RelationshipRegistrationService relationshipRegistrationService,
             ObjectProvider<NamedParameterJdbcTemplate> jdbcTemplateProvider,

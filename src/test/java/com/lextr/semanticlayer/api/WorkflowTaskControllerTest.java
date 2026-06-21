@@ -8,10 +8,15 @@ import com.lextr.semanticlayer.exception.WorkflowApprovalServiceException;
 import com.lextr.semanticlayer.exception.WorkflowTaskAlreadyApprovedException;
 import com.lextr.semanticlayer.service.WorkflowApprovalService;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
+
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -130,7 +135,11 @@ class WorkflowTaskControllerTest {
     }
 
     private static MockMvc mockMvc(WorkflowApprovalService service) {
-        WorkflowTaskController controller = new WorkflowTaskController(service);
+        WorkflowTaskController controller = new WorkflowTaskController(
+                service,
+                providerOf(null),
+                null
+        );
         ObjectMapper objectMapper = new ObjectMapper()
                 .findAndRegisterModules()
                 .disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
@@ -141,6 +150,35 @@ class WorkflowTaskControllerTest {
                 .setValidator(validator)
                 .setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))
                 .build();
+    }
+
+    private static <T> ObjectProvider<T> providerOf(T instance) {
+        return new ObjectProvider<>() {
+            @Override
+            public T getObject(Object... args) {
+                return instance;
+            }
+
+            @Override
+            public T getIfAvailable() {
+                return instance;
+            }
+
+            @Override
+            public T getIfUnique() {
+                return instance;
+            }
+
+            @Override
+            public T getObject() {
+                return instance;
+            }
+
+            @Override
+            public Iterator<T> iterator() {
+                return instance == null ? Collections.emptyIterator() : List.of(instance).iterator();
+            }
+        };
     }
 
     private static String validRequestJson() {

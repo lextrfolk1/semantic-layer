@@ -36,6 +36,7 @@ import com.lextr.semanticlayer.service.ObjectRegistrationService;
 import com.lextr.semanticlayer.service.RegistryReadService;
 import com.lextr.semanticlayer.service.RelationshipRegistrationService;
 import com.lextr.semanticlayer.service.WorkflowApprovalService;
+import com.lextr.semanticlayer.util.SQLQueryLoaderUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -196,7 +197,8 @@ class OpenApiDocumentationTest {
             FilterLookupRegistrationController.class,
             GovernancePolicyPresetController.class,
             WorkflowTaskController.class,
-            AttributePairingController.class
+            AttributePairingController.class,
+            SQLQueryLoaderUtil.class
     })
     static class OpenApiTestApplication {
 
