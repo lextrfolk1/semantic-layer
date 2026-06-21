@@ -307,7 +307,16 @@ class OpenApiDocumentationTest {
 
             @Bean
             WorkflowApprovalService workflowApprovalService() {
-                return (id, request) -> null;
+                return new WorkflowApprovalService() {
+                    @Override
+                    public WorkflowTaskResponseDto approveTask(Long id, WorkflowApprovalRequestDto request) {
+                        return null;
+                    }
+                    @Override
+                    public WorkflowTaskResponseDto rejectTask(Long id, java.util.Map<String, String> body) {
+                        return null;
+                    }
+                };
             }
 
             @Bean

@@ -79,7 +79,7 @@ class FilterLookupRegistrationServiceImplTest {
         assertEquals("LEDGER_SCOPE", writeDao.lookupRequest.lookup_cd());
         assertEquals("REVIEW", writeDao.lookupRequest.governance_status_cd());
         assertEquals("PENDING", writeDao.lookupRequest.health_status_cd());
-        assertEquals("ACTIVE", writeDao.lookupRequest.lifecycle_status_cd());
+        assertEquals("DRAFT", writeDao.lookupRequest.lifecycle_status_cd());
         assertEquals("FILTER_LOOKUP_REGISTRATION", writeDao.workflowTaskRequest.task_type_cd());
         assertEquals("PENDING", writeDao.workflowTaskRequest.task_status_cd());
         assertEquals("REGISTERED", writeDao.metadataChangeHistoryRequest.change_type_cd());

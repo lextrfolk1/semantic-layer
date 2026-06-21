@@ -265,6 +265,15 @@ class ControllerExecutionTimeAspectTest {
             }
             return response;
         }
+
+        @Override
+        public WorkflowTaskResponseDto rejectTask(Long id, java.util.Map<String, String> body) {
+            lastId = id;
+            if (error != null) {
+                throw error;
+            }
+            return response;
+        }
     }
 
     private static final class RecordingRegistryReadDao implements RegistryReadDao {

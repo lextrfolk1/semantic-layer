@@ -66,7 +66,7 @@ class RelationshipRegistrationServiceImplTest {
                 "GL balances map to ledger master rows",
                 "Join on ledger identifier",
                 null,
-                "ACTIVE",
+                "DRAFT",
                 OffsetDateTime.parse("2026-06-17T10:15:30Z"),
                 "producer",
                 OffsetDateTime.parse("2026-06-17T10:15:30Z"),
@@ -119,7 +119,7 @@ class RelationshipRegistrationServiceImplTest {
         assertEquals(1, sideEffectDao.committedWorkflowTasks.size());
         assertEquals(1, sideEffectDao.committedMetadataChanges.size());
         assertEquals("GL_TO_LEDGER", relationshipDao.lastRequest.relationship_cd());
-        assertEquals("ACTIVE", relationshipDao.lastRequest.lifecycle_status_cd());
+        assertEquals("DRAFT", relationshipDao.lastRequest.lifecycle_status_cd());
         assertEquals("producer", relationshipDao.lastRequest.created_by());
         assertNotNull(relationshipDao.lastRequest.created_ts());
         assertEquals("client-a", policyClient.lastRequest.client_id());
@@ -135,7 +135,7 @@ class RelationshipRegistrationServiceImplTest {
         assertNotNull(relationshipDao.syncRequest);
         assertEquals("GL_TO_LEDGER", relationshipDao.syncRequest.relationship_cd());
         assertEquals(101L, response.id());
-        assertEquals("ACTIVE", response.lifecycle_status_cd());
+        assertEquals("DRAFT", response.lifecycle_status_cd());
         assertEquals("FOREIGN_KEY", response.relationship_type_cd());
         assertNotNull(response.neo4j_synced_ts());
     }
@@ -217,7 +217,7 @@ class RelationshipRegistrationServiceImplTest {
                 "GL balances map to ledger master rows",
                 "Join on ledger identifier",
                 null,
-                "ACTIVE",
+                "DRAFT",
                 OffsetDateTime.parse("2026-06-17T10:15:30Z"),
                 "producer",
                 OffsetDateTime.parse("2026-06-17T10:15:30Z"),

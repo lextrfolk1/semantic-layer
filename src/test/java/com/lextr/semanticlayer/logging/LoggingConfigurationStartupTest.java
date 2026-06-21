@@ -62,6 +62,10 @@ class LoggingConfigurationStartupTest {
                 public WorkflowTaskResponseDto approveTask(Long id, WorkflowApprovalRequestDto request) {
                     return null;
                 }
+                @Override
+                public WorkflowTaskResponseDto rejectTask(Long id, java.util.Map<String, String> body) {
+                    return null;
+                }
             };
         }
     }

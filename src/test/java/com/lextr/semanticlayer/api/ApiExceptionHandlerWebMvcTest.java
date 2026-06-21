@@ -200,6 +200,15 @@ class ApiExceptionHandlerWebMvcTest {
             }
             return null;
         }
+
+        @Override
+        public WorkflowTaskResponseDto rejectTask(Long id, java.util.Map<String, String> body) {
+            lastId = id;
+            if (error != null) {
+                throw error;
+            }
+            return null;
+        }
     }
 
     private static final class NoOpObjectRegistrationService implements ObjectRegistrationService {

@@ -109,7 +109,7 @@ class AttributePairingWireThroughTest {
                 .andExpect(jsonPath("$.object_cd").value("customer"))
                 .andExpect(jsonPath("$.display_attribute_cd").value("customer_nm"))
                 .andExpect(jsonPath("$.filter_attribute_cd").value("customer_id"))
-                .andExpect(jsonPath("$.lifecycle_status_cd").value("ACTIVE"))
+                .andExpect(jsonPath("$.lifecycle_status_cd").value("DRAFT"))
                 .andExpect(jsonPath("$.governance_review_status_cd").value("PENDING"));
 
         assertEquals(6, jdbcTemplate.recordedSqls().size());
@@ -125,7 +125,7 @@ class AttributePairingWireThroughTest {
         assertEquals("client-a", jdbcTemplate.recordedParameters().get(1).get("client_id"));
         assertEquals("customer_id", jdbcTemplate.recordedParameters().get(2).get("attribute_cd"));
         assertEquals("CUSTOMER_NAME_TO_ID", jdbcTemplate.recordedParameters().get(3).get("pairing_cd"));
-        assertEquals("ACTIVE", jdbcTemplate.recordedParameters().get(3).get("lifecycle_status_cd"));
+        assertEquals("DRAFT", jdbcTemplate.recordedParameters().get(3).get("lifecycle_status_cd"));
         assertEquals("ATTRIBUTE_PAIRING_REGISTRATION", jdbcTemplate.recordedParameters().get(4).get("task_type_cd"));
         assertEquals("REGISTERED", jdbcTemplate.recordedParameters().get(5).get("change_type_cd"));
 
@@ -290,7 +290,7 @@ class AttributePairingWireThroughTest {
         row.put("performance_gain_pct_est_nbr", 20);
         row.put("ai_context_txt", "Resolve customer name to indexed customer id");
         row.put("client_id", "client-a");
-        row.put("lifecycle_status_cd", "ACTIVE");
+        row.put("lifecycle_status_cd", "DRAFT");
         row.put("governance_review_status_cd", "PENDING");
         row.put("version_nbr", 1);
         row.put("created_ts", timestamp);

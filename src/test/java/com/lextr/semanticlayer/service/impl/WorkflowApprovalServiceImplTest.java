@@ -331,12 +331,113 @@ class WorkflowApprovalServiceImplTest {
         assertTrue(harness.rolledBack);
     }
 
+    @Test
+    void rejectsTaskAndAppliesSideEffects() {
+        TransactionHarness harness = new TransactionHarness();
+        RecordingWorkflowApprovalDao dao = new RecordingWorkflowApprovalDao();
+        OffsetDateTime submittedTs = OffsetDateTime.parse("2026-06-18T10:15:30Z");
+        
+        // 1. Filter Lookup Rejection
+        dao.tasks.put(401L, new FilterLookupWorkflowTaskRecord(
+                401L, "FILTER_LOOKUP_REGISTRATION", "FILTER_LOOKUP", "LEDGER_SCOPE",
+                "PENDING", "producer", submittedTs, null, null, "Review", "client-a", null, null, null
+        ));
+        // 2. Attribute Override Rejection
+        dao.tasks.put(402L, new FilterLookupWorkflowTaskRecord(
+                402L, "ATTRIBUTE_LOGICAL_NAME_OVERRIDE", "ATTRIBUTE", "502",
+                "PENDING", "producer", submittedTs, null, null, "Review", "client-a", null, null, null
+        ));
+        // 3. Object Rejection
+        dao.tasks.put(403L, new FilterLookupWorkflowTaskRecord(
+                403L, "OBJECT_REGISTRATION", "OBJECT", "obj-123",
+                "PENDING", "producer", submittedTs, null, null, "Review", "client-a", null, null, null
+        ));
+        // 4. Pairing Rejection
+        dao.tasks.put(404L, new FilterLookupWorkflowTaskRecord(
+                404L, "ATTRIBUTE_PAIRING_REGISTRATION", "ATTRIBUTE_PAIRING", "pair-123",
+                "PENDING", "producer", submittedTs, null, null, "Review", "client-a", null, null, null
+        ));
+        // 5. Relationship Rejection
+        dao.tasks.put(405L, new FilterLookupWorkflowTaskRecord(
+                405L, "RELATIONSHIP_REGISTRATION", "RELATIONSHIP", "rel-123",
+                "PENDING", "producer", submittedTs, null, null, "Review", "client-a", null, null, null
+        ));
+
+        RecordingFilterLookupRegistrationWriteDao writeDao = new RecordingFilterLookupRegistrationWriteDao();
+        WorkflowApprovalServiceImpl service = new WorkflowApprovalServiceImpl(
+                dao, writeDao, new RecordingWorkflowPolicyClient(new WorkflowPolicyDecisionDto(true, null, null)),
+                new RecordingTransactionOperations(harness)
+        );
+
+        // Perform rejections
+        service.rejectTask(401L, Map.of("rejected_by", "rejecter", "rejection_note_txt", "no lookup"));
+        assertEquals("SUSPENDED", dao.lookupStatus.get("LEDGER_SCOPE"));
+        assertEquals("REJECTED", dao.lookupLifecycleStatus.get("LEDGER_SCOPE"));
+
+        service.rejectTask(402L, Map.of("rejected_by", "rejecter", "rejection_note_txt", "no override"));
+        assertEquals("REJECTED", dao.overrideStatus.get(502L));
+
+        service.rejectTask(403L, Map.of("rejected_by", "rejecter", "rejection_note_txt", "no object"));
+        assertEquals("DRAFT", dao.objectStatus.get("obj-123"));
+        assertEquals("REJECTED", dao.objectGovStatus.get("obj-123"));
+
+        service.rejectTask(404L, Map.of("rejected_by", "rejecter", "rejection_note_txt", "no pairing"));
+        assertEquals("DRAFT", dao.pairingStatus.get("pair-123"));
+        assertEquals("REJECTED", dao.pairingGovStatus.get("pair-123"));
+
+        service.rejectTask(405L, Map.of("rejected_by", "rejecter", "rejection_note_txt", "no relationship"));
+        assertEquals("REJECTED", dao.relationshipStatus.get("rel-123"));
+    }
+
+    @Test
+    void approvesObjectPairingRelationshipSideEffects() {
+        TransactionHarness harness = new TransactionHarness();
+        RecordingWorkflowApprovalDao dao = new RecordingWorkflowApprovalDao();
+        OffsetDateTime submittedTs = OffsetDateTime.parse("2026-06-18T10:15:30Z");
+
+        dao.tasks.put(501L, new FilterLookupWorkflowTaskRecord(
+                501L, "OBJECT_REGISTRATION", "OBJECT", "obj-123",
+                "PENDING", "producer", submittedTs, null, null, "Review", "client-a", null, null, null
+        ));
+        dao.tasks.put(502L, new FilterLookupWorkflowTaskRecord(
+                502L, "ATTRIBUTE_PAIRING_REGISTRATION", "ATTRIBUTE_PAIRING", "pair-123",
+                "PENDING", "producer", submittedTs, null, null, "Review", "client-a", null, null, null
+        ));
+        dao.tasks.put(503L, new FilterLookupWorkflowTaskRecord(
+                503L, "RELATIONSHIP_REGISTRATION", "RELATIONSHIP", "rel-123",
+                "PENDING", "producer", submittedTs, null, null, "Review", "client-a", null, null, null
+        ));
+
+        WorkflowApprovalServiceImpl service = new WorkflowApprovalServiceImpl(
+                dao, new RecordingFilterLookupRegistrationWriteDao(), 
+                new RecordingWorkflowPolicyClient(new WorkflowPolicyDecisionDto(true, null, null)),
+                new RecordingTransactionOperations(harness)
+        );
+
+        service.approveTask(501L, new WorkflowApprovalRequestDto("client-a", "approver", "looks good"));
+        assertEquals("APPROVED", dao.objectStatus.get("obj-123"));
+        assertEquals("APPROVED", dao.objectGovStatus.get("obj-123"));
+
+        service.approveTask(502L, new WorkflowApprovalRequestDto("client-a", "approver", "looks good"));
+        assertEquals("APPROVED", dao.pairingStatus.get("pair-123"));
+        assertEquals("APPROVED", dao.pairingGovStatus.get("pair-123"));
+
+        service.approveTask(503L, new WorkflowApprovalRequestDto("client-a", "approver", "looks good"));
+        assertEquals("APPROVED", dao.relationshipStatus.get("rel-123"));
+    }
+
     private static class RecordingWorkflowApprovalDao implements WorkflowApprovalDao {
         private final Map<Long, FilterLookupWorkflowTaskRecord> tasks = new HashMap<>();
         private final Map<String, String> lookupStatus = new HashMap<>();
+        private final Map<String, String> lookupLifecycleStatus = new HashMap<>();
         private final Map<Long, String> overrideStatus = new HashMap<>();
         private final Map<String, String> valueStatus = new HashMap<>();
         private final Map<String, Boolean> valueValidated = new HashMap<>();
+        private final Map<String, String> objectStatus = new HashMap<>();
+        private final Map<String, String> objectGovStatus = new HashMap<>();
+        private final Map<String, String> pairingStatus = new HashMap<>();
+        private final Map<String, String> pairingGovStatus = new HashMap<>();
+        private final Map<String, String> relationshipStatus = new HashMap<>();
 
         @Override
         public FilterLookupWorkflowTaskRecord findTaskById(String clientId, Long id) {
@@ -387,6 +488,82 @@ class WorkflowApprovalServiceImplTest {
         public void approveFilterLookupValue(String lookupCd, String valueCd, String lifecycleStatus, boolean validated, OffsetDateTime updatedTs) {
             valueStatus.put(lookupCd + ":" + valueCd, lifecycleStatus);
             valueValidated.put(lookupCd + ":" + valueCd, validated);
+        }
+
+        @Override
+        public FilterLookupWorkflowTaskRecord findTaskByIdOnly(Long id) {
+            return tasks.get(id);
+        }
+
+        @Override
+        public FilterLookupWorkflowTaskRecord rejectTask(Long id, String rejectedBy, OffsetDateTime rejectedTs, String rejectionNote) {
+            FilterLookupWorkflowTaskRecord record = tasks.get(id);
+            if (record == null) {
+                throw new IllegalArgumentException("Task not found");
+            }
+            FilterLookupWorkflowTaskRecord rejected = new FilterLookupWorkflowTaskRecord(
+                    record.id(),
+                    record.task_type_cd(),
+                    record.entity_type_cd(),
+                    record.entity_ref(),
+                    "REJECTED",
+                    record.submitted_by(),
+                    record.submitted_ts(),
+                    record.assigned_to(),
+                    record.due_dt(),
+                    record.description_txt(),
+                    record.client_id(),
+                    rejectedBy,
+                    rejectedTs,
+                    rejectionNote
+            );
+            tasks.put(id, rejected);
+            return rejected;
+        }
+
+        @Override
+        public void approveObject(String clientId, String objectId, String lifecycleStatus, OffsetDateTime updatedTs, String updatedBy) {
+            objectStatus.put(objectId, lifecycleStatus);
+            objectGovStatus.put(objectId, "APPROVED");
+        }
+
+        @Override
+        public void approvePairing(String clientId, String pairingCd, String lifecycleStatus, OffsetDateTime updatedTs, String updatedBy) {
+            pairingStatus.put(pairingCd, lifecycleStatus);
+            pairingGovStatus.put(pairingCd, "APPROVED");
+        }
+
+        @Override
+        public void approveRelationship(String relationshipCd, String lifecycleStatus, OffsetDateTime updatedTs, String updatedBy) {
+            relationshipStatus.put(relationshipCd, lifecycleStatus);
+        }
+
+        @Override
+        public void rejectLookup(String clientId, String lookupCd, String governanceStatus, String lifecycleStatus, OffsetDateTime updatedTs, String updatedBy) {
+            lookupStatus.put(lookupCd, governanceStatus);
+            lookupLifecycleStatus.put(lookupCd, lifecycleStatus);
+        }
+
+        @Override
+        public void rejectAttributeOverride(String clientId, Long id, String overrideStatus, OffsetDateTime updatedTs, String updatedBy) {
+            this.overrideStatus.put(id, overrideStatus);
+        }
+
+        @Override
+        public void rejectObject(String clientId, String objectId, String lifecycleStatus, String governanceReviewStatus, OffsetDateTime updatedTs, String updatedBy) {
+            objectStatus.put(objectId, lifecycleStatus);
+            objectGovStatus.put(objectId, governanceReviewStatus);
+        }
+
+        @Override
+        public void rejectPairing(String clientId, String pairingCd, String lifecycleStatus, String governanceReviewStatus, OffsetDateTime updatedTs, String updatedBy) {
+            pairingStatus.put(pairingCd, lifecycleStatus);
+            pairingGovStatus.put(pairingCd, governanceReviewStatus);
+        }
+
+        @Override
+        public void rejectRelationship(String relationshipCd, String lifecycleStatus, OffsetDateTime updatedTs, String updatedBy) {
+            relationshipStatus.put(relationshipCd, lifecycleStatus);
         }
     }
 

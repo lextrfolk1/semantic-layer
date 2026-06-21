@@ -194,6 +194,7 @@ class WorkflowTaskControllerTest {
     private static final class RecordingWorkflowApprovalService implements WorkflowApprovalService {
         private Long lastId;
         private WorkflowApprovalRequestDto lastRequest;
+        private java.util.Map<String, String> lastRejectBody;
         private WorkflowTaskResponseDto response;
         private RuntimeException error;
 
@@ -201,6 +202,16 @@ class WorkflowTaskControllerTest {
         public WorkflowTaskResponseDto approveTask(Long id, WorkflowApprovalRequestDto request) {
             this.lastId = id;
             this.lastRequest = request;
+            if (error != null) {
+                throw error;
+            }
+            return response;
+        }
+
+        @Override
+        public WorkflowTaskResponseDto rejectTask(Long id, java.util.Map<String, String> body) {
+            this.lastId = id;
+            this.lastRejectBody = body;
             if (error != null) {
                 throw error;
             }

@@ -91,35 +91,7 @@ public class WorkflowTaskController {
     public WorkflowTaskResponseDto rejectTask(
             @Parameter(description = "Workflow task identifier.") @PathVariable("id") Long id,
             @RequestBody Map<String, String> body) {
-        if (jdbcTemplate == null) {
-            throw new SemanticLayerException("NamedParameterJdbcTemplate is not configured");
-        }
-        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        MapSqlParameterSource params = new MapSqlParameterSource()
-                .addValue("id", id)
-                .addValue("rejected_by", body.getOrDefault("rejected_by", "admin"))
-                .addValue("rejected_ts", now)
-                .addValue("rejection_note_txt", body.get("rejection_note_txt"));
-        return jdbcTemplate.query(
-                sqlQueryLoaderUtil.getQuery("workflow_task.reject"),
-                params,
-                (rs, rowNum) -> new WorkflowTaskResponseDto(
-                        rs.getLong("id"),
-                        rs.getString("task_type_cd"),
-                        rs.getString("entity_type_cd"),
-                        rs.getString("entity_ref"),
-                        rs.getString("task_status_cd"),
-                        rs.getString("submitted_by"),
-                        getOffsetDateTime(rs, "submitted_ts"),
-                        rs.getString("assigned_to"),
-                        getLocalDate(rs, "due_dt"),
-                        rs.getString("description_txt"),
-                        rs.getString("client_id"),
-                        rs.getString("approved_by"),
-                        getOffsetDateTime(rs, "approved_ts"),
-                        rs.getString("approval_note_txt")
-                )
-        ).stream().findFirst().orElseThrow(() -> new SemanticLayerException("Failed to reject task or task not pending: " + id));
+        return workflowApprovalService.rejectTask(id, body);
     }
 
     private static OffsetDateTime getOffsetDateTime(java.sql.ResultSet rs, String col) throws java.sql.SQLException {

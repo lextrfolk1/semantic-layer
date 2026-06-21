@@ -129,6 +129,58 @@ public class WorkflowApprovalServiceImpl implements WorkflowApprovalService {
         }
     }
 
+    @Override
+    public WorkflowTaskResponseDto rejectTask(Long id, java.util.Map<String, String> body) {
+        FilterLookupWorkflowTaskRecord task = workflowApprovalDao.findTaskByIdOnly(id);
+        if (task == null) {
+            throw new RegistryResourceNotFoundException("workflow task", String.valueOf(id));
+        }
+
+        if ("APPROVED".equalsIgnoreCase(task.task_status_cd())) {
+            throw new WorkflowTaskAlreadyApprovedException(id);
+        }
+        if ("REJECTED".equalsIgnoreCase(task.task_status_cd())) {
+            throw new WorkflowApprovalServiceException("Task is already rejected: " + id);
+        }
+
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        String rejectedBy = body.getOrDefault("rejected_by", body.getOrDefault("approved_by", "admin"));
+        String rejectionNote = body.get("rejection_note_txt");
+
+        try {
+            return transactionOperations.execute(status -> {
+                // Update workflow task status to REJECTED
+                FilterLookupWorkflowTaskRecord rejectedTask = workflowApprovalDao.rejectTask(
+                        id,
+                        rejectedBy,
+                        now,
+                        rejectionNote
+                );
+
+                // Side effect application based on task type
+                executeRejectionSideEffect(task, rejectedBy, now);
+
+                // Write audit log entry
+                filterLookupRegistrationWriteDao.insertMetadataChangeHistory(new FilterLookupMetadataChangeHistoryWriteRequest(
+                        task.entity_type_cd(),
+                        task.entity_ref(),
+                        "REJECTED",
+                        rejectedBy,
+                        now,
+                        null,
+                        null,
+                        "Rejected workflow task " + id + " (" + task.task_type_cd() + ") for " + task.entity_ref()
+                ));
+
+                return toResponseDto(rejectedTask);
+            });
+        } catch (PolicyViolationException | WorkflowTaskAlreadyApprovedException | RegistryResourceNotFoundException exception) {
+            throw exception;
+        } catch (RuntimeException exception) {
+            throw new WorkflowApprovalServiceException("Unable to reject workflow task " + id, exception);
+        }
+    }
+
     private void executeSideEffect(FilterLookupWorkflowTaskRecord task, String approvedBy, OffsetDateTime now) {
         String type = task.task_type_cd();
         if ("FILTER_LOOKUP_REGISTRATION".equalsIgnoreCase(type)) {
@@ -149,6 +201,36 @@ public class WorkflowApprovalServiceImpl implements WorkflowApprovalService {
             if (parts.length == 2) {
                 workflowApprovalDao.approveFilterLookupValue(parts[0], parts[1], "ACTIVE", true, now);
             }
+        } else if ("OBJECT_REGISTRATION".equalsIgnoreCase(type)) {
+            workflowApprovalDao.approveObject(task.client_id(), task.entity_ref(), "APPROVED", now, approvedBy);
+        } else if ("ATTRIBUTE_PAIRING_REGISTRATION".equalsIgnoreCase(type)) {
+            workflowApprovalDao.approvePairing(task.client_id(), task.entity_ref(), "APPROVED", now, approvedBy);
+        } else if ("RELATIONSHIP_REGISTRATION".equalsIgnoreCase(type)) {
+            workflowApprovalDao.approveRelationship(task.entity_ref(), "APPROVED", now, approvedBy);
+        }
+    }
+
+    private void executeRejectionSideEffect(FilterLookupWorkflowTaskRecord task, String rejectedBy, OffsetDateTime now) {
+        String type = task.task_type_cd();
+        if ("FILTER_LOOKUP_REGISTRATION".equalsIgnoreCase(type)) {
+            workflowApprovalDao.rejectLookup(task.client_id(), task.entity_ref(), "SUSPENDED", "REJECTED", now, rejectedBy);
+        } else if ("ATTRIBUTE_LOGICAL_NAME_OVERRIDE".equalsIgnoreCase(type)) {
+            try {
+                Long overrideId = Long.parseLong(task.entity_ref());
+                workflowApprovalDao.rejectAttributeOverride(task.client_id(), overrideId, "REJECTED", now, rejectedBy);
+            } catch (NumberFormatException exception) {
+                logger.warn(
+                        "Skipping ATTRIBUTE_LOGICAL_NAME_OVERRIDE rejection side effect for workflow task {} because entity_ref='{}' is not numeric",
+                        task.id(),
+                        task.entity_ref()
+                );
+            }
+        } else if ("OBJECT_REGISTRATION".equalsIgnoreCase(type)) {
+            workflowApprovalDao.rejectObject(task.client_id(), task.entity_ref(), "DRAFT", "REJECTED", now, rejectedBy);
+        } else if ("ATTRIBUTE_PAIRING_REGISTRATION".equalsIgnoreCase(type)) {
+            workflowApprovalDao.rejectPairing(task.client_id(), task.entity_ref(), "DRAFT", "REJECTED", now, rejectedBy);
+        } else if ("RELATIONSHIP_REGISTRATION".equalsIgnoreCase(type)) {
+            workflowApprovalDao.rejectRelationship(task.entity_ref(), "REJECTED", now, rejectedBy);
         }
     }
 
