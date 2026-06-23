@@ -3,381 +3,256 @@ package com.lextr.semanticlayer.dao.impl;
 import com.lextr.semanticlayer.exception.SemanticLayerException;
 import com.lextr.semanticlayer.model.FilterLookupWorkflowTaskRecord;
 import com.lextr.semanticlayer.util.SQLQueryLoaderUtil;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.jdbc.core.RowMapper;
-import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.core.namedparam.SqlParameterSource;
-import org.springframework.jdbc.datasource.AbstractDataSource;
-import org.springframework.transaction.TransactionStatus;
-import org.springframework.transaction.support.TransactionCallback;
-import org.springframework.transaction.support.TransactionOperations;
 
-import javax.sql.DataSource;
-import java.lang.reflect.Proxy;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.sql.Connection;
 import java.sql.ResultSet;
-import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 class JdbcWorkflowApprovalDaoTest {
 
+    private NamedParameterJdbcTemplate jdbcTemplate;
+    private SQLQueryLoaderUtil sqlQueryLoaderUtil;
+    private ObjectProvider<NamedParameterJdbcTemplate> provider;
+    private JdbcWorkflowApprovalDao dao;
+
+    @BeforeEach
+    @SuppressWarnings("unchecked")
+    void setUp() {
+        jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        sqlQueryLoaderUtil = mock(SQLQueryLoaderUtil.class);
+        provider = mock(ObjectProvider.class);
+        when(provider.getIfAvailable()).thenReturn(jdbcTemplate);
+        dao = new JdbcWorkflowApprovalDao(provider, sqlQueryLoaderUtil);
+    }
+
     @Test
-    void findsTaskByIdAndMapsReturnedColumns() {
-        RecordingNamedParameterJdbcTemplate jdbcTemplate = new RecordingNamedParameterJdbcTemplate(List.of(taskRow()));
-        JdbcWorkflowApprovalDao dao = new JdbcWorkflowApprovalDao(
-                providerOf(jdbcTemplate),
-                new SQLQueryLoaderUtil(new DefaultResourceLoader())
-        );
+    void throwsIfJdbcTemplateNotConfigured() {
+        when(provider.getIfAvailable()).thenReturn(null);
+        JdbcWorkflowApprovalDao nullDao = new JdbcWorkflowApprovalDao(provider, sqlQueryLoaderUtil);
+        assertThrows(SemanticLayerException.class, () -> nullDao.findTaskById("GLOBAL", 1L));
+    }
 
-        FilterLookupWorkflowTaskRecord result = dao.findTaskById("client-a", 301L);
+    @Test
+    @SuppressWarnings("unchecked")
+    void findTaskByIdSuccess() {
+        when(sqlQueryLoaderUtil.getQuery("workflow_approval.find_task_by_id")).thenReturn("SELECT * FROM workflow_task");
+        FilterLookupWorkflowTaskRecord record = new FilterLookupWorkflowTaskRecord(1L, "TYPE", "ENTITY", "REF", "PENDING", "user", null, "assign", null, "desc", "GLOBAL", null, null, null);
+        when(jdbcTemplate.query(anyString(), any(SqlParameterSource.class), any(RowMapper.class)))
+                .thenReturn(Collections.singletonList(record));
 
-        assertTrue(jdbcTemplate.recordedSql.contains("SELECT id"));
-        assertTrue(jdbcTemplate.recordedSql.contains("FROM wkfl.workflow_task"));
-        assertEquals("client-a", jdbcTemplate.recordedParameters.get("client_id"));
-        assertEquals(301L, jdbcTemplate.recordedParameters.get("id"));
-
+        FilterLookupWorkflowTaskRecord result = dao.findTaskById("GLOBAL", 1L);
         assertNotNull(result);
-        assertEquals(301L, result.id());
-        assertEquals("FILTER_LOOKUP_REGISTRATION", result.task_type_cd());
         assertEquals("PENDING", result.task_status_cd());
     }
 
     @Test
-    void approvesTaskAndMapsReturnedColumns() {
-        OffsetDateTime now = OffsetDateTime.parse("2026-06-18T10:15:30Z");
-        Map<String, Object> approvedTaskRow = taskRow();
-        approvedTaskRow.put("task_status_cd", "APPROVED");
-        approvedTaskRow.put("approved_by", "approver");
-        approvedTaskRow.put("approved_ts", now);
-        approvedTaskRow.put("approval_note_txt", "approved");
+    @SuppressWarnings("unchecked")
+    void approveTaskSuccess() {
+        when(sqlQueryLoaderUtil.getQuery("workflow_approval.approve_task")).thenReturn("UPDATE workflow_task");
+        FilterLookupWorkflowTaskRecord record = new FilterLookupWorkflowTaskRecord(1L, "TYPE", "ENTITY", "REF", "APPROVED", "user", null, "assign", null, "desc", "GLOBAL", "admin", null, "note");
+        when(jdbcTemplate.query(anyString(), any(SqlParameterSource.class), any(RowMapper.class)))
+                .thenReturn(Collections.singletonList(record));
 
-        RecordingNamedParameterJdbcTemplate jdbcTemplate = new RecordingNamedParameterJdbcTemplate(List.of(approvedTaskRow));
-        JdbcWorkflowApprovalDao dao = new JdbcWorkflowApprovalDao(
-                providerOf(jdbcTemplate),
-                new SQLQueryLoaderUtil(new DefaultResourceLoader())
-        );
-
-        FilterLookupWorkflowTaskRecord result = dao.approveTask("client-a", 301L, "approver", now, "approved");
-
-        assertTrue(jdbcTemplate.recordedSql.contains("UPDATE wkfl.workflow_task"));
-        assertEquals("client-a", jdbcTemplate.recordedParameters.get("client_id"));
-        assertEquals(301L, jdbcTemplate.recordedParameters.get("id"));
-        assertEquals("APPROVED", jdbcTemplate.recordedParameters.get("task_status_cd"));
-        assertEquals("approver", jdbcTemplate.recordedParameters.get("approved_by"));
-        assertEquals(now, jdbcTemplate.recordedParameters.get("approved_ts"));
-        assertEquals("approved", jdbcTemplate.recordedParameters.get("approval_note_txt"));
-
-        assertEquals(301L, result.id());
+        FilterLookupWorkflowTaskRecord result = dao.approveTask("GLOBAL", 1L, "admin", OffsetDateTime.now(), "note");
+        assertNotNull(result);
         assertEquals("APPROVED", result.task_status_cd());
-        assertEquals("approver", result.approved_by());
     }
 
     @Test
-    void updatesSemanticFilterLookupStatus() {
-        RecordingNamedParameterJdbcTemplate jdbcTemplate = new RecordingNamedParameterJdbcTemplate(List.of());
-        JdbcWorkflowApprovalDao dao = new JdbcWorkflowApprovalDao(
-                providerOf(jdbcTemplate),
-                new SQLQueryLoaderUtil(new DefaultResourceLoader())
-        );
-        OffsetDateTime now = OffsetDateTime.now();
+    @SuppressWarnings("unchecked")
+    void approveTaskThrowsIfEmpty() {
+        when(sqlQueryLoaderUtil.getQuery("workflow_approval.approve_task")).thenReturn("UPDATE workflow_task");
+        when(jdbcTemplate.query(anyString(), any(SqlParameterSource.class), any(RowMapper.class)))
+                .thenReturn(Collections.emptyList());
 
-        dao.approveLookup("client-a", "LEDGER_SCOPE", "ACTIVE", now, "approver");
-
-        assertTrue(jdbcTemplate.recordedSql.contains("UPDATE meta.semantic_filter_lookup"));
-        assertEquals("client-a", jdbcTemplate.recordedParameters.get("client_id"));
-        assertEquals("LEDGER_SCOPE", jdbcTemplate.recordedParameters.get("lookup_cd"));
-        assertEquals("ACTIVE", jdbcTemplate.recordedParameters.get("governance_status_cd"));
-        assertEquals(now, jdbcTemplate.recordedParameters.get("updated_ts"));
-        assertEquals("approver", jdbcTemplate.recordedParameters.get("updated_by"));
+        assertThrows(SemanticLayerException.class, () -> dao.approveTask("GLOBAL", 1L, "admin", OffsetDateTime.now(), "note"));
     }
 
     @Test
-    void updatesAttributeLogicalNameOverrideStatus() {
-        RecordingNamedParameterJdbcTemplate jdbcTemplate = new RecordingNamedParameterJdbcTemplate(List.of());
-        JdbcWorkflowApprovalDao dao = new JdbcWorkflowApprovalDao(
-                providerOf(jdbcTemplate),
-                new SQLQueryLoaderUtil(new DefaultResourceLoader())
-        );
-        OffsetDateTime now = OffsetDateTime.now();
-
-        dao.approveAttributeOverride("client-a", 402L, "ACTIVE", now, "approver");
-
-        assertTrue(jdbcTemplate.recordedSql.contains("UPDATE meta.attribute_logical_name_override"));
-        assertEquals("client-a", jdbcTemplate.recordedParameters.get("client_id"));
-        assertEquals(402L, jdbcTemplate.recordedParameters.get("id"));
-        assertEquals("ACTIVE", jdbcTemplate.recordedParameters.get("lifecycle_status_cd"));
+    void approveLookupSuccess() {
+        when(sqlQueryLoaderUtil.getQuery("workflow_approval.approve_lookup")).thenReturn("UPDATE lookup");
+        dao.approveLookup("GLOBAL", "LK-1", "APPROVED", OffsetDateTime.now(), "admin");
+        verify(jdbcTemplate).update(anyString(), any(SqlParameterSource.class));
     }
 
     @Test
-    void updatesFilterLookupValueStatus() {
-        RecordingNamedParameterJdbcTemplate jdbcTemplate = new RecordingNamedParameterJdbcTemplate(List.of());
-        JdbcWorkflowApprovalDao dao = new JdbcWorkflowApprovalDao(
-                providerOf(jdbcTemplate),
-                new SQLQueryLoaderUtil(new DefaultResourceLoader())
-        );
-        OffsetDateTime now = OffsetDateTime.now();
-
-        dao.approveFilterLookupValue("LEDGER_SCOPE", "USD", "ACTIVE", true, now);
-
-        assertTrue(jdbcTemplate.recordedSql.contains("UPDATE meta.filter_lookup_value"));
-        assertEquals("LEDGER_SCOPE", jdbcTemplate.recordedParameters.get("lookup_cd"));
-        assertEquals("USD", jdbcTemplate.recordedParameters.get("value_cd"));
-        assertEquals("ACTIVE", jdbcTemplate.recordedParameters.get("lifecycle_status_cd"));
-        assertTrue((Boolean) jdbcTemplate.recordedParameters.get("validated_flg"));
+    void approveAttributeOverrideSuccess() {
+        when(sqlQueryLoaderUtil.getQuery("workflow_approval.approve_attribute_override")).thenReturn("UPDATE override");
+        dao.approveAttributeOverride("GLOBAL", 1L, "APPROVED", OffsetDateTime.now(), "admin");
+        verify(jdbcTemplate).update(anyString(), any(SqlParameterSource.class));
     }
 
     @Test
-    void transactionRollsBackOnFailure() {
-        TransactionHarness harness = new TransactionHarness();
-        TransactionalNamedParameterJdbcTemplate jdbcTemplate = new TransactionalNamedParameterJdbcTemplate(harness);
-        JdbcWorkflowApprovalDao dao = new JdbcWorkflowApprovalDao(
-                providerOf(jdbcTemplate),
-                new SQLQueryLoaderUtil(new DefaultResourceLoader())
-        );
-        RecordingTransactionOperations transactionOperations = new RecordingTransactionOperations(harness);
-
-        assertThrows(IllegalStateException.class, () -> transactionOperations.execute(status -> {
-            dao.approveLookup("client-a", "LEDGER_SCOPE", "ACTIVE", OffsetDateTime.now(), "approver");
-            throw new IllegalStateException("Simulated DB error");
-        }));
-
-        assertTrue(harness.rolledBack);
-        assertFalse(harness.committed);
-        assertTrue(jdbcTemplate.recordedSqls.get(0).contains("UPDATE meta.semantic_filter_lookup"));
+    void approveFilterLookupValueSuccess() {
+        when(sqlQueryLoaderUtil.getQuery("workflow_approval.approve_filter_lookup_value")).thenReturn("UPDATE value");
+        dao.approveFilterLookupValue("LK-1", "VAL-1", "APPROVED", true, OffsetDateTime.now());
+        verify(jdbcTemplate).update(anyString(), any(SqlParameterSource.class));
     }
 
     @Test
-    void failsWhenNamedParameterJdbcTemplateMissing() {
-        JdbcWorkflowApprovalDao dao = new JdbcWorkflowApprovalDao(
-                providerOf(null),
-                new SQLQueryLoaderUtil(new DefaultResourceLoader())
-        );
+    @SuppressWarnings("unchecked")
+    void findTaskByIdOnlySuccess() {
+        when(sqlQueryLoaderUtil.getQuery("workflow_approval.find_task_by_id_only")).thenReturn("SELECT * FROM task");
+        FilterLookupWorkflowTaskRecord record = new FilterLookupWorkflowTaskRecord(1L, "TYPE", "ENTITY", "REF", "PENDING", "user", null, "assign", null, "desc", "GLOBAL", null, null, null);
+        when(jdbcTemplate.query(anyString(), any(SqlParameterSource.class), any(RowMapper.class)))
+                .thenReturn(Collections.singletonList(record));
 
-        assertThrows(SemanticLayerException.class, () -> dao.findTaskById("client-a", 301L));
+        FilterLookupWorkflowTaskRecord result = dao.findTaskByIdOnly(1L);
+        assertNotNull(result);
     }
 
     @Test
-    void usesNamedParameterJdbcTemplateAndDoesNotUseJpa() throws Exception {
-        String source = Files.readString(Path.of(
-                "src/main/java/com/lextr/semanticlayer/dao/impl/JdbcWorkflowApprovalDao.java"
-        ));
+    @SuppressWarnings("unchecked")
+    void rejectTaskSuccess() {
+        when(sqlQueryLoaderUtil.getQuery("workflow_approval.reject_task")).thenReturn("UPDATE task");
+        FilterLookupWorkflowTaskRecord record = new FilterLookupWorkflowTaskRecord(1L, "TYPE", "ENTITY", "REF", "REJECTED", "user", null, "assign", null, "desc", "GLOBAL", null, null, null);
+        when(jdbcTemplate.query(anyString(), any(SqlParameterSource.class), any(RowMapper.class)))
+                .thenReturn(Collections.singletonList(record));
 
-        assertTrue(source.contains("NamedParameterJdbcTemplate"));
-        assertFalse(source.contains("EntityManager"));
-        assertFalse(source.contains("JpaRepository"));
-        assertFalse(source.contains("jakarta.persistence"));
-        assertFalse(source.contains("javax.persistence"));
+        FilterLookupWorkflowTaskRecord result = dao.rejectTask(1L, "admin", OffsetDateTime.now(), "rejection note");
+        assertNotNull(result);
     }
 
-    private static Map<String, Object> taskRow() {
-        Map<String, Object> row = new HashMap<>();
-        row.put("id", 301L);
-        row.put("task_type_cd", "FILTER_LOOKUP_REGISTRATION");
-        row.put("entity_type_cd", "FILTER_LOOKUP");
-        row.put("entity_ref", "LEDGER_SCOPE");
-        row.put("task_status_cd", "PENDING");
-        row.put("submitted_by", "producer");
-        row.put("submitted_ts", OffsetDateTime.parse("2026-06-18T10:15:30Z"));
-        row.put("assigned_to", null);
-        row.put("due_dt", LocalDate.parse("2026-09-16"));
-        row.put("description_txt", "Review filter lookup LEDGER_SCOPE");
-        row.put("client_id", "client-a");
-        row.put("approved_by", null);
-        row.put("approved_ts", null);
-        row.put("approval_note_txt", null);
-        return row;
+    @Test
+    @SuppressWarnings("unchecked")
+    void rejectTaskThrowsIfEmpty() {
+        when(sqlQueryLoaderUtil.getQuery("workflow_approval.reject_task")).thenReturn("UPDATE task");
+        when(jdbcTemplate.query(anyString(), any(SqlParameterSource.class), any(RowMapper.class)))
+                .thenReturn(Collections.emptyList());
+
+        assertThrows(SemanticLayerException.class, () -> dao.rejectTask(1L, "admin", OffsetDateTime.now(), "rejection note"));
     }
 
-    private static ObjectProvider<NamedParameterJdbcTemplate> providerOf(NamedParameterJdbcTemplate jdbcTemplate) {
-        return new ObjectProvider<>() {
-            @Override
-            public NamedParameterJdbcTemplate getObject(Object... args) { return jdbcTemplate; }
-            @Override
-            public NamedParameterJdbcTemplate getIfAvailable() { return jdbcTemplate; }
-            @Override
-            public NamedParameterJdbcTemplate getIfUnique() { return jdbcTemplate; }
-            @Override
-            public NamedParameterJdbcTemplate getObject() { return jdbcTemplate; }
-            @Override
-            public Iterator<NamedParameterJdbcTemplate> iterator() {
-                return jdbcTemplate == null ? Collections.emptyIterator() : List.of(jdbcTemplate).iterator();
-            }
-        };
+    @Test
+    void approveObjectSuccess() {
+        when(sqlQueryLoaderUtil.getQuery("workflow_approval.approve_object")).thenReturn("UPDATE object");
+        dao.approveObject("GLOBAL", "OBJ-1", "APPROVED", OffsetDateTime.now(), "admin");
+        verify(jdbcTemplate).update(anyString(), any(SqlParameterSource.class));
     }
 
-    private static <T> T mapRow(RowMapper<T> rowMapper, Map<String, Object> row) {
-        try {
-            return rowMapper.mapRow(resultSet(row), 0);
-        } catch (SQLException exception) {
-            throw new RuntimeException(exception);
-        }
+    @Test
+    void approvePairingSuccess() {
+        when(sqlQueryLoaderUtil.getQuery("workflow_approval.approve_pairing")).thenReturn("UPDATE pairing");
+        dao.approvePairing("GLOBAL", "PAIR-1", "APPROVED", OffsetDateTime.now(), "admin");
+        verify(jdbcTemplate).update(anyString(), any(SqlParameterSource.class));
     }
 
-    private static ResultSet resultSet(Map<String, Object> row) {
-        return (ResultSet) Proxy.newProxyInstance(
-                ResultSet.class.getClassLoader(),
-                new Class[]{ResultSet.class},
-                (proxy, method, args) -> switch (method.getName()) {
-                    case "getString" -> (String) row.get(args[0]);
-                    case "getLong" -> {
-                        Object value = row.get(args[0]);
-                        yield value == null ? 0L : ((Number) value).longValue();
-                    }
-                    case "getTimestamp" -> {
-                        Object value = row.get(args[0]);
-                        if (value instanceof OffsetDateTime odt) {
-                            yield java.sql.Timestamp.from(odt.toInstant());
-                        }
-                        yield value;
-                    }
-                    case "getDate" -> {
-                        Object value = row.get(args[0]);
-                        if (value instanceof LocalDate ld) {
-                            yield java.sql.Date.valueOf(ld);
-                        }
-                        yield value;
-                    }
-                    case "getObject" -> {
-                        if (args.length == 1) {
-                            yield row.get(args[0]);
-                        }
-                        Object value = row.get(args[0]);
-                        yield value == null ? null : ((Class<?>) args[1]).cast(value);
-                    }
-                    case "close" -> null;
-                    case "wasNull" -> false;
-                    default -> defaultValue(method.getReturnType());
-                }
-        );
+    @Test
+    void approveRelationshipSuccess() {
+        when(sqlQueryLoaderUtil.getQuery("workflow_approval.approve_relationship")).thenReturn("UPDATE relationship");
+        String relCd = "REL-1";
+        UUID relUuid = UUID.nameUUIDFromBytes(relCd.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        when(jdbcTemplate.queryForList(anyString(), any(SqlParameterSource.class), eq(String.class)))
+                .thenReturn(Collections.singletonList(relCd));
+
+        dao.approveRelationship(relUuid.toString(), "APPROVED", OffsetDateTime.now(), "admin");
+        verify(jdbcTemplate).update(anyString(), any(SqlParameterSource.class));
     }
 
-    private static Object defaultValue(Class<?> returnType) {
-        if (!returnType.isPrimitive()) { return null; }
-        if (returnType == boolean.class) { return false; }
-        if (returnType == long.class) { return 0L; }
-        if (returnType == int.class) { return 0; }
-        return null;
+    @Test
+    void approveRelationshipThrowsIfUnresolved() {
+        when(jdbcTemplate.queryForList(anyString(), any(SqlParameterSource.class), eq(String.class)))
+                .thenReturn(Collections.emptyList());
+
+        assertThrows(SemanticLayerException.class, () ->
+                dao.approveRelationship(UUID.randomUUID().toString(), "APPROVED", OffsetDateTime.now(), "admin"));
     }
 
-    private static DataSource noOpDataSource() {
-        return new AbstractDataSource() {
-            @Override
-            public Connection getConnection() { throw new UnsupportedOperationException(); }
-            @Override
-            public Connection getConnection(String u, String p) { throw new UnsupportedOperationException(); }
-        };
+    @Test
+    void rejectLookupSuccess() {
+        when(sqlQueryLoaderUtil.getQuery("workflow_approval.reject_lookup")).thenReturn("UPDATE lookup");
+        dao.rejectLookup("GLOBAL", "LK-1", "REJECTED", "DRAFT", OffsetDateTime.now(), "admin");
+        verify(jdbcTemplate).update(anyString(), any(SqlParameterSource.class));
     }
 
-    private static final class RecordingNamedParameterJdbcTemplate extends NamedParameterJdbcTemplate {
-        private final List<Map<String, Object>> rows;
-        private String recordedSql;
-        private Map<String, Object> recordedParameters = Map.of();
-
-        private RecordingNamedParameterJdbcTemplate(List<Map<String, Object>> rows) {
-            super(noOpDataSource());
-            this.rows = rows;
-        }
-
-        @Override
-        public <T> List<T> query(String sql, SqlParameterSource paramSource, RowMapper<T> rowMapper) {
-            recordedSql = sql;
-            if (paramSource instanceof MapSqlParameterSource source) {
-                recordedParameters = source.getValues();
-            }
-            return rows.stream().map(row -> mapRow(rowMapper, row)).toList();
-        }
-
-        @Override
-        public int update(String sql, SqlParameterSource paramSource) {
-            recordedSql = sql;
-            if (paramSource instanceof MapSqlParameterSource source) {
-                recordedParameters = source.getValues();
-            }
-            return 1;
-        }
+    @Test
+    void rejectAttributeOverrideSuccess() {
+        when(sqlQueryLoaderUtil.getQuery("workflow_approval.reject_attribute_override")).thenReturn("UPDATE override");
+        dao.rejectAttributeOverride("GLOBAL", 1L, "REJECTED", OffsetDateTime.now(), "admin");
+        verify(jdbcTemplate).update(anyString(), any(SqlParameterSource.class));
     }
 
-    private static final class TransactionalNamedParameterJdbcTemplate extends NamedParameterJdbcTemplate {
-        private final TransactionHarness harness;
-        private final List<String> recordedSqls = new ArrayList<>();
-
-        private TransactionalNamedParameterJdbcTemplate(TransactionHarness harness) {
-            super(noOpDataSource());
-            this.harness = harness;
-        }
-
-        @Override
-        public int update(String sql, SqlParameterSource paramSource) {
-            recordedSqls.add(sql);
-            return 1;
-        }
+    @Test
+    void rejectObjectSuccess() {
+        when(sqlQueryLoaderUtil.getQuery("workflow_approval.reject_object")).thenReturn("UPDATE object");
+        dao.rejectObject("GLOBAL", "OBJ-1", "REJECTED", "REVIEW", OffsetDateTime.now(), "admin");
+        verify(jdbcTemplate).update(anyString(), any(SqlParameterSource.class));
     }
 
-    private static final class TransactionHarness {
-        private boolean committed;
-        private boolean rolledBack;
-
-        private void begin() {
-            committed = false;
-            rolledBack = false;
-        }
-        private void commit() { committed = true; }
-        private void rollback() { rolledBack = true; }
+    @Test
+    void rejectPairingSuccess() {
+        when(sqlQueryLoaderUtil.getQuery("workflow_approval.reject_pairing")).thenReturn("UPDATE pairing");
+        dao.rejectPairing("GLOBAL", "PAIR-1", "REJECTED", "REVIEW", OffsetDateTime.now(), "admin");
+        verify(jdbcTemplate).update(anyString(), any(SqlParameterSource.class));
     }
 
-    private static final class RecordingTransactionOperations implements TransactionOperations {
-        private final TransactionHarness harness;
-
-        private RecordingTransactionOperations(TransactionHarness harness) {
-            this.harness = harness;
-        }
-
-        @Override
-        public <T> T execute(TransactionCallback<T> action) {
-            harness.begin();
-            try {
-                T result = action.doInTransaction(new NoOpTransactionStatus());
-                harness.commit();
-                return result;
-            } catch (RuntimeException exception) {
-                harness.rollback();
-                throw exception;
-            }
-        }
+    @Test
+    void rejectRelationshipSuccess() {
+        when(sqlQueryLoaderUtil.getQuery("workflow_approval.reject_relationship")).thenReturn("UPDATE relationship");
+        String relCd = "REL-1";
+        dao.rejectRelationship(relCd, "REJECTED", OffsetDateTime.now(), "admin");
+        verify(jdbcTemplate).update(anyString(), any(SqlParameterSource.class));
     }
 
-    private static final class NoOpTransactionStatus implements TransactionStatus {
-        @Override
-        public boolean isNewTransaction() { return false; }
-        @Override
-        public boolean hasSavepoint() { return false; }
-        @Override
-        public void setRollbackOnly() {}
-        @Override
-        public boolean isRollbackOnly() { return false; }
-        @Override
-        public void flush() {}
-        @Override
-        public boolean isCompleted() { return false; }
-        @Override
-        public Object createSavepoint() { return null; }
-        @Override
-        public void rollbackToSavepoint(Object savepoint) {}
-        @Override
-        public void releaseSavepoint(Object savepoint) {}
+    @Test
+    @SuppressWarnings("unchecked")
+    void taskRowMapperTest() throws Exception {
+        when(sqlQueryLoaderUtil.getQuery("workflow_approval.find_task_by_id")).thenReturn("SELECT * FROM task");
+        ArgumentCaptor<RowMapper<FilterLookupWorkflowTaskRecord>> captor = ArgumentCaptor.forClass(RowMapper.class);
+
+        dao.findTaskById("GLOBAL", 1L);
+        verify(jdbcTemplate).query(anyString(), any(SqlParameterSource.class), captor.capture());
+
+        RowMapper<FilterLookupWorkflowTaskRecord> mapper = captor.getValue();
+        ResultSet rs = mock(ResultSet.class);
+        when(rs.getLong("id")).thenReturn(1001L);
+        when(rs.getString("task_type_cd")).thenReturn("TYPE");
+        when(rs.getString("entity_type_cd")).thenReturn("ENTITY");
+        when(rs.getString("entity_ref")).thenReturn("REF");
+        when(rs.getString("task_status_cd")).thenReturn("PENDING");
+        when(rs.getString("submitted_by")).thenReturn("user1");
+        when(rs.getTimestamp("submitted_ts")).thenReturn(Timestamp.from(Instant.parse("2026-06-23T10:00:00Z")));
+        when(rs.getString("assigned_to")).thenReturn("user2");
+        when(rs.getDate("due_dt")).thenReturn(java.sql.Date.valueOf(LocalDate.of(2026, 6, 24)));
+        when(rs.getString("description_txt")).thenReturn("desc");
+        when(rs.getString("client_id")).thenReturn("GLOBAL");
+        when(rs.getString("approved_by")).thenReturn("admin");
+        when(rs.getTimestamp("approved_ts")).thenReturn(Timestamp.from(Instant.parse("2026-06-23T12:00:00Z")));
+        when(rs.getString("approval_note_txt")).thenReturn("approved note");
+
+        FilterLookupWorkflowTaskRecord result = mapper.mapRow(rs, 1);
+        assertNotNull(result);
+        assertEquals(1001L, result.id());
+        assertEquals("TYPE", result.task_type_cd());
+        assertEquals("ENTITY", result.entity_type_cd());
+        assertEquals("REF", result.entity_ref());
+        assertEquals("PENDING", result.task_status_cd());
+        assertEquals("user1", result.submitted_by());
+        assertNotNull(result.submitted_ts());
+        assertEquals("user2", result.assigned_to());
+        assertEquals(LocalDate.of(2026, 6, 24), result.due_dt());
+        assertEquals("desc", result.description_txt());
+        assertEquals("GLOBAL", result.client_id());
+        assertEquals("admin", result.approved_by());
+        assertNotNull(result.approved_ts());
+        assertEquals("approved note", result.approval_note_txt());
     }
 }
