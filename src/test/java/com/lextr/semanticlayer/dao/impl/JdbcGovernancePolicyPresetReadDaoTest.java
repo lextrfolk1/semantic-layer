@@ -52,9 +52,16 @@ class JdbcGovernancePolicyPresetReadDaoTest {
         assertEquals("GOV-FL-001", jdbcTemplate.recordedParameters.get("policy_cd"));
         assertEquals("FILTER_LOOKUP", jdbcTemplate.recordedParameters.get("policy_scope_cd"));
         assertEquals(LocalDate.parse("2026-06-18"), jdbcTemplate.recordedParameters.get("as_of_dt"));
+        assertEquals("Minimum review frequency (floor, days)", result.policy_nm());
         assertEquals("90", result.default_value_txt());
         assertEquals("INTEGER", result.data_type_cd());
         assertTrue(result.is_overrideable_flg());
+        assertTrue(result.override_requires_approval_flg());
+        assertEquals(LocalDate.parse("2026-01-01"), result.effective_from_dt());
+        assertEquals("governance-owner", result.approved_by());
+        assertEquals(OffsetDateTime.parse("2026-01-01T00:00:00Z"), result.approved_ts());
+        assertEquals(OffsetDateTime.parse("2026-01-01T00:00:00Z"), result.created_ts());
+        assertEquals("governance-owner", result.created_by());
     }
 
     @Test
@@ -75,9 +82,16 @@ class JdbcGovernancePolicyPresetReadDaoTest {
         assertTrue(jdbcTemplate.recordedSql.contains("FROM governance.policy_preset"));
         assertEquals("FILTER_LOOKUP", jdbcTemplate.recordedParameters.get("policy_scope_cd"));
         assertEquals(LocalDate.parse("2026-06-18"), jdbcTemplate.recordedParameters.get("as_of_dt"));
+        assertEquals("Minimum review frequency (floor, days)", result.policy_nm());
         assertEquals("90", result.default_value_txt());
         assertEquals("INTEGER", result.data_type_cd());
         assertTrue(result.is_overrideable_flg());
+        assertTrue(result.override_requires_approval_flg());
+        assertEquals(LocalDate.parse("2026-01-01"), result.effective_from_dt());
+        assertEquals("governance-owner", result.approved_by());
+        assertEquals(OffsetDateTime.parse("2026-01-01T00:00:00Z"), result.approved_ts());
+        assertEquals(OffsetDateTime.parse("2026-01-01T00:00:00Z"), result.created_ts());
+        assertEquals("governance-owner", result.created_by());
     }
 
     @Test

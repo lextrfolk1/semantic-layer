@@ -62,6 +62,16 @@ class GovernancePolicyPresetReadServiceImplTest {
         GovernancePolicyPresetDto result = service.findPolicyPreset("client-123", "GOV-FL-001", "FILTER_LOOKUP", LocalDate.parse("2026-06-18"));
 
         assertEquals("GOV-FL-001", result.policy_cd());
+        assertEquals("Policy Name", result.policy_nm());
+        assertEquals("90", result.default_value_txt());
+        assertEquals("INTEGER", result.data_type_cd());
+        assertTrue(result.is_overrideable_flg());
+        assertTrue(result.override_requires_approval_flg());
+        assertEquals(LocalDate.parse("2026-01-01"), result.effective_from_dt());
+        assertEquals("admin", result.approved_by());
+        assertEquals(OffsetDateTime.parse("2026-01-01T00:00:00Z"), result.approved_ts());
+        assertEquals(OffsetDateTime.parse("2026-01-01T00:00:00Z"), result.created_ts());
+        assertEquals("admin", result.created_by());
         assertEquals("GOV-FL-001", dao.lastPolicyCode);
         assertEquals("FILTER_LOOKUP", dao.lastScopeCode);
         assertEquals(LocalDate.parse("2026-06-18"), dao.lastAsOfDate);
