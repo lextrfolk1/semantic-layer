@@ -152,6 +152,8 @@ class SQLQueryLoaderUtilTest {
         assertTrue(objectBySchemaAndCodeQuery.contains("effective_object_nm"));
         assertTrue(attributeByObjectIdQuery.contains("FROM meta.attribute_catalog"));
         assertTrue(attributeByObjectIdQuery.contains("effective_attribute_nm"));
+        assertTrue(attributeByObjectIdQuery.contains("meta.attribute_logical_name_override"));
+        assertTrue(attributeByObjectIdQuery.contains("override_status_cd = 'APPROVED'"));
         assertTrue(attributeByObjectIdQuery.contains("pk_flg"));
         assertTrue(attributeByObjectIdQuery.contains("fk_flg"));
         assertTrue(attributeByObjectIdQuery.contains("nullable_flg"));

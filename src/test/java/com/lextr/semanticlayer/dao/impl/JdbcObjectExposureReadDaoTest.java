@@ -93,6 +93,8 @@ class JdbcObjectExposureReadDaoTest {
         List<AttributeExposureRecord> results = dao.findAttributes("client-a", objectId);
 
         assertTrue(jdbcTemplate.recordedSql.contains("FROM meta.attribute_catalog"));
+        assertTrue(jdbcTemplate.recordedSql.contains("meta.attribute_logical_name_override"));
+        assertTrue(jdbcTemplate.recordedSql.contains("override_status_cd = 'APPROVED'"));
         assertTrue(jdbcTemplate.recordedSql.contains("a.pk_flg"));
         assertTrue(jdbcTemplate.recordedSql.contains("a.fk_flg"));
         assertTrue(jdbcTemplate.recordedSql.contains("a.nullable_flg"));
@@ -100,7 +102,7 @@ class JdbcObjectExposureReadDaoTest {
         assertEquals(objectId, jdbcTemplate.recordedParameters.get("object_id"));
         assertEquals(1, results.size());
         assertEquals(attributeId, results.get(0).attribute_id());
-        assertEquals("Amount", results.get(0).effective_attribute_nm());
+        assertEquals("Amount Override", results.get(0).effective_attribute_nm());
         assertEquals("MDRM12345678", results.get(0).taxonomy_cd());
         assertTrue(results.get(0).pk_flg());
         assertEquals(false, results.get(0).fk_flg());
@@ -168,7 +170,7 @@ class JdbcObjectExposureReadDaoTest {
         row.put("client_id", "client-a");
         row.put("attribute_cd", "AMOUNT");
         row.put("attribute_nm", "Amount");
-        row.put("effective_attribute_nm", "Amount");
+        row.put("effective_attribute_nm", "Amount Override");
         row.put("data_type_cd", "DECIMAL");
         row.put("taxonomy_cd", "MDRM12345678");
         row.put("taxonomy_source_cd", "MDRM");
