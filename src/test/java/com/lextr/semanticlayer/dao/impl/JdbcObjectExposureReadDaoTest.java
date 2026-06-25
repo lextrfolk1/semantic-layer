@@ -102,6 +102,9 @@ class JdbcObjectExposureReadDaoTest {
         assertEquals(attributeId, results.get(0).attribute_id());
         assertEquals("Amount", results.get(0).effective_attribute_nm());
         assertEquals("MDRM12345678", results.get(0).taxonomy_cd());
+        assertTrue(results.get(0).pk_flg());
+        assertEquals(false, results.get(0).fk_flg());
+        assertEquals(false, results.get(0).nullable_flg());
     }
 
     @Test
@@ -170,6 +173,9 @@ class JdbcObjectExposureReadDaoTest {
         row.put("taxonomy_cd", "MDRM12345678");
         row.put("taxonomy_source_cd", "MDRM");
         row.put("taxonomy_jurisdiction_cd", "US");
+        row.put("pk_flg", true);
+        row.put("fk_flg", false);
+        row.put("nullable_flg", false);
         row.put("created_ts", OffsetDateTime.parse("2026-06-16T10:15:30+05:30"));
         row.put("created_by", "producer");
         row.put("updated_ts", OffsetDateTime.parse("2026-06-17T10:15:30+05:30"));
@@ -211,6 +217,7 @@ class JdbcObjectExposureReadDaoTest {
                     new Class[]{ResultSet.class},
                     (proxy, method, args) -> switch (method.getName()) {
                         case "getString" -> (String) row.get(args[0]);
+                        case "getBoolean" -> Boolean.TRUE.equals(row.get(args[0]));
                         case "getObject" -> {
                             if (args.length == 1) {
                                 yield row.get(args[0]);

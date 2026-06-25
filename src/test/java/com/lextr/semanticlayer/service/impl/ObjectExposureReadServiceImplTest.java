@@ -75,6 +75,9 @@ class ObjectExposureReadServiceImplTest {
                 "MDRM12345678",
                 "MDRM",
                 "US",
+                true,
+                false,
+                false,
                 OffsetDateTime.parse("2026-06-16T10:15:30+05:30"),
                 "producer",
                 null,
@@ -88,6 +91,9 @@ class ObjectExposureReadServiceImplTest {
         assertEquals(1, result.attributes().size());
         assertEquals("Amount Override", result.attributes().get(0).attribute_nm());
         assertEquals("MDRM12345678", result.attributes().get(0).taxonomy_cd());
+        assertEquals(true, result.attributes().get(0).pk_flg());
+        assertEquals(false, result.attributes().get(0).fk_flg());
+        assertEquals(false, result.attributes().get(0).nullable_flg());
     }
 
     @Test
@@ -119,6 +125,9 @@ class ObjectExposureReadServiceImplTest {
                 "MDRM12345678",
                 "MDRM",
                 "US",
+                false,
+                false,
+                true,
                 OffsetDateTime.parse("2026-06-16T10:15:30+05:30"),
                 "producer",
                 null,
@@ -130,6 +139,7 @@ class ObjectExposureReadServiceImplTest {
 
         assertEquals("GL Balance", result.object_nm());
         assertEquals("Amount", result.attributes().get(0).attribute_nm());
+        assertEquals(true, result.attributes().get(0).nullable_flg());
     }
 
     @Test

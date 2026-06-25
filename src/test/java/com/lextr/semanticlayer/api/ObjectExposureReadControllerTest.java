@@ -97,6 +97,9 @@ class ObjectExposureReadControllerTest {
                         "MDRM12345678",
                         "MDRM",
                         "US",
+                        true,
+                        false,
+                        false,
                         OffsetDateTime.parse("2026-06-16T10:15:30+05:30"),
                         "producer",
                         null,
@@ -111,7 +114,10 @@ class ObjectExposureReadControllerTest {
                 .andExpect(jsonPath("$.object_id").value(objectId.toString()))
                 .andExpect(jsonPath("$.object_nm").value("GL Balance Override"))
                 .andExpect(jsonPath("$.attributes[0].attribute_cd").value("AMOUNT"))
-                .andExpect(jsonPath("$.attributes[0].attribute_nm").value("Amount Override"));
+                .andExpect(jsonPath("$.attributes[0].attribute_nm").value("Amount Override"))
+                .andExpect(jsonPath("$.attributes[0].pk_flg").value(true))
+                .andExpect(jsonPath("$.attributes[0].fk_flg").value(false))
+                .andExpect(jsonPath("$.attributes[0].nullable_flg").value(false));
 
         assertEquals("client-a", dao.lastObjectClientId);
         assertEquals(objectId, dao.lastObjectId);
