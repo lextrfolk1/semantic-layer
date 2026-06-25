@@ -94,6 +94,34 @@ class RegistryReadWireThroughTest {
     }
 
     @Test
+    void honorsSchemaLookupByCodeEndToEnd() throws Exception {
+        jdbcTemplate.setRows(List.of(Map.of(
+                "schema_cd", "meta",
+                "schema_nm", "Metadata",
+                "effective_schema_nm", "Metadata Override",
+                "schema_purpose_txt", "Semantic system of record",
+                "lifecycle_status_cd", "ACTIVE",
+                "created_ts", OffsetDateTime.parse("2026-06-16T10:15:30+05:30"),
+                "created_by", "flyway",
+                "updated_ts", OffsetDateTime.parse("2026-06-17T10:15:30+05:30"),
+                "updated_by", "platform"
+        )));
+
+        mockMvc.perform(get("/api/registry/schemas/{schema_code}", "meta")
+                        .queryParam("client_id", "client-a"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.schema_cd").value("meta"))
+                .andExpect(jsonPath("$.schema_nm").value("Metadata Override"))
+                .andExpect(jsonPath("$.lifecycle_status_cd").value("ACTIVE"));
+
+        assertTrue(jdbcTemplate.recordedSql().contains("FROM meta.schema_catalog"));
+        assertTrue(jdbcTemplate.recordedSql().contains("client_id = :client_id"));
+        assertTrue(jdbcTemplate.recordedSql().contains("schema_cd = :schema_cd"));
+        assertEquals("client-a", jdbcTemplate.recordedParameters().get("client_id"));
+        assertEquals("meta", jdbcTemplate.recordedParameters().get("schema_cd"));
+    }
+
+    @Test
     void honorsConnectionContractEndToEndAndWithholdsSecrets() throws Exception {
         UUID connectionId = UUID.fromString("00000000-0000-0000-0000-000000000001");
         jdbcTemplate.setRows(List.of(connectionRow(connectionId)));
@@ -114,7 +142,46 @@ class RegistryReadWireThroughTest {
     }
 
     @Test
-    void returnsNotFoundEndToEndWhenRecordUnknown() throws Exception {
+    void honorsConnectionListContractEndToEnd() throws Exception {
+        UUID connectionId = UUID.fromString("00000000-0000-0000-0000-000000000001");
+        jdbcTemplate.setRows(List.of(connectionRow(connectionId)));
+
+        mockMvc.perform(get("/api/registry/connections")
+                        .queryParam("client_id", "client-a")
+                        .queryParam("engine_cd", "POSTGRES")
+                        .queryParam("is_active_flg", "true"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].connection_id").value(connectionId.toString()))
+                .andExpect(jsonPath("$[0].connection_nm").value("Lextr PostgreSQL Override"))
+                .andExpect(jsonPath("$[0].engine_cd").value("POSTGRES"))
+                .andExpect(jsonPath("$[0].secrets_ref").doesNotExist());
+
+        assertTrue(jdbcTemplate.recordedSql().contains("FROM meta.data_connection"));
+        assertTrue(jdbcTemplate.recordedSql().contains("client_id = :client_id"));
+        assertTrue(jdbcTemplate.recordedSql().contains("engine_cd = :engine_cd"));
+        assertTrue(jdbcTemplate.recordedSql().contains("is_active_flg = :is_active_flg"));
+        assertFalse(jdbcTemplate.recordedSql().contains("secrets_ref"));
+        assertEquals("client-a", jdbcTemplate.recordedParameters().get("client_id"));
+        assertEquals("POSTGRES", jdbcTemplate.recordedParameters().get("engine_cd"));
+        assertEquals(Boolean.TRUE, jdbcTemplate.recordedParameters().get("is_active_flg"));
+    }
+
+    @Test
+    void returnsNotFoundForUnknownSchemaEndToEnd() throws Exception {
+        jdbcTemplate.setRows(List.of());
+
+        mockMvc.perform(get("/api/registry/schemas/{schema_code}", "unknown")
+                        .queryParam("client_id", "client-a"))
+                .andExpect(status().isNotFound());
+
+        assertTrue(jdbcTemplate.recordedSql().contains("client_id = :client_id"));
+        assertTrue(jdbcTemplate.recordedSql().contains("schema_cd = :schema_cd"));
+        assertEquals("client-a", jdbcTemplate.recordedParameters().get("client_id"));
+        assertEquals("unknown", jdbcTemplate.recordedParameters().get("schema_cd"));
+    }
+
+    @Test
+    void returnsNotFoundForUnknownConnectionEndToEnd() throws Exception {
         jdbcTemplate.setRows(List.of());
 
         mockMvc.perform(get("/api/registry/connections/{connection_id}", UUID.fromString("00000000-0000-0000-0000-000000000099"))
