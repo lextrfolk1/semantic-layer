@@ -109,6 +109,16 @@ class RegistryReadServiceImplTest {
         assertThrows(RegistryResourceNotFoundException.class, () -> service.findSchema("client-a", "missing"));
     }
 
+    @Test
+    void returns404WhenConnectionMissing() {
+        RegistryReadServiceImpl service = new RegistryReadServiceImpl(new FixedRegistryReadDao(List.of(), List.of()));
+
+        assertThrows(
+                RegistryResourceNotFoundException.class,
+                () -> service.findConnection("client-a", UUID.fromString("00000000-0000-0000-0000-000000000099"))
+        );
+    }
+
     private static final class FixedRegistryReadDao implements RegistryReadDao {
 
         private final List<SchemaCatalogRecord> schemas;
