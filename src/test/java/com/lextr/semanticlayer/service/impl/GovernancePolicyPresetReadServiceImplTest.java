@@ -75,6 +75,15 @@ class GovernancePolicyPresetReadServiceImplTest {
         assertThrows(GovernancePolicyPresetNotFoundException.class, () -> service.findPolicyPreset("client-123", "GOV-FL-999", "FILTER_LOOKUP", null));
     }
 
+    @Test
+    void findPolicyPresetThrowsWhenClientIdBlank() {
+        MockGovernancePolicyPresetReadDao dao = new MockGovernancePolicyPresetReadDao();
+        GovernancePolicyPresetReadServiceImpl service = new GovernancePolicyPresetReadServiceImpl(dao);
+
+        assertThrows(PolicyViolationException.class, () -> service.findPolicyPreset("", "GOV-FL-001", "FILTER_LOOKUP", null));
+        assertThrows(PolicyViolationException.class, () -> service.findPolicyPreset(null, "GOV-FL-001", "FILTER_LOOKUP", null));
+    }
+
     private static GovernancePolicyPresetRecord policyPresetRecord(String policyCode, String scope) {
         return new GovernancePolicyPresetRecord(
                 policyCode,

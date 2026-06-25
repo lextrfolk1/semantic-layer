@@ -73,6 +73,27 @@ class GovernancePolicyPresetControllerTest {
     }
 
     @Test
+    void findPolicyPresetReturns422WhenClientIdBlank() throws Exception {
+        MockGovernancePolicyPresetReadService service = new MockGovernancePolicyPresetReadService() {
+            @Override
+            public GovernancePolicyPresetDto findPolicyPreset(String clientId, String policyCode, String policyScopeCode, LocalDate asOfDate) {
+                if (clientId == null || clientId.isBlank()) {
+                    throw new PolicyViolationException("CLIENT_ID_REQUIRED", "client_id is required");
+                }
+                return super.findPolicyPreset(clientId, policyCode, policyScopeCode, asOfDate);
+            }
+        };
+        service.records.add(presetDto("GOV-FL-001", "FILTER_LOOKUP"));
+        MockMvc mockMvc = mockMvc(service);
+
+        mockMvc.perform(get("/api/governance/policy-presets/GOV-FL-001")
+                        .queryParam("client_id", "")
+                        .queryParam("policy_scope_cd", "FILTER_LOOKUP"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("CLIENT_ID_REQUIRED"));
+    }
+
+    @Test
     void findPolicyPresetsReturns400WhenClientIdMissing() throws Exception {
         MockGovernancePolicyPresetReadService service = new MockGovernancePolicyPresetReadService();
         MockMvc mockMvc = mockMvc(service);
