@@ -101,6 +101,8 @@ class JdbcGovernancePolicyPresetReadDaoTest {
         ));
 
         assertTrue(source.contains("NamedParameterJdbcTemplate"));
+        assertTrue(source.contains("sqlQueryLoaderUtil.getQuery(FIND_BY_CODE)"));
+        assertTrue(source.contains("sqlQueryLoaderUtil.getQuery(FIND_ALL)"));
         assertFalse(source.contains("EntityManager"));
         assertFalse(source.contains("JpaRepository"));
         assertFalse(source.contains("jakarta.persistence"));
