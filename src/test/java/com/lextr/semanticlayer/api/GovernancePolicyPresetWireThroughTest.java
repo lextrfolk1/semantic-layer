@@ -74,8 +74,17 @@ class GovernancePolicyPresetWireThroughTest {
                         .queryParam("as_of_dt", "2026-06-18"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].policy_cd").value("GOV-FL-001"))
+                .andExpect(jsonPath("$[0].policy_nm").value("Minimum review frequency (floor, days)"))
                 .andExpect(jsonPath("$[0].policy_scope_cd").value("FILTER_LOOKUP"))
-                .andExpect(jsonPath("$[0].default_value_txt").value("90"));
+                .andExpect(jsonPath("$[0].default_value_txt").value("90"))
+                .andExpect(jsonPath("$[0].data_type_cd").value("INTEGER"))
+                .andExpect(jsonPath("$[0].is_overrideable_flg").value(true))
+                .andExpect(jsonPath("$[0].override_requires_approval_flg").value(true))
+                .andExpect(jsonPath("$[0].effective_from_dt").value("2026-01-01"))
+                .andExpect(jsonPath("$[0].approved_by").value("governance-owner"))
+                .andExpect(jsonPath("$[0].approved_ts").value("2026-01-01T00:00:00Z"))
+                .andExpect(jsonPath("$[0].created_ts").value("2026-01-01T00:00:00Z"))
+                .andExpect(jsonPath("$[0].created_by").value("governance-owner"));
 
         assertTrue(jdbcTemplate.recordedSql().contains("FROM governance.policy_preset"));
         assertEquals("FILTER_LOOKUP", jdbcTemplate.recordedParameters().get("policy_scope_cd"));
@@ -92,8 +101,17 @@ class GovernancePolicyPresetWireThroughTest {
                         .queryParam("as_of_dt", "2026-06-18"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.policy_cd").value("GOV-FL-001"))
+                .andExpect(jsonPath("$.policy_nm").value("Minimum review frequency (floor, days)"))
                 .andExpect(jsonPath("$.policy_scope_cd").value("FILTER_LOOKUP"))
-                .andExpect(jsonPath("$.default_value_txt").value("90"));
+                .andExpect(jsonPath("$.default_value_txt").value("90"))
+                .andExpect(jsonPath("$.data_type_cd").value("INTEGER"))
+                .andExpect(jsonPath("$.is_overrideable_flg").value(true))
+                .andExpect(jsonPath("$.override_requires_approval_flg").value(true))
+                .andExpect(jsonPath("$.effective_from_dt").value("2026-01-01"))
+                .andExpect(jsonPath("$.approved_by").value("governance-owner"))
+                .andExpect(jsonPath("$.approved_ts").value("2026-01-01T00:00:00Z"))
+                .andExpect(jsonPath("$.created_ts").value("2026-01-01T00:00:00Z"))
+                .andExpect(jsonPath("$.created_by").value("governance-owner"));
 
         assertTrue(jdbcTemplate.recordedSql().contains("policy_cd = :policy_cd"));
         assertEquals("GOV-FL-001", jdbcTemplate.recordedParameters().get("policy_cd"));
@@ -113,6 +131,16 @@ class GovernancePolicyPresetWireThroughTest {
         assertTrue(jdbcTemplate.recordedSql().contains("policy_cd = :policy_cd"));
         assertEquals("GOV-FL-999", jdbcTemplate.recordedParameters().get("policy_cd"));
         assertEquals("FILTER_LOOKUP", jdbcTemplate.recordedParameters().get("policy_scope_cd"));
+    }
+
+    @Test
+    void returnsUnprocessableEntityWhenClientIdBlank() throws Exception {
+        mockMvc.perform(get("/api/governance/policy-presets")
+                        .queryParam("client_id", "")
+                        .queryParam("policy_scope_cd", "FILTER_LOOKUP"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("CLIENT_ID_REQUIRED"))
+                .andExpect(jsonPath("$.message").value("client_id is required"));
     }
 
     private static Map<String, Object> policyPresetRow(String policyCode, String scope) {
