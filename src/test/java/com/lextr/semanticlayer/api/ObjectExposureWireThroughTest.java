@@ -115,6 +115,11 @@ class ObjectExposureWireThroughTest {
         assertEquals(2, jdbcTemplate.recordedSqls().size());
         assertTrue(jdbcTemplate.recordedSqls().get(0).contains("object_id = :object_id"));
         assertTrue(jdbcTemplate.recordedSqls().get(1).contains("FROM meta.attribute_catalog"));
+        assertTrue(jdbcTemplate.recordedSqls().get(1).contains("meta.attribute_logical_name_override"));
+        assertTrue(jdbcTemplate.recordedSqls().get(1).contains("override_status_cd = 'APPROVED'"));
+        assertTrue(jdbcTemplate.recordedSqls().get(1).contains("a.pk_flg"));
+        assertTrue(jdbcTemplate.recordedSqls().get(1).contains("a.fk_flg"));
+        assertTrue(jdbcTemplate.recordedSqls().get(1).contains("a.nullable_flg"));
         assertEquals("client-a", jdbcTemplate.recordedParameters().get(0).get("client_id"));
         assertEquals(objectId, jdbcTemplate.recordedParameters().get(0).get("object_id"));
         assertEquals("client-a", jdbcTemplate.recordedParameters().get(1).get("client_id"));
