@@ -125,7 +125,44 @@ class ObjectRegistrationControllerTest {
                                   ]
                                 }
                                 """))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message").value("object_nm: object_nm must be 32 characters or less"));
+    }
+
+    @Test
+    void rejectsAttributeNameLongerThanThirtyTwoCharacters() throws Exception {
+        MockMvc mockMvc = mockMvc(new RecordingObjectRegistrationService());
+
+        mockMvc.perform(post("/api/objects")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "client_id": "client-a",
+                                  "object_cd": "GL_BALANCE",
+                                  "object_nm": "GL Balance",
+                                  "object_type_cd": "TABLE",
+                                  "schema_cd": "meta",
+                                  "connection_id": "00000000-0000-0000-0000-000000000201",
+                                  "registered_by": "producer",
+                                  "attributes": [
+                                    {
+                                      "attribute_cd": "AMOUNT",
+                                      "attribute_nm": "123456789012345678901234567890123",
+                                      "data_type_cd": "DECIMAL",
+                                      "taxonomy_cd": "MDRM12345678",
+                                      "taxonomy_source_cd": "MDRM",
+                                      "taxonomy_jurisdiction_cd": "US",
+                                      "pk_flg": true,
+                                      "fk_flg": false,
+                                      "nullable_flg": false
+                                    }
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message").value("attributes[0].attribute_nm: attribute_nm must be 32 characters or less"));
     }
 
     @Test
@@ -160,7 +197,9 @@ class ObjectRegistrationControllerTest {
                                   ]
                                 }
                                 """))
-                .andExpect(status().isInternalServerError());
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.code").value("INTERNAL_SERVER_ERROR"))
+                .andExpect(jsonPath("$.message").value("registration failed"));
     }
 
     @Test

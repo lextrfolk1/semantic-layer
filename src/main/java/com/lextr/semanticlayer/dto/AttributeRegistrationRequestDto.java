@@ -6,7 +6,7 @@ import jakarta.validation.constraints.Size;
 public record AttributeRegistrationRequestDto(
         @NotBlank String attribute_cd,
         @NotBlank
-        @Size(max = 32)
+        @Size(max = 32, message = "attribute_nm must be 32 characters or less")
         String attribute_nm,
         @NotBlank String data_type_cd,
         @NotBlank String taxonomy_cd,
