@@ -18,6 +18,9 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 import org.springframework.jdbc.datasource.AbstractDataSource;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.support.TransactionOperations;
 
 import javax.sql.DataSource;
 import java.nio.file.Files;
@@ -27,14 +30,17 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -169,21 +175,41 @@ class JdbcObjectRegistrationWriteDaoTest {
     }
 
     @Test
+    void transactionRollsBackObjectRegistrationWritesOnFailure() {
+        TransactionHarness harness = new TransactionHarness();
+        TransactionalNamedParameterJdbcTemplate jdbcTemplate = new TransactionalNamedParameterJdbcTemplate(harness);
+        JdbcObjectRegistrationWriteDao dao = new JdbcObjectRegistrationWriteDao(providerOf(jdbcTemplate), new SQLQueryLoaderUtil(new DefaultResourceLoader()));
+        RecordingTransactionOperations transactionOperations = new RecordingTransactionOperations(harness);
+        UUID objectId = UUID.fromString("00000000-0000-0000-0000-000000000101");
+        UUID attributeId = UUID.fromString("00000000-0000-0000-0000-000000000102");
+        UUID workflowTaskId = UUID.fromString("00000000-0000-0000-0000-000000000301");
+        UUID changeHistoryId = UUID.fromString("00000000-0000-0000-0000-000000000401");
+
+        assertThrows(IllegalStateException.class, () -> transactionOperations.execute(status -> {
+            dao.insertDraftObject(objectRequest(objectId));
+            dao.insertAttribute(attributeRequest(attributeId, objectId));
+            dao.insertWorkflowTask(workflowTaskRequest(workflowTaskId, objectId));
+            dao.insertMetadataChangeHistory(metadataChangeRequest(changeHistoryId, objectId));
+            throw new IllegalStateException("object registration transaction failed");
+        }));
+
+        assertTrue(harness.rolledBack);
+        assertFalse(harness.committed);
+        assertTrue(jdbcTemplate.committedObjects.isEmpty());
+        assertTrue(jdbcTemplate.committedAttributes.isEmpty());
+        assertTrue(jdbcTemplate.committedWorkflowTasks.isEmpty());
+        assertTrue(jdbcTemplate.committedMetadataChanges.isEmpty());
+        assertEquals(4, jdbcTemplate.recordedSqls.size());
+        assertTrue(jdbcTemplate.recordedSqls.get(0).contains("INSERT INTO meta.object_catalog"));
+        assertTrue(jdbcTemplate.recordedSqls.get(1).contains("INSERT INTO meta.attribute_catalog"));
+        assertTrue(jdbcTemplate.recordedSqls.get(2).contains("INSERT INTO wkfl.workflow_task"));
+        assertTrue(jdbcTemplate.recordedSqls.get(3).contains("INSERT INTO meta.metadata_change_history"));
+    }
+
+    @Test
     void failsWhenNamedParameterJdbcTemplateMissing() {
         JdbcObjectRegistrationWriteDao dao = new JdbcObjectRegistrationWriteDao(providerOf(null), new SQLQueryLoaderUtil(new DefaultResourceLoader()));
-        ObjectCatalogWriteRequest request = new ObjectCatalogWriteRequest(
-                UUID.fromString("00000000-0000-0000-0000-000000000101"),
-                "client-a",
-                "GL_BALANCE",
-                "GL Balance",
-                "TABLE",
-                "meta",
-                UUID.fromString("00000000-0000-0000-0000-000000000201"),
-                OffsetDateTime.parse("2026-06-17T10:15:30+05:30"),
-                "producer",
-                OffsetDateTime.parse("2026-06-17T10:15:30+05:30"),
-                "producer"
-        );
+        ObjectCatalogWriteRequest request = objectRequest(UUID.fromString("00000000-0000-0000-0000-000000000101"));
 
         assertThrows(SemanticLayerException.class, () -> dao.insertDraftObject(request));
     }
@@ -228,6 +254,71 @@ class JdbcObjectRegistrationWriteDaoTest {
                 return jdbcTemplate == null ? Collections.emptyIterator() : List.of(jdbcTemplate).iterator();
             }
         };
+    }
+
+    private static ObjectCatalogWriteRequest objectRequest(UUID objectId) {
+        return new ObjectCatalogWriteRequest(
+                objectId,
+                "client-a",
+                "GL_BALANCE",
+                "GL Balance",
+                "TABLE",
+                "meta",
+                UUID.fromString("00000000-0000-0000-0000-000000000201"),
+                OffsetDateTime.parse("2026-06-17T10:15:30+05:30"),
+                "producer",
+                OffsetDateTime.parse("2026-06-17T10:15:30+05:30"),
+                "producer"
+        );
+    }
+
+    private static AttributeCatalogWriteRequest attributeRequest(UUID attributeId, UUID objectId) {
+        return new AttributeCatalogWriteRequest(
+                attributeId,
+                objectId,
+                "client-a",
+                "AMOUNT",
+                "Amount",
+                "DECIMAL",
+                "MDRM12345678",
+                "MDRM",
+                "US",
+                true,
+                false,
+                false,
+                OffsetDateTime.parse("2026-06-17T10:15:30+05:30"),
+                "producer",
+                OffsetDateTime.parse("2026-06-17T10:15:30+05:30"),
+                "producer"
+        );
+    }
+
+    private static WorkflowTaskWriteRequest workflowTaskRequest(UUID workflowTaskId, UUID entityId) {
+        return new WorkflowTaskWriteRequest(
+                workflowTaskId,
+                "client-a",
+                "OBJECT_REGISTRATION",
+                "OBJECT",
+                entityId,
+                "PENDING_APPROVAL",
+                OffsetDateTime.parse("2026-06-17T10:15:30+05:30"),
+                "producer",
+                OffsetDateTime.parse("2026-06-17T10:15:30+05:30"),
+                "producer"
+        );
+    }
+
+    private static MetadataChangeHistoryWriteRequest metadataChangeRequest(UUID changeHistoryId, UUID entityId) {
+        return new MetadataChangeHistoryWriteRequest(
+                changeHistoryId,
+                "client-a",
+                "OBJECT",
+                entityId,
+                "REGISTERED",
+                "Registered draft object",
+                OffsetDateTime.parse("2026-06-17T10:15:30+05:30"),
+                "producer"
+        );
     }
 
     private static Map<String, Object> objectRow(UUID objectId, UUID connectionId) {
@@ -391,6 +482,208 @@ class JdbcObjectRegistrationWriteDaoTest {
                     throw new UnsupportedOperationException("Not used in tests");
                 }
             };
+        }
+    }
+
+    private static final class TransactionalNamedParameterJdbcTemplate extends NamedParameterJdbcTemplate {
+
+        private final TransactionHarness harness;
+        private final Map<UUID, Map<String, Object>> committedObjects = new LinkedHashMap<>();
+        private final Map<UUID, Map<String, Object>> committedAttributes = new LinkedHashMap<>();
+        private final Map<UUID, Map<String, Object>> committedWorkflowTasks = new LinkedHashMap<>();
+        private final Map<UUID, Map<String, Object>> committedMetadataChanges = new LinkedHashMap<>();
+        private final List<String> recordedSqls = new ArrayList<>();
+
+        private TransactionalNamedParameterJdbcTemplate(TransactionHarness harness) {
+            super(RecordingNamedParameterJdbcTemplate.noOpDataSource());
+            this.harness = harness;
+        }
+
+        @Override
+        public <T> List<T> query(String sql, SqlParameterSource paramSource, RowMapper<T> rowMapper) {
+            recordedSqls.add(sql);
+            Map<String, Object> parameters = paramSource instanceof MapSqlParameterSource source ? source.getValues() : Map.of();
+            TransactionState state = harness.transactionState(
+                    committedObjects,
+                    committedAttributes,
+                    committedWorkflowTasks,
+                    committedMetadataChanges
+            );
+            Map<String, Object> row;
+            if (sql.startsWith("INSERT INTO meta.object_catalog")) {
+                row = objectRow((UUID) parameters.get("object_id"), (UUID) parameters.get("connection_id"));
+                state.objectRows.put((UUID) parameters.get("object_id"), row);
+            } else if (sql.startsWith("INSERT INTO meta.attribute_catalog")) {
+                row = attributeRow((UUID) parameters.get("attribute_id"), (UUID) parameters.get("object_id"));
+                state.attributeRows.put((UUID) parameters.get("attribute_id"), row);
+            } else if (sql.startsWith("INSERT INTO wkfl.workflow_task")) {
+                row = workflowTaskRow((UUID) parameters.get("workflow_task_id"), (UUID) parameters.get("entity_id"));
+                state.workflowRows.put((UUID) parameters.get("workflow_task_id"), row);
+            } else if (sql.startsWith("INSERT INTO meta.metadata_change_history")) {
+                row = metadataChangeRow((UUID) parameters.get("change_history_id"), (UUID) parameters.get("entity_id"));
+                state.metadataRows.put((UUID) parameters.get("change_history_id"), row);
+            } else {
+                throw new IllegalArgumentException("Unexpected SQL: " + sql);
+            }
+            return List.of(mapRow(rowMapper, row));
+        }
+
+        private <T> T mapRow(RowMapper<T> rowMapper, Map<String, Object> row) {
+            try {
+                return rowMapper.mapRow(recordingResultSet(row), 0);
+            } catch (SQLException exception) {
+                throw new RuntimeException(exception);
+            }
+        }
+
+        private ResultSet recordingResultSet(Map<String, Object> row) {
+            return (ResultSet) Proxy.newProxyInstance(
+                    ResultSet.class.getClassLoader(),
+                    new Class[]{ResultSet.class},
+                    (proxy, method, args) -> switch (method.getName()) {
+                        case "getString" -> (String) row.get(args[0]);
+                        case "getBoolean" -> {
+                            Object value = row.get(args[0]);
+                            yield value != null && (Boolean) value;
+                        }
+                        case "getObject" -> {
+                            if (args.length == 1) {
+                                yield row.get(args[0]);
+                            }
+                            Object value = row.get(args[0]);
+                            yield value == null ? null : ((Class<?>) args[1]).cast(value);
+                        }
+                        case "close" -> null;
+                        case "wasNull" -> false;
+                        default -> defaultValue(method.getReturnType());
+                    }
+            );
+        }
+
+        private Object defaultValue(Class<?> returnType) {
+            if (!returnType.isPrimitive()) {
+                return null;
+            }
+            if (returnType == boolean.class) {
+                return false;
+            }
+            if (returnType == byte.class) {
+                return (byte) 0;
+            }
+            if (returnType == short.class) {
+                return (short) 0;
+            }
+            if (returnType == int.class) {
+                return 0;
+            }
+            if (returnType == long.class) {
+                return 0L;
+            }
+            if (returnType == float.class) {
+                return 0F;
+            }
+            if (returnType == double.class) {
+                return 0D;
+            }
+            if (returnType == char.class) {
+                return '\0';
+            }
+            return null;
+        }
+    }
+
+    private static final class TransactionHarness {
+
+        private TransactionState state;
+        private boolean committed;
+        private boolean rolledBack;
+
+        private TransactionState transactionState(Map<UUID, Map<String, Object>> committedObjects,
+                                                  Map<UUID, Map<String, Object>> committedAttributes,
+                                                  Map<UUID, Map<String, Object>> committedWorkflowTasks,
+                                                  Map<UUID, Map<String, Object>> committedMetadataChanges) {
+            if (state == null) {
+                state = new TransactionState(
+                        new LinkedHashMap<>(committedObjects),
+                        new LinkedHashMap<>(committedAttributes),
+                        new LinkedHashMap<>(committedWorkflowTasks),
+                        new LinkedHashMap<>(committedMetadataChanges)
+                );
+            }
+            return state;
+        }
+    }
+
+    private record TransactionState(Map<UUID, Map<String, Object>> objectRows,
+                                    Map<UUID, Map<String, Object>> attributeRows,
+                                    Map<UUID, Map<String, Object>> workflowRows,
+                                    Map<UUID, Map<String, Object>> metadataRows) {
+    }
+
+    private static final class RecordingTransactionOperations implements TransactionOperations {
+
+        private final TransactionHarness harness;
+
+        private RecordingTransactionOperations(TransactionHarness harness) {
+            this.harness = harness;
+        }
+
+        @Override
+        public <T> T execute(TransactionCallback<T> action) {
+            try {
+                T result = action.doInTransaction(new NoOpTransactionStatus());
+                harness.state = null;
+                harness.committed = true;
+                return result;
+            } catch (RuntimeException exception) {
+                harness.state = null;
+                harness.rolledBack = true;
+                throw exception;
+            }
+        }
+    }
+
+    private static final class NoOpTransactionStatus implements TransactionStatus {
+
+        @Override
+        public boolean isNewTransaction() {
+            return false;
+        }
+
+        @Override
+        public boolean hasSavepoint() {
+            return false;
+        }
+
+        @Override
+        public void setRollbackOnly() {
+        }
+
+        @Override
+        public boolean isRollbackOnly() {
+            return false;
+        }
+
+        @Override
+        public void flush() {
+        }
+
+        @Override
+        public boolean isCompleted() {
+            return false;
+        }
+
+        @Override
+        public Object createSavepoint() {
+            return null;
+        }
+
+        @Override
+        public void rollbackToSavepoint(Object savepoint) {
+        }
+
+        @Override
+        public void releaseSavepoint(Object savepoint) {
         }
     }
 }
