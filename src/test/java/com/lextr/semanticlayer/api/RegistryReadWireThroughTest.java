@@ -88,6 +88,7 @@ class RegistryReadWireThroughTest {
                 .andExpect(jsonPath("$[0].lifecycle_status_cd").value("ACTIVE"));
 
         assertTrue(jdbcTemplate.recordedSql().contains("FROM meta.schema_catalog"));
+        assertTrue(jdbcTemplate.recordedSql().contains("client_id = :client_id"));
         assertEquals("client-a", jdbcTemplate.recordedParameters().get("client_id"));
         assertEquals("ACTIVE", jdbcTemplate.recordedParameters().get("lifecycle_status_cd"));
     }
@@ -105,6 +106,7 @@ class RegistryReadWireThroughTest {
                 .andExpect(jsonPath("$.engine_cd").value("POSTGRES"))
                 .andExpect(jsonPath("$.secrets_ref").doesNotExist());
 
+        assertTrue(jdbcTemplate.recordedSql().contains("client_id = :client_id"));
         assertTrue(jdbcTemplate.recordedSql().contains("connection_id = :connection_id"));
         assertFalse(jdbcTemplate.recordedSql().contains("secrets_ref"));
         assertEquals("client-a", jdbcTemplate.recordedParameters().get("client_id"));
@@ -119,6 +121,7 @@ class RegistryReadWireThroughTest {
                         .queryParam("client_id", "client-a"))
                 .andExpect(status().isNotFound());
 
+        assertTrue(jdbcTemplate.recordedSql().contains("client_id = :client_id"));
         assertTrue(jdbcTemplate.recordedSql().contains("connection_id = :connection_id"));
         assertEquals("client-a", jdbcTemplate.recordedParameters().get("client_id"));
     }
