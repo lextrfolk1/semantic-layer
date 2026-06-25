@@ -152,6 +152,9 @@ class SQLQueryLoaderUtilTest {
         assertTrue(objectBySchemaAndCodeQuery.contains("effective_object_nm"));
         assertTrue(attributeByObjectIdQuery.contains("FROM meta.attribute_catalog"));
         assertTrue(attributeByObjectIdQuery.contains("effective_attribute_nm"));
+        assertTrue(attributeByObjectIdQuery.contains("pk_flg"));
+        assertTrue(attributeByObjectIdQuery.contains("fk_flg"));
+        assertTrue(attributeByObjectIdQuery.contains("nullable_flg"));
         assertTrue(attributeByObjectIdQuery.contains(":object_id"));
     }
 

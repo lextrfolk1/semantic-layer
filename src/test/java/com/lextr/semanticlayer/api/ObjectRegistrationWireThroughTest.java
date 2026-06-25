@@ -189,6 +189,105 @@ class ObjectRegistrationWireThroughTest {
         assertEquals(1, taxonomyPolicyClient.recordedRequests().size());
     }
 
+    @Test
+    void deduplicatesAttributesEndToEndKeepingFirstOccurrence() throws Exception {
+        UUID objectId = UUID.fromString("00000000-0000-0000-0000-000000000101");
+        UUID connectionId = UUID.fromString("00000000-0000-0000-0000-000000000201");
+        UUID amountAttributeId = UUID.fromString("00000000-0000-0000-0000-000000000102");
+        UUID balanceAttributeId = UUID.fromString("00000000-0000-0000-0000-000000000103");
+        UUID workflowTaskId = UUID.fromString("00000000-0000-0000-0000-000000000301");
+        UUID changeHistoryId = UUID.fromString("00000000-0000-0000-0000-000000000401");
+        OffsetDateTime timestamp = OffsetDateTime.parse("2026-06-17T10:15:30+05:30");
+        jdbcTemplate.setResponses(List.of(
+                List.of(objectRow(objectId, connectionId, timestamp)),
+                List.of(attributeRow(amountAttributeId, objectId, timestamp)),
+                List.of(balanceAttributeRow(balanceAttributeId, objectId, timestamp)),
+                List.of(workflowTaskRow(workflowTaskId, objectId, timestamp)),
+                List.of(metadataChangeRow(changeHistoryId, objectId, timestamp))
+        ));
+
+        mockMvc.perform(post("/api/objects")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "client_id": "client-a",
+                                  "object_cd": "GL_BALANCE",
+                                  "object_nm": "GL Balance",
+                                  "object_type_cd": "TABLE",
+                                  "schema_cd": "meta",
+                                  "connection_id": "00000000-0000-0000-0000-000000000201",
+                                  "registered_by": "producer",
+                                  "attributes": [
+                                    {
+                                      "attribute_cd": "AMOUNT",
+                                      "attribute_nm": "Amount",
+                                      "data_type_cd": "DECIMAL",
+                                      "taxonomy_cd": "MDRM12345678",
+                                      "taxonomy_source_cd": "MDRM",
+                                      "taxonomy_jurisdiction_cd": "US",
+                                      "pk_flg": true,
+                                      "fk_flg": false,
+                                      "nullable_flg": false
+                                    },
+                                    {
+                                      "attribute_cd": "AMOUNT",
+                                      "attribute_nm": "Amount Duplicate",
+                                      "data_type_cd": "INTEGER",
+                                      "taxonomy_cd": "MDRM99999999",
+                                      "taxonomy_source_cd": "MDRM",
+                                      "taxonomy_jurisdiction_cd": "US",
+                                      "pk_flg": false,
+                                      "fk_flg": false,
+                                      "nullable_flg": true
+                                    },
+                                    {
+                                      "attribute_cd": "BALANCE",
+                                      "attribute_nm": "Balance",
+                                      "data_type_cd": "DECIMAL",
+                                      "taxonomy_cd": "MDRM12345678",
+                                      "taxonomy_source_cd": "MDRM",
+                                      "taxonomy_jurisdiction_cd": "US",
+                                      "pk_flg": false,
+                                      "fk_flg": true,
+                                      "nullable_flg": true
+                                    }
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.attributes.length()").value(2))
+                .andExpect(jsonPath("$.attributes[0].attribute_id").value(amountAttributeId.toString()))
+                .andExpect(jsonPath("$.attributes[0].attribute_cd").value("AMOUNT"))
+                .andExpect(jsonPath("$.attributes[0].attribute_nm").value("Amount"))
+                .andExpect(jsonPath("$.attributes[0].pk_flg").value(true))
+                .andExpect(jsonPath("$.attributes[1].attribute_id").value(balanceAttributeId.toString()))
+                .andExpect(jsonPath("$.attributes[1].attribute_cd").value("BALANCE"))
+                .andExpect(jsonPath("$.attributes[1].attribute_nm").value("Balance"))
+                .andExpect(jsonPath("$.attributes[1].fk_flg").value(true))
+                .andExpect(jsonPath("$.attributes[1].nullable_flg").value(true));
+
+        assertEquals(5, jdbcTemplate.recordedSqls().size());
+        assertTrue(jdbcTemplate.recordedSqls().get(0).contains("INSERT INTO meta.object_catalog"));
+        assertTrue(jdbcTemplate.recordedSqls().get(1).contains("INSERT INTO meta.attribute_catalog"));
+        assertTrue(jdbcTemplate.recordedSqls().get(2).contains("INSERT INTO meta.attribute_catalog"));
+        assertTrue(jdbcTemplate.recordedSqls().get(3).contains("INSERT INTO wkfl.workflow_task"));
+        assertTrue(jdbcTemplate.recordedSqls().get(4).contains("INSERT INTO meta.metadata_change_history"));
+
+        assertEquals("AMOUNT", jdbcTemplate.recordedParameters().get(1).get("attribute_cd"));
+        assertEquals("Amount", jdbcTemplate.recordedParameters().get(1).get("attribute_nm"));
+        assertEquals("MDRM12345678", jdbcTemplate.recordedParameters().get(1).get("taxonomy_cd"));
+        assertEquals(true, jdbcTemplate.recordedParameters().get(1).get("pk_flg"));
+        assertEquals("BALANCE", jdbcTemplate.recordedParameters().get(2).get("attribute_cd"));
+        assertEquals("Balance", jdbcTemplate.recordedParameters().get(2).get("attribute_nm"));
+        assertEquals(true, jdbcTemplate.recordedParameters().get(2).get("fk_flg"));
+        assertEquals(true, jdbcTemplate.recordedParameters().get(2).get("nullable_flg"));
+
+        assertEquals(3, taxonomyPolicyClient.recordedRequests().size());
+        assertEquals("AMOUNT", jdbcTemplate.recordedParameters().get(1).get("attribute_cd"));
+        assertEquals("BALANCE", jdbcTemplate.recordedParameters().get(2).get("attribute_cd"));
+        assertEquals("MDRM99999999", taxonomyPolicyClient.recordedRequests().get(1).taxonomy_cd());
+    }
+
     private static Map<String, Object> objectRow(UUID objectId, UUID connectionId, OffsetDateTime timestamp) {
         Map<String, Object> row = new HashMap<>();
         row.put("object_id", objectId);
@@ -235,6 +334,27 @@ class ObjectRegistrationWireThroughTest {
         row.put("entity_type_cd", "OBJECT");
         row.put("entity_id", objectId);
         row.put("task_status_cd", "PENDING_APPROVAL");
+        row.put("created_ts", timestamp);
+        row.put("created_by", "producer");
+        row.put("updated_ts", timestamp);
+        row.put("updated_by", "producer");
+        return row;
+    }
+
+    private static Map<String, Object> balanceAttributeRow(UUID attributeId, UUID objectId, OffsetDateTime timestamp) {
+        Map<String, Object> row = new HashMap<>();
+        row.put("attribute_id", attributeId);
+        row.put("object_id", objectId);
+        row.put("client_id", "client-a");
+        row.put("attribute_cd", "BALANCE");
+        row.put("attribute_nm", "Balance");
+        row.put("data_type_cd", "DECIMAL");
+        row.put("taxonomy_cd", "MDRM12345678");
+        row.put("taxonomy_source_cd", "MDRM");
+        row.put("taxonomy_jurisdiction_cd", "US");
+        row.put("pk_flg", false);
+        row.put("fk_flg", true);
+        row.put("nullable_flg", true);
         row.put("created_ts", timestamp);
         row.put("created_by", "producer");
         row.put("updated_ts", timestamp);

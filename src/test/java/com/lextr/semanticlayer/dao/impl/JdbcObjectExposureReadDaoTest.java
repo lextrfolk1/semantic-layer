@@ -93,6 +93,9 @@ class JdbcObjectExposureReadDaoTest {
         List<AttributeExposureRecord> results = dao.findAttributes("client-a", objectId);
 
         assertTrue(jdbcTemplate.recordedSql.contains("FROM meta.attribute_catalog"));
+        assertTrue(jdbcTemplate.recordedSql.contains("a.pk_flg"));
+        assertTrue(jdbcTemplate.recordedSql.contains("a.fk_flg"));
+        assertTrue(jdbcTemplate.recordedSql.contains("a.nullable_flg"));
         assertEquals("client-a", jdbcTemplate.recordedParameters.get("client_id"));
         assertEquals(objectId, jdbcTemplate.recordedParameters.get("object_id"));
         assertEquals(1, results.size());
