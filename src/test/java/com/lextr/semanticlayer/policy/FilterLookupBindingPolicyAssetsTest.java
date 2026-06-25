@@ -31,6 +31,9 @@ class FilterLookupBindingPolicyAssetsTest {
         assertTrue(tests.contains("test_evaluate_allows_binding_when_overdue_but_query_studio"));
         assertTrue(tests.contains("test_evaluate_denies_binding_when_overdue_and_pipeline"));
         assertTrue(tests.contains("test_evaluate_defaults_deny_on_invalid_input"));
+        assertTrue(tests.contains("decision.code == \"POL-SV-002\""));
+        assertTrue(tests.contains("contains(decision.message, \"POL-SV-002\")"));
+        assertTrue(tests.contains("decision.message == \"POL-SV-002: unknown or invalid input\""));
     }
 
     private static String read(String path) throws IOException {
