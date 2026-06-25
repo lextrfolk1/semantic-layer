@@ -39,6 +39,31 @@ class RegistryReadServiceImplTest {
         assertEquals("meta", results.get(0).schema_cd());
         assertEquals("Metadata Override", results.get(0).schema_nm());
         assertEquals("Semantic system of record", results.get(0).schema_purpose_txt());
+        assertEquals("ACTIVE", results.get(0).lifecycle_status_cd());
+        assertEquals(OffsetDateTime.parse("2026-06-16T10:15:30+05:30"), results.get(0).created_ts());
+        assertEquals("flyway", results.get(0).created_by());
+        assertEquals(OffsetDateTime.parse("2026-06-17T10:15:30+05:30"), results.get(0).updated_ts());
+        assertEquals("platform", results.get(0).updated_by());
+    }
+
+    @Test
+    void fallsBackToBaseSchemaNameWhenNoEffectiveOverrideExists() {
+        SchemaCatalogRecord record = new SchemaCatalogRecord(
+                "meta",
+                "Metadata",
+                "   ",
+                "Semantic system of record",
+                "ACTIVE",
+                OffsetDateTime.parse("2026-06-16T10:15:30+05:30"),
+                "flyway",
+                null,
+                null
+        );
+        RegistryReadServiceImpl service = new RegistryReadServiceImpl(new FixedRegistryReadDao(List.of(record), List.of()));
+
+        SchemaCatalogDto result = service.findSchema("client-a", "meta");
+
+        assertEquals("Metadata", result.schema_nm());
     }
 
     @Test
@@ -70,7 +95,20 @@ class RegistryReadServiceImplTest {
         assertEquals(1, results.size());
         assertEquals(connectionId, results.get(0).connection_id());
         assertEquals("Lextr PostgreSQL Override", results.get(0).connection_nm());
+        assertEquals("LEXTR_PG", results.get(0).connection_cd());
         assertEquals("POSTGRES", results.get(0).engine_cd());
+        assertEquals("PRIMARY", results.get(0).connection_type_cd());
+        assertEquals("METADATA_PLUS_EXECUTION", results.get(0).source_mode_cd());
+        assertEquals("localhost", results.get(0).host_nm());
+        assertEquals(5432, results.get(0).port_nbr());
+        assertEquals("lextr", results.get(0).database_nm());
+        assertEquals("meta", results.get(0).schema_nm_default());
+        assertEquals(true, results.get(0).is_default_flg());
+        assertEquals(true, results.get(0).is_active_flg());
+        assertEquals(OffsetDateTime.parse("2026-06-16T10:15:30+05:30"), results.get(0).created_ts());
+        assertEquals("flyway", results.get(0).created_by());
+        assertEquals(null, results.get(0).updated_ts());
+        assertEquals(null, results.get(0).updated_by());
     }
 
     @Test
