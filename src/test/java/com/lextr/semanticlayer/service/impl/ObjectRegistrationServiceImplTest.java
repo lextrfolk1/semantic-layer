@@ -58,7 +58,10 @@ class ObjectRegistrationServiceImplTest {
                         "DECIMAL",
                         "MDRM12345678",
                         "MDRM",
-                        "US"
+                        "US",
+                        true,
+                        false,
+                        false
                 ))
         ));
 
@@ -70,12 +73,18 @@ class ObjectRegistrationServiceImplTest {
         assertEquals("GL_BALANCE", dao.objectRequest.object_cd());
         assertEquals("client-a", dao.objectRequest.client_id());
         assertEquals("AMOUNT", dao.attributeRequests.get(0).attribute_cd());
+        assertTrue(dao.attributeRequests.get(0).pk_flg());
+        assertEquals(false, dao.attributeRequests.get(0).fk_flg());
+        assertEquals(false, dao.attributeRequests.get(0).nullable_flg());
         assertEquals("PENDING_APPROVAL", dao.workflowTaskRequest.task_status_cd());
         assertEquals("REGISTERED", dao.metadataChangeHistoryRequest.change_type_cd());
         assertEquals("Registered draft object", dao.committedMetadataChanges.get(0).change_summary_txt());
         assertEquals("DRAFT", result.lifecycle_status_cd());
         assertEquals("PENDING_APPROVAL", result.workflow_status_cd());
         assertEquals("AMOUNT", result.attributes().get(0).attribute_cd());
+        assertTrue(result.attributes().get(0).pk_flg());
+        assertEquals(false, result.attributes().get(0).fk_flg());
+        assertEquals(false, result.attributes().get(0).nullable_flg());
         assertNotNull(result.object_id());
         assertNotNull(result.workflow_task_id());
         assertNotNull(result.change_history_id());
@@ -100,9 +109,9 @@ class ObjectRegistrationServiceImplTest {
                 UUID.fromString("00000000-0000-0000-0000-000000000201"),
                 "producer",
                 List.of(
-                        new AttributeRegistrationRequestDto("AMOUNT", "Amount", "DECIMAL", "MDRM12345678", "MDRM", "US"),
-                        new AttributeRegistrationRequestDto("AMOUNT", "Amount Dup", "INTEGER", "MDRM99999999", "MDRM", "US"),
-                        new AttributeRegistrationRequestDto("BALANCE", "Balance", "DECIMAL", "MDRM12345678", "MDRM", "US")
+                        new AttributeRegistrationRequestDto("AMOUNT", "Amount", "DECIMAL", "MDRM12345678", "MDRM", "US", true, false, false),
+                        new AttributeRegistrationRequestDto("AMOUNT", "Amount Dup", "INTEGER", "MDRM99999999", "MDRM", "US", false, false, true),
+                        new AttributeRegistrationRequestDto("BALANCE", "Balance", "DECIMAL", "MDRM12345678", "MDRM", "US", false, true, true)
                 )
         ));
 
@@ -139,7 +148,10 @@ class ObjectRegistrationServiceImplTest {
                         "DECIMAL",
                         "MDRM12345678",
                         "MDRM",
-                        "US"
+                        "US",
+                        true,
+                        false,
+                        false
                 ))
         )));
 
@@ -173,7 +185,10 @@ class ObjectRegistrationServiceImplTest {
                         "DECIMAL",
                         "MDRM12345678",
                         "MDRM",
-                        "US"
+                        "US",
+                        true,
+                        false,
+                        false
                 ))
         )));
 
@@ -234,6 +249,9 @@ class ObjectRegistrationServiceImplTest {
                     request.taxonomy_cd(),
                     request.taxonomy_source_cd(),
                     request.taxonomy_jurisdiction_cd(),
+                    request.pk_flg(),
+                    request.fk_flg(),
+                    request.nullable_flg(),
                     request.created_ts(),
                     request.created_by(),
                     request.updated_ts(),
@@ -324,6 +342,9 @@ class ObjectRegistrationServiceImplTest {
                     request.taxonomy_cd(),
                     request.taxonomy_source_cd(),
                     request.taxonomy_jurisdiction_cd(),
+                    request.pk_flg(),
+                    request.fk_flg(),
+                    request.nullable_flg(),
                     request.created_ts(),
                     request.created_by(),
                     request.updated_ts(),

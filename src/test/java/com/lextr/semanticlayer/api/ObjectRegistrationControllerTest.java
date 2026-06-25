@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -43,7 +44,10 @@ class ObjectRegistrationControllerTest {
                         "Amount",
                         "MDRM12345678",
                         "MDRM",
-                        "US"
+                        "US",
+                        true,
+                        false,
+                        false
                 ))
         );
         MockMvc mockMvc = mockMvc(service);
@@ -66,7 +70,10 @@ class ObjectRegistrationControllerTest {
                                       "data_type_cd": "DECIMAL",
                                       "taxonomy_cd": "MDRM12345678",
                                       "taxonomy_source_cd": "MDRM",
-                                      "taxonomy_jurisdiction_cd": "US"
+                                      "taxonomy_jurisdiction_cd": "US",
+                                      "pk_flg": true,
+                                      "fk_flg": false,
+                                      "nullable_flg": false
                                     }
                                   ]
                                 }
@@ -75,11 +82,17 @@ class ObjectRegistrationControllerTest {
                 .andExpect(jsonPath("$.object_id").value("00000000-0000-0000-0000-000000000101"))
                 .andExpect(jsonPath("$.lifecycle_status_cd").value("DRAFT"))
                 .andExpect(jsonPath("$.workflow_status_cd").value("PENDING_APPROVAL"))
-                .andExpect(jsonPath("$.attributes[0].attribute_cd").value("AMOUNT"));
+                .andExpect(jsonPath("$.attributes[0].attribute_cd").value("AMOUNT"))
+                .andExpect(jsonPath("$.attributes[0].pk_flg").value(true))
+                .andExpect(jsonPath("$.attributes[0].fk_flg").value(false))
+                .andExpect(jsonPath("$.attributes[0].nullable_flg").value(false));
 
         assertEquals("client-a", service.lastRequest.client_id());
         assertEquals("GL Balance", service.lastRequest.object_nm());
         assertEquals("Amount", service.lastRequest.attributes().get(0).attribute_nm());
+        assertTrue(service.lastRequest.attributes().get(0).pk_flg());
+        assertEquals(false, service.lastRequest.attributes().get(0).fk_flg());
+        assertEquals(false, service.lastRequest.attributes().get(0).nullable_flg());
     }
 
     @Test
@@ -104,7 +117,10 @@ class ObjectRegistrationControllerTest {
                                       "data_type_cd": "DECIMAL",
                                       "taxonomy_cd": "MDRM12345678",
                                       "taxonomy_source_cd": "MDRM",
-                                      "taxonomy_jurisdiction_cd": "US"
+                                      "taxonomy_jurisdiction_cd": "US",
+                                      "pk_flg": true,
+                                      "fk_flg": false,
+                                      "nullable_flg": false
                                     }
                                   ]
                                 }
@@ -136,7 +152,10 @@ class ObjectRegistrationControllerTest {
                                       "data_type_cd": "DECIMAL",
                                       "taxonomy_cd": "MDRM12345678",
                                       "taxonomy_source_cd": "MDRM",
-                                      "taxonomy_jurisdiction_cd": "US"
+                                      "taxonomy_jurisdiction_cd": "US",
+                                      "pk_flg": true,
+                                      "fk_flg": false,
+                                      "nullable_flg": false
                                     }
                                   ]
                                 }
@@ -168,7 +187,10 @@ class ObjectRegistrationControllerTest {
                                       "data_type_cd": "DECIMAL",
                                       "taxonomy_cd": "MDRM12345678",
                                       "taxonomy_source_cd": "MDRM",
-                                      "taxonomy_jurisdiction_cd": "US"
+                                      "taxonomy_jurisdiction_cd": "US",
+                                      "pk_flg": true,
+                                      "fk_flg": false,
+                                      "nullable_flg": false
                                     }
                                   ]
                                 }

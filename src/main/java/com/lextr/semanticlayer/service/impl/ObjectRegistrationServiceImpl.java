@@ -137,6 +137,9 @@ public class ObjectRegistrationServiceImpl implements ObjectRegistrationService 
                         attribute.taxonomy_cd(),
                         attribute.taxonomy_source_cd(),
                         attribute.taxonomy_jurisdiction_cd(),
+                        attribute.pk_flg(),
+                        attribute.fk_flg(),
+                        attribute.nullable_flg(),
                         now,
                         request.registered_by(),
                         now,
@@ -188,7 +191,10 @@ public class ObjectRegistrationServiceImpl implements ObjectRegistrationService 
                 record.attribute_nm(),
                 record.taxonomy_cd(),
                 record.taxonomy_source_cd(),
-                record.taxonomy_jurisdiction_cd()
+                record.taxonomy_jurisdiction_cd(),
+                record.pk_flg(),
+                record.fk_flg(),
+                record.nullable_flg()
         );
     }
 

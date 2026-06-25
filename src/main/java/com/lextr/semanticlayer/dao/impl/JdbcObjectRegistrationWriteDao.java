@@ -84,6 +84,9 @@ public class JdbcObjectRegistrationWriteDao implements ObjectRegistrationWriteDa
                 .addValue("taxonomy_cd", request.taxonomy_cd())
                 .addValue("taxonomy_source_cd", request.taxonomy_source_cd())
                 .addValue("taxonomy_jurisdiction_cd", request.taxonomy_jurisdiction_cd())
+                .addValue("pk_flg", request.pk_flg())
+                .addValue("fk_flg", request.fk_flg())
+                .addValue("nullable_flg", request.nullable_flg())
                 .addValue("created_ts", request.created_ts())
                 .addValue("created_by", request.created_by())
                 .addValue("updated_ts", request.updated_ts())
@@ -101,6 +104,9 @@ public class JdbcObjectRegistrationWriteDao implements ObjectRegistrationWriteDa
                         resultSet.getString("taxonomy_cd"),
                         resultSet.getString("taxonomy_source_cd"),
                         resultSet.getString("taxonomy_jurisdiction_cd"),
+                        resultSet.getBoolean("pk_flg"),
+                        resultSet.getBoolean("fk_flg"),
+                        resultSet.getBoolean("nullable_flg"),
                         getOffsetDateTime(resultSet, "created_ts"),
                         resultSet.getString("created_by"),
                         getOffsetDateTime(resultSet, "updated_ts"),

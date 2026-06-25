@@ -58,6 +58,9 @@ class SQLQueryLoaderUtilTest {
         assertTrue(insertDraftObjectQuery.contains("lifecycle_status_cd"));
         assertTrue(insertAttributeQuery.contains("INSERT INTO meta.attribute_catalog"));
         assertTrue(insertAttributeQuery.contains(":taxonomy_jurisdiction_cd"));
+        assertTrue(insertAttributeQuery.contains(":pk_flg"));
+        assertTrue(insertAttributeQuery.contains(":fk_flg"));
+        assertTrue(insertAttributeQuery.contains(":nullable_flg"));
         assertTrue(insertWorkflowTaskQuery.contains("INSERT INTO wkfl.workflow_task"));
         assertTrue(insertWorkflowTaskQuery.contains(":task_status_cd"));
         assertTrue(insertMetadataChangeHistoryQuery.contains("INSERT INTO meta.metadata_change_history"));

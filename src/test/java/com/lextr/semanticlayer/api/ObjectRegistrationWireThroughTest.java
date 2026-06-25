@@ -105,7 +105,10 @@ class ObjectRegistrationWireThroughTest {
                                       "data_type_cd": "DECIMAL",
                                       "taxonomy_cd": "MDRM12345678",
                                       "taxonomy_source_cd": "MDRM",
-                                      "taxonomy_jurisdiction_cd": "US"
+                                      "taxonomy_jurisdiction_cd": "US",
+                                      "pk_flg": true,
+                                      "fk_flg": false,
+                                      "nullable_flg": false
                                     }
                                   ]
                                 }
@@ -119,7 +122,10 @@ class ObjectRegistrationWireThroughTest {
                 .andExpect(jsonPath("$.change_history_id").value(changeHistoryId.toString()))
                 .andExpect(jsonPath("$.attributes[0].attribute_id").value(attributeId.toString()))
                 .andExpect(jsonPath("$.attributes[0].taxonomy_cd").value("MDRM12345678"))
-                .andExpect(jsonPath("$.attributes[0].taxonomy_jurisdiction_cd").value("US"));
+                .andExpect(jsonPath("$.attributes[0].taxonomy_jurisdiction_cd").value("US"))
+                .andExpect(jsonPath("$.attributes[0].pk_flg").value(true))
+                .andExpect(jsonPath("$.attributes[0].fk_flg").value(false))
+                .andExpect(jsonPath("$.attributes[0].nullable_flg").value(false));
 
         assertEquals(4, jdbcTemplate.recordedSqls().size());
         assertTrue(jdbcTemplate.recordedSqls().get(0).contains("INSERT INTO meta.object_catalog"));
@@ -131,6 +137,9 @@ class ObjectRegistrationWireThroughTest {
         assertEquals("GL_BALANCE", jdbcTemplate.recordedParameters().get(0).get("object_cd"));
         assertEquals("MDRM12345678", jdbcTemplate.recordedParameters().get(1).get("taxonomy_cd"));
         assertEquals("US", jdbcTemplate.recordedParameters().get(1).get("taxonomy_jurisdiction_cd"));
+        assertEquals(true, jdbcTemplate.recordedParameters().get(1).get("pk_flg"));
+        assertEquals(false, jdbcTemplate.recordedParameters().get(1).get("fk_flg"));
+        assertEquals(false, jdbcTemplate.recordedParameters().get(1).get("nullable_flg"));
         assertEquals("PENDING_APPROVAL", jdbcTemplate.recordedParameters().get(2).get("task_status_cd"));
         assertEquals("REGISTERED", jdbcTemplate.recordedParameters().get(3).get("change_type_cd"));
 
@@ -164,7 +173,10 @@ class ObjectRegistrationWireThroughTest {
                                       "data_type_cd": "DECIMAL",
                                       "taxonomy_cd": "MDRM12345678",
                                       "taxonomy_source_cd": "MDRM",
-                                      "taxonomy_jurisdiction_cd": "USA"
+                                      "taxonomy_jurisdiction_cd": "USA",
+                                      "pk_flg": true,
+                                      "fk_flg": false,
+                                      "nullable_flg": false
                                     }
                                   ]
                                 }
@@ -205,6 +217,9 @@ class ObjectRegistrationWireThroughTest {
         row.put("taxonomy_cd", "MDRM12345678");
         row.put("taxonomy_source_cd", "MDRM");
         row.put("taxonomy_jurisdiction_cd", "US");
+        row.put("pk_flg", true);
+        row.put("fk_flg", false);
+        row.put("nullable_flg", false);
         row.put("created_ts", timestamp);
         row.put("created_by", "producer");
         row.put("updated_ts", timestamp);

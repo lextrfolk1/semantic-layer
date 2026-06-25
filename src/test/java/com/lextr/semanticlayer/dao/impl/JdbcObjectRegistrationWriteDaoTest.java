@@ -88,6 +88,9 @@ class JdbcObjectRegistrationWriteDaoTest {
                 "MDRM12345678",
                 "MDRM",
                 "US",
+                true,
+                false,
+                false,
                 OffsetDateTime.parse("2026-06-17T10:15:30+05:30"),
                 "producer",
                 OffsetDateTime.parse("2026-06-17T10:15:30+05:30"),
@@ -98,10 +101,19 @@ class JdbcObjectRegistrationWriteDaoTest {
 
         assertTrue(jdbcTemplate.recordedSql.contains("INSERT INTO meta.attribute_catalog"));
         assertTrue(jdbcTemplate.recordedSql.contains("taxonomy_jurisdiction_cd"));
+        assertTrue(jdbcTemplate.recordedSql.contains("pk_flg"));
+        assertTrue(jdbcTemplate.recordedSql.contains("fk_flg"));
+        assertTrue(jdbcTemplate.recordedSql.contains("nullable_flg"));
         assertEquals("MDRM12345678", jdbcTemplate.recordedParameters.get("taxonomy_cd"));
+        assertEquals(true, jdbcTemplate.recordedParameters.get("pk_flg"));
+        assertEquals(false, jdbcTemplate.recordedParameters.get("fk_flg"));
+        assertEquals(false, jdbcTemplate.recordedParameters.get("nullable_flg"));
         assertEquals("MDRM", jdbcTemplate.recordedParameters.get("taxonomy_source_cd"));
         assertEquals("US", result.taxonomy_jurisdiction_cd());
         assertEquals("AMOUNT", result.attribute_cd());
+        assertTrue(result.pk_flg());
+        assertEquals(false, result.fk_flg());
+        assertEquals(false, result.nullable_flg());
     }
 
     @Test
@@ -246,6 +258,9 @@ class JdbcObjectRegistrationWriteDaoTest {
         row.put("taxonomy_cd", "MDRM12345678");
         row.put("taxonomy_source_cd", "MDRM");
         row.put("taxonomy_jurisdiction_cd", "US");
+        row.put("pk_flg", true);
+        row.put("fk_flg", false);
+        row.put("nullable_flg", false);
         row.put("created_ts", OffsetDateTime.parse("2026-06-17T10:15:30+05:30"));
         row.put("created_by", "producer");
         row.put("updated_ts", OffsetDateTime.parse("2026-06-17T10:15:30+05:30"));
@@ -315,6 +330,10 @@ class JdbcObjectRegistrationWriteDaoTest {
                     new Class[]{ResultSet.class},
                     (proxy, method, args) -> switch (method.getName()) {
                         case "getString" -> (String) row.get(args[0]);
+                        case "getBoolean" -> {
+                            Object value = row.get(args[0]);
+                            yield value != null && (Boolean) value;
+                        }
                         case "getObject" -> {
                             if (args.length == 1) {
                                 yield row.get(args[0]);
