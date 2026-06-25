@@ -55,3 +55,15 @@ test_evaluate_defaults_deny_on_unknown_input if {
     decision.code == "taxonomy.jurisdiction_valid"
     decision.message == "taxonomy.jurisdiction_valid: unknown or invalid input"
 }
+
+test_evaluate_defaults_deny_on_missing_client_id if {
+    decision := taxonomy.evaluate with input as {
+        "taxonomy_cd": "MDRM12345678",
+        "taxonomy_source_cd": "MDRM",
+        "taxonomy_jurisdiction_cd": "US"
+    }
+
+    not decision.allowed
+    decision.code == "taxonomy.jurisdiction_valid"
+    decision.message == "taxonomy.jurisdiction_valid: unknown or invalid input"
+}

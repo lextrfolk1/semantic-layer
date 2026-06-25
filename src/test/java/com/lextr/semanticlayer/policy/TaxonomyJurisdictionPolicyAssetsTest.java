@@ -30,6 +30,7 @@ class TaxonomyJurisdictionPolicyAssetsTest {
         assertTrue(tests.contains("test_evaluate_denies_invalid_taxonomy_cd_length"));
         assertTrue(tests.contains("test_evaluate_denies_invalid_jurisdiction_length"));
         assertTrue(tests.contains("test_evaluate_defaults_deny_on_unknown_input"));
+        assertTrue(tests.contains("test_evaluate_defaults_deny_on_missing_client_id"));
         assertTrue(tests.contains("decision.code == \"taxonomy.jurisdiction_valid\""));
     }
 
