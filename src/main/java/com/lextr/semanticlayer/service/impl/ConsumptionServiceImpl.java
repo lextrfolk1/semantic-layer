@@ -459,6 +459,11 @@ public class ConsumptionServiceImpl implements ConsumptionService {
         }
 
         @Override
+        public java.util.Optional<ConsumptionOutboundRecord> findExposure(Long exposureId) {
+            throw new SemanticLayerException("ConsumptionDao is not configured");
+        }
+
+        @Override
         public java.util.Optional<ConsumptionPromotionRecord> findLatestPromotion(String clientId, Long exposureId) {
             throw new SemanticLayerException("ConsumptionDao is not configured");
         }

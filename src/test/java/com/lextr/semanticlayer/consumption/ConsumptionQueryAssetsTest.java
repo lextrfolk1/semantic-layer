@@ -19,6 +19,7 @@ class ConsumptionQueryAssetsTest {
         String outboundGrainInsertQuery = loader.getQuery("consumption_outbound_grain.insert_request");
         String outboundListQuery = loader.getQuery("consumption_outbound.find_all_by_object");
         String outboundByIdQuery = loader.getQuery("consumption_outbound.find_by_id");
+        String outboundByIdUnscopedQuery = loader.getQuery("consumption_outbound.find_by_id_unscoped");
         String outboundGrainQuery = loader.getQuery("consumption_outbound_grain.find_by_outbound");
         String promotionListQuery = loader.getQuery("consumption_promotion.find_by_outbound");
 
@@ -66,6 +67,9 @@ class ConsumptionQueryAssetsTest {
 
         assertTrue(outboundByIdQuery.contains("co.id = :outbound_id"));
         assertTrue(outboundByIdQuery.contains("LIMIT 1"));
+        assertTrue(outboundByIdUnscopedQuery.contains("FROM meta.consumption_outbound co"));
+        assertTrue(outboundByIdUnscopedQuery.contains("co.id = :outbound_id"));
+        assertTrue(outboundByIdUnscopedQuery.contains("LIMIT 1"));
 
         assertTrue(outboundGrainQuery.contains("FROM meta.consumption_outbound_grain"));
         assertTrue(outboundGrainQuery.contains("outbound_id = :outbound_id"));

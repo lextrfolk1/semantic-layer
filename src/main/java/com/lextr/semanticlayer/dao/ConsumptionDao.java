@@ -29,6 +29,8 @@ public interface ConsumptionDao {
 
     Optional<ConsumptionOutboundRecord> findExposure(String clientId, Long exposureId);
 
+    Optional<ConsumptionOutboundRecord> findExposure(Long exposureId);
+
     Optional<ConsumptionPromotionRecord> findLatestPromotion(String clientId, Long exposureId);
 
     ConsumptionPromotionRecord insertPromotionRequest(String clientId,

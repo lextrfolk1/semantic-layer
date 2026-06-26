@@ -12,6 +12,7 @@ public record LogicalPhysicalResolutionDto(
         String physical_attribute_nm,
         String source_object_nm,
         String engine_cd,
-        String data_type_cd
+        String data_type_cd,
+        boolean masked_flg
 ) {
 }

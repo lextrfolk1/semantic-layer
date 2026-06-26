@@ -34,6 +34,7 @@ public class JdbcConsumptionDao implements ConsumptionDao {
     static final String FIND_LAYER = "consumption_layer.find_by_code";
     static final String FIND_EXPOSURES = "consumption_outbound.find_all_by_object";
     static final String FIND_EXPOSURE = "consumption_outbound.find_by_id";
+    static final String FIND_EXPOSURE_UNSCOPED = "consumption_outbound.find_by_id_unscoped";
     static final String FIND_LATEST_PROMOTION = "consumption_promotion.find_by_outbound";
     static final String INSERT_PROMOTION = "consumption_promotion.insert_request";
     static final String APPLY_PROMOTION = "consumption_promotion.apply_promotion";
@@ -150,6 +151,16 @@ public class JdbcConsumptionDao implements ConsumptionDao {
                 sqlQueryLoaderUtil.getQuery(FIND_EXPOSURE),
                 new MapSqlParameterSource()
                         .addValue("client_id", clientId)
+                        .addValue("outbound_id", exposureId),
+                (rs, rowNum) -> toExposureRecord(rs)
+        ).stream().findFirst();
+    }
+
+    @Override
+    public Optional<ConsumptionOutboundRecord> findExposure(Long exposureId) {
+        return jdbcTemplate().query(
+                sqlQueryLoaderUtil.getQuery(FIND_EXPOSURE_UNSCOPED),
+                new MapSqlParameterSource()
                         .addValue("outbound_id", exposureId),
                 (rs, rowNum) -> toExposureRecord(rs)
         ).stream().findFirst();

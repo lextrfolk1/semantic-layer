@@ -138,6 +138,8 @@ class OpenApiDocumentationTest {
         assertTrue(paths.has("/api/attribute-pairings/resolve"));
         assertTrue(paths.has("/api/logical-physical-resolutions/attributes"));
         assertTrue(paths.has("/api/logical-physical-resolutions/outbounds/{outbound_id}"));
+        assertTrue(paths.has("/api/semantic/resolve"));
+        assertTrue(paths.has("/api/consumption/{outbound_id}/resolve"));
 
         JsonNode schemaGet = paths.path("/api/registry/schemas").path("get");
         assertQueryParameter(schemaGet, "client_id");
@@ -171,6 +173,12 @@ class OpenApiDocumentationTest {
 
         JsonNode logicalPhysicalOutboundGet = paths.path("/api/logical-physical-resolutions/outbounds/{outbound_id}").path("get");
         assertQueryParameter(logicalPhysicalOutboundGet, "client_id");
+
+        JsonNode semanticResolvePost = paths.path("/api/semantic/resolve").path("post");
+        assertJsonRequestBody(semanticResolvePost);
+
+        JsonNode consumptionResolveGet = paths.path("/api/consumption/{outbound_id}/resolve").path("get");
+        assertQueryParameter(consumptionResolveGet, "client_id");
 
         assertFalse(hasMultipartRequestBody(paths));
     }
@@ -229,6 +237,8 @@ class OpenApiDocumentationTest {
             WorkflowTaskController.class,
             AttributePairingController.class,
             LogicalPhysicalResolutionController.class,
+            SemanticResolveController.class,
+            ConsumptionResolveController.class,
             SQLQueryLoaderUtil.class
     })
     static class OpenApiTestApplication {

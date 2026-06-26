@@ -332,6 +332,11 @@ class ConsumptionServiceImplTest {
         }
 
         @Override
+        public Optional<ConsumptionOutboundRecord> findExposure(Long exposureId) {
+            return Optional.of(exposure);
+        }
+
+        @Override
         public Optional<ConsumptionPromotionRecord> findLatestPromotion(String clientId, Long exposureId) {
             return latestPromotion;
         }
@@ -434,6 +439,11 @@ class ConsumptionServiceImplTest {
 
         @Override
         public Optional<ConsumptionOutboundRecord> findExposure(String clientId, Long exposureId) {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<ConsumptionOutboundRecord> findExposure(Long exposureId) {
             return Optional.empty();
         }
 

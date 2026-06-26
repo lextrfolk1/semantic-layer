@@ -50,6 +50,7 @@ class SQLQueryLoaderUtilTest {
         String objectBySchemaAndCodeQuery = loader.getQuery("object_exposure.find_by_schema_and_code");
         String attributeByObjectIdQuery = loader.getQuery("object_exposure.find_attributes_by_object_id");
         String objectAccessAuditInsertQuery = loader.getQuery("object_exposure.insert_access_audit");
+        String unscopedOutboundByIdQuery = loader.getQuery("consumption_outbound.find_by_id_unscoped");
 
         assertTrue(schemaQuery.contains("schema_cd"));
         assertTrue(schemaQuery.contains("client_id"));
@@ -211,6 +212,8 @@ class SQLQueryLoaderUtilTest {
         assertTrue(objectAccessAuditInsertQuery.contains("INSERT INTO meta.metadata_change_history"));
         assertTrue(objectAccessAuditInsertQuery.contains(":entity_type_cd"));
         assertTrue(objectAccessAuditInsertQuery.contains(":change_reason_txt"));
+        assertTrue(unscopedOutboundByIdQuery.contains("FROM meta.consumption_outbound co"));
+        assertTrue(unscopedOutboundByIdQuery.contains("co.id = :outbound_id"));
     }
 
     @Test

@@ -60,7 +60,8 @@ public class LogicalPhysicalResolutionServiceImpl implements LogicalPhysicalReso
                 record.physical_attribute_nm(),
                 record.source_object_nm(),
                 record.engine_cd(),
-                record.data_type_cd()
+                record.data_type_cd(),
+                false
         );
     }
 

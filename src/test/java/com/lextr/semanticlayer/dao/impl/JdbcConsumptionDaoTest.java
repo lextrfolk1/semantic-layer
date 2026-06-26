@@ -39,17 +39,20 @@ class JdbcConsumptionDaoTest {
         jdbcTemplate.enqueueRows(List.of(layerRow()));
         jdbcTemplate.enqueueRows(List.of(exposureRow()));
         jdbcTemplate.enqueueRows(List.of(promotionRow()));
+        jdbcTemplate.enqueueRows(List.of(exposureRow()));
         JdbcConsumptionDao dao = new JdbcConsumptionDao(jdbcTemplateProvider(jdbcTemplate), new SQLQueryLoaderUtil(new DefaultResourceLoader()), new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules());
 
         List<ConsumptionLayerRecord> layers = dao.findLayers("client-a", "ACTIVE");
         List<ConsumptionOutboundRecord> exposures = dao.findExposures("client-a", UUID.fromString("00000000-0000-0000-0000-000000000101"), "TECHNICAL");
         ConsumptionPromotionRecord promotion = dao.findLatestPromotion("client-a", 101L).orElseThrow();
+        ConsumptionOutboundRecord unscopedExposure = dao.findExposure(101L).orElseThrow();
 
         assertEquals(1, layers.size());
         assertEquals("CL-01", layers.get(0).layer_cd());
         assertEquals(1, exposures.size());
         assertEquals("OB-01", exposures.get(0).outbound_cd());
         assertEquals("QA", promotion.target_sdlc_status_cd());
+        assertEquals("OB-01", unscopedExposure.outbound_cd());
         assertTrue(jdbcTemplate.recordedSqls.stream().anyMatch(sql -> sql.contains("FROM meta.consumption_layer")));
         assertTrue(jdbcTemplate.recordedSqls.stream().anyMatch(sql -> sql.contains("FROM meta.consumption_outbound")));
         assertTrue(jdbcTemplate.recordedSqls.stream().anyMatch(sql -> sql.contains("FROM meta.consumption_promotion")));
@@ -57,6 +60,7 @@ class JdbcConsumptionDaoTest {
         assertEquals("ACTIVE", jdbcTemplate.recordedParameters.get(0).get("lifecycle_status_cd"));
         assertEquals("TECHNICAL", jdbcTemplate.recordedParameters.get(1).get("structure_type_cd"));
         assertEquals(101L, jdbcTemplate.recordedParameters.get(2).get("outbound_id"));
+        assertEquals(101L, jdbcTemplate.recordedParameters.get(3).get("outbound_id"));
     }
 
     @Test
