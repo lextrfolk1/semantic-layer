@@ -9,13 +9,14 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.jdbc.core.RowMapper;
-import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 
 import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 
@@ -212,5 +213,16 @@ class JdbcWorkspaceDaoTest {
         assertEquals("gl_balance", result.object_cd());
         assertEquals("user", result.added_by());
         assertNotNull(result.added_ts());
+    }
+
+    @Test
+    void usesNamedParameterJdbcTemplateAndDoesNotUseJpa() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/com/lextr/semanticlayer/dao/impl/JdbcWorkspaceDao.java"));
+
+        assertTrue(source.contains("NamedParameterJdbcTemplate"));
+        assertFalse(source.contains("EntityManager"));
+        assertFalse(source.contains("JpaRepository"));
+        assertFalse(source.contains("jakarta.persistence"));
+        assertFalse(source.contains("javax.persistence"));
     }
 }
