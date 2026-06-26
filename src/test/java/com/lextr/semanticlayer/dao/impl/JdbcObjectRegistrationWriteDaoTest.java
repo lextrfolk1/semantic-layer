@@ -1,11 +1,18 @@
 package com.lextr.semanticlayer.dao.impl;
 
 import com.lextr.semanticlayer.exception.SemanticLayerException;
+import com.lextr.semanticlayer.model.AttributeAccessGrantRecord;
+import com.lextr.semanticlayer.model.AttributeAccessGrantStatusUpdateRequest;
+import com.lextr.semanticlayer.model.AttributeAccessGrantWriteRequest;
 import com.lextr.semanticlayer.model.AttributeCatalogRecord;
 import com.lextr.semanticlayer.model.AttributeCatalogWriteRequest;
+import com.lextr.semanticlayer.model.AttributeClassificationRecord;
+import com.lextr.semanticlayer.model.AttributeClassificationWriteRequest;
 import com.lextr.semanticlayer.model.MetadataChangeHistoryRecord;
 import com.lextr.semanticlayer.model.MetadataChangeHistoryWriteRequest;
 import com.lextr.semanticlayer.model.ObjectCatalogRecord;
+import com.lextr.semanticlayer.model.ObjectClassificationRecord;
+import com.lextr.semanticlayer.model.ObjectClassificationWriteRequest;
 import com.lextr.semanticlayer.model.ObjectCatalogWriteRequest;
 import com.lextr.semanticlayer.model.WorkflowTaskRecord;
 import com.lextr.semanticlayer.model.WorkflowTaskWriteRequest;
@@ -175,6 +182,119 @@ class JdbcObjectRegistrationWriteDaoTest {
     }
 
     @Test
+    void updatesObjectClassificationAndMapsReturnedColumns() {
+        UUID objectId = UUID.fromString("00000000-0000-0000-0000-000000000101");
+        UUID connectionId = UUID.fromString("00000000-0000-0000-0000-000000000201");
+        RecordingNamedParameterJdbcTemplate jdbcTemplate = new RecordingNamedParameterJdbcTemplate(List.of(objectClassificationRow(objectId, connectionId)));
+        JdbcObjectRegistrationWriteDao dao = new JdbcObjectRegistrationWriteDao(providerOf(jdbcTemplate), new SQLQueryLoaderUtil(new DefaultResourceLoader()));
+        ObjectClassificationWriteRequest request = new ObjectClassificationWriteRequest(
+                objectId,
+                "client-a",
+                "CONFIDENTIAL",
+                true,
+                true,
+                OffsetDateTime.parse("2026-06-18T10:15:30+05:30"),
+                "governance-bot"
+        );
+
+        ObjectClassificationRecord result = dao.updateObjectClassification(request);
+
+        assertTrue(jdbcTemplate.recordedSql.contains("UPDATE meta.object_catalog"));
+        assertTrue(jdbcTemplate.recordedSql.contains("client_id = :client_id"));
+        assertEquals("CONFIDENTIAL", jdbcTemplate.recordedParameters.get("data_classification_cd"));
+        assertEquals(true, jdbcTemplate.recordedParameters.get("pii_flg"));
+        assertEquals(objectId, jdbcTemplate.recordedParameters.get("object_id"));
+        assertEquals("CONFIDENTIAL", result.data_classification_cd());
+        assertTrue(result.pii_flg());
+        assertTrue(result.confidential_flg());
+    }
+
+    @Test
+    void updatesAttributeClassificationAndMapsReturnedColumns() {
+        UUID attributeId = UUID.fromString("00000000-0000-0000-0000-000000000102");
+        UUID objectId = UUID.fromString("00000000-0000-0000-0000-000000000101");
+        RecordingNamedParameterJdbcTemplate jdbcTemplate = new RecordingNamedParameterJdbcTemplate(List.of(attributeClassificationRow(attributeId, objectId)));
+        JdbcObjectRegistrationWriteDao dao = new JdbcObjectRegistrationWriteDao(providerOf(jdbcTemplate), new SQLQueryLoaderUtil(new DefaultResourceLoader()));
+        AttributeClassificationWriteRequest request = new AttributeClassificationWriteRequest(
+                objectId,
+                "client-a",
+                "AMOUNT",
+                "RESTRICTED",
+                true,
+                true,
+                "MASK_FULL",
+                false,
+                true,
+                "RESTRICTED",
+                OffsetDateTime.parse("2026-06-18T10:15:30+05:30"),
+                "governance-bot"
+        );
+
+        AttributeClassificationRecord result = dao.updateAttributeClassification(request);
+
+        assertTrue(jdbcTemplate.recordedSql.contains("UPDATE meta.attribute_catalog a"));
+        assertTrue(jdbcTemplate.recordedSql.contains("masking_policy_cd = :masking_policy_cd"));
+        assertEquals("AMOUNT", jdbcTemplate.recordedParameters.get("attribute_cd"));
+        assertEquals("MASK_FULL", jdbcTemplate.recordedParameters.get("masking_policy_cd"));
+        assertEquals("RESTRICTED", result.data_classification_cd());
+        assertEquals("MASK_FULL", result.masking_policy_cd());
+        assertTrue(result.csi_flg());
+    }
+
+    @Test
+    void insertsAttributeAccessGrantAndMapsReturnedColumns() {
+        RecordingNamedParameterJdbcTemplate jdbcTemplate = new RecordingNamedParameterJdbcTemplate(List.of(attributeAccessGrantRow(10L, "ACTIVE")));
+        JdbcObjectRegistrationWriteDao dao = new JdbcObjectRegistrationWriteDao(providerOf(jdbcTemplate), new SQLQueryLoaderUtil(new DefaultResourceLoader()));
+        AttributeAccessGrantWriteRequest request = new AttributeAccessGrantWriteRequest(
+                "client-a",
+                "meta",
+                "GL_BALANCE",
+                "AMOUNT",
+                "FINANCE",
+                "REPORTING",
+                "READ",
+                "ACTIVE",
+                "approver",
+                OffsetDateTime.parse("2026-06-18T12:00:00Z"),
+                OffsetDateTime.parse("2026-06-18T11:00:00Z"),
+                "producer",
+                OffsetDateTime.parse("2026-06-18T11:30:00Z"),
+                "producer"
+        );
+
+        AttributeAccessGrantRecord result = dao.insertAttributeAccessGrant(request);
+
+        assertTrue(jdbcTemplate.recordedSql.contains("INSERT INTO meta.attribute_access_grant"));
+        assertEquals("FINANCE", jdbcTemplate.recordedParameters.get("role_cd"));
+        assertEquals("REPORTING", jdbcTemplate.recordedParameters.get("purpose_cd"));
+        assertEquals("READ", result.grant_scope_cd());
+        assertEquals("ACTIVE", result.grant_status_cd());
+    }
+
+    @Test
+    void updatesAttributeAccessGrantStatusAndMapsReturnedColumns() {
+        RecordingNamedParameterJdbcTemplate jdbcTemplate = new RecordingNamedParameterJdbcTemplate(List.of(attributeAccessGrantRow(10L, "REVOKED")));
+        JdbcObjectRegistrationWriteDao dao = new JdbcObjectRegistrationWriteDao(providerOf(jdbcTemplate), new SQLQueryLoaderUtil(new DefaultResourceLoader()));
+        AttributeAccessGrantStatusUpdateRequest request = new AttributeAccessGrantStatusUpdateRequest(
+                10L,
+                "client-a",
+                "REVOKED",
+                "approver",
+                OffsetDateTime.parse("2026-06-18T12:00:00Z"),
+                OffsetDateTime.parse("2026-06-18T12:05:00Z"),
+                "approver"
+        );
+
+        AttributeAccessGrantRecord result = dao.updateAttributeAccessGrantStatus(request);
+
+        assertTrue(jdbcTemplate.recordedSql.contains("UPDATE meta.attribute_access_grant"));
+        assertTrue(jdbcTemplate.recordedSql.contains("WHERE client_id = :client_id AND id = :id"));
+        assertEquals(10L, jdbcTemplate.recordedParameters.get("id"));
+        assertEquals("REVOKED", jdbcTemplate.recordedParameters.get("grant_status_cd"));
+        assertEquals("REVOKED", result.grant_status_cd());
+    }
+
+    @Test
     void transactionRollsBackObjectRegistrationWritesOnFailure() {
         TransactionHarness harness = new TransactionHarness();
         TransactionalNamedParameterJdbcTemplate jdbcTemplate = new TransactionalNamedParameterJdbcTemplate(harness);
@@ -204,6 +324,35 @@ class JdbcObjectRegistrationWriteDaoTest {
         assertTrue(jdbcTemplate.recordedSqls.get(1).contains("INSERT INTO meta.attribute_catalog"));
         assertTrue(jdbcTemplate.recordedSqls.get(2).contains("INSERT INTO wkfl.workflow_task"));
         assertTrue(jdbcTemplate.recordedSqls.get(3).contains("INSERT INTO meta.metadata_change_history"));
+    }
+
+    @Test
+    void transactionRollsBackClassificationAndGrantWritesOnFailure() {
+        TransactionHarness harness = new TransactionHarness();
+        TransactionalNamedParameterJdbcTemplate jdbcTemplate = new TransactionalNamedParameterJdbcTemplate(harness);
+        JdbcObjectRegistrationWriteDao dao = new JdbcObjectRegistrationWriteDao(providerOf(jdbcTemplate), new SQLQueryLoaderUtil(new DefaultResourceLoader()));
+        RecordingTransactionOperations transactionOperations = new RecordingTransactionOperations(harness);
+        UUID objectId = UUID.fromString("00000000-0000-0000-0000-000000000101");
+        UUID attributeId = UUID.fromString("00000000-0000-0000-0000-000000000102");
+
+        assertThrows(IllegalStateException.class, () -> transactionOperations.execute(status -> {
+            dao.updateObjectClassification(objectClassificationRequest(objectId));
+            dao.updateAttributeClassification(attributeClassificationRequest(objectId));
+            dao.insertAttributeAccessGrant(attributeAccessGrantRequest("ACTIVE"));
+            dao.updateAttributeAccessGrantStatus(attributeAccessGrantStatusUpdateRequest(10L, "REVOKED"));
+            throw new IllegalStateException("classification and grant transaction failed");
+        }));
+
+        assertTrue(harness.rolledBack);
+        assertFalse(harness.committed);
+        assertTrue(jdbcTemplate.committedObjectClassifications.isEmpty());
+        assertTrue(jdbcTemplate.committedAttributeClassifications.isEmpty());
+        assertTrue(jdbcTemplate.committedAttributeAccessGrants.isEmpty());
+        assertEquals(4, jdbcTemplate.recordedSqls.size());
+        assertTrue(jdbcTemplate.recordedSqls.get(0).contains("UPDATE meta.object_catalog"));
+        assertTrue(jdbcTemplate.recordedSqls.get(1).contains("UPDATE meta.attribute_catalog a"));
+        assertTrue(jdbcTemplate.recordedSqls.get(2).contains("INSERT INTO meta.attribute_access_grant"));
+        assertTrue(jdbcTemplate.recordedSqls.get(3).contains("UPDATE meta.attribute_access_grant"));
     }
 
     @Test
@@ -321,6 +470,66 @@ class JdbcObjectRegistrationWriteDaoTest {
         );
     }
 
+    private static ObjectClassificationWriteRequest objectClassificationRequest(UUID objectId) {
+        return new ObjectClassificationWriteRequest(
+                objectId,
+                "client-a",
+                "CONFIDENTIAL",
+                true,
+                true,
+                OffsetDateTime.parse("2026-06-18T10:15:30+05:30"),
+                "governance-bot"
+        );
+    }
+
+    private static AttributeClassificationWriteRequest attributeClassificationRequest(UUID objectId) {
+        return new AttributeClassificationWriteRequest(
+                objectId,
+                "client-a",
+                "AMOUNT",
+                "RESTRICTED",
+                true,
+                true,
+                "MASK_FULL",
+                false,
+                true,
+                "RESTRICTED",
+                OffsetDateTime.parse("2026-06-18T10:15:30+05:30"),
+                "governance-bot"
+        );
+    }
+
+    private static AttributeAccessGrantWriteRequest attributeAccessGrantRequest(String grantStatus) {
+        return new AttributeAccessGrantWriteRequest(
+                "client-a",
+                "meta",
+                "GL_BALANCE",
+                "AMOUNT",
+                "FINANCE",
+                "REPORTING",
+                "READ",
+                grantStatus,
+                "approver",
+                OffsetDateTime.parse("2026-06-18T12:00:00Z"),
+                OffsetDateTime.parse("2026-06-18T11:00:00Z"),
+                "producer",
+                OffsetDateTime.parse("2026-06-18T11:30:00Z"),
+                "producer"
+        );
+    }
+
+    private static AttributeAccessGrantStatusUpdateRequest attributeAccessGrantStatusUpdateRequest(Long id, String grantStatus) {
+        return new AttributeAccessGrantStatusUpdateRequest(
+                id,
+                "client-a",
+                grantStatus,
+                "approver",
+                OffsetDateTime.parse("2026-06-18T12:00:00Z"),
+                OffsetDateTime.parse("2026-06-18T12:05:00Z"),
+                "approver"
+        );
+    }
+
     private static Map<String, Object> objectRow(UUID objectId, UUID connectionId) {
         Map<String, Object> row = new HashMap<>();
         row.put("object_id", objectId);
@@ -384,6 +593,48 @@ class JdbcObjectRegistrationWriteDaoTest {
         row.put("change_summary_txt", "Registered draft object");
         row.put("created_ts", OffsetDateTime.parse("2026-06-17T10:15:30+05:30"));
         row.put("created_by", "producer");
+        return row;
+    }
+
+    private static Map<String, Object> objectClassificationRow(UUID objectId, UUID connectionId) {
+        Map<String, Object> row = objectRow(objectId, connectionId);
+        row.put("data_classification_cd", "CONFIDENTIAL");
+        row.put("pii_flg", true);
+        row.put("confidential_flg", true);
+        row.put("updated_by", "governance-bot");
+        return row;
+    }
+
+    private static Map<String, Object> attributeClassificationRow(UUID attributeId, UUID objectId) {
+        Map<String, Object> row = attributeRow(attributeId, objectId);
+        row.put("data_classification_cd", "RESTRICTED");
+        row.put("pii_flg", true);
+        row.put("confidential_flg", true);
+        row.put("masking_policy_cd", "MASK_FULL");
+        row.put("mnpi_flg", false);
+        row.put("csi_flg", true);
+        row.put("ai_exposure_cd", "RESTRICTED");
+        row.put("updated_by", "governance-bot");
+        return row;
+    }
+
+    private static Map<String, Object> attributeAccessGrantRow(Long id, String grantStatus) {
+        Map<String, Object> row = new HashMap<>();
+        row.put("id", id);
+        row.put("client_id", "client-a");
+        row.put("schema_cd", "meta");
+        row.put("object_cd", "GL_BALANCE");
+        row.put("attribute_cd", "AMOUNT");
+        row.put("role_cd", "FINANCE");
+        row.put("purpose_cd", "REPORTING");
+        row.put("grant_scope_cd", "READ");
+        row.put("grant_status_cd", grantStatus);
+        row.put("approved_by", "approver");
+        row.put("approved_ts", OffsetDateTime.parse("2026-06-18T12:00:00Z"));
+        row.put("created_ts", OffsetDateTime.parse("2026-06-18T11:00:00Z"));
+        row.put("created_by", "producer");
+        row.put("updated_ts", OffsetDateTime.parse("2026-06-18T12:05:00Z"));
+        row.put("updated_by", "approver");
         return row;
     }
 
@@ -492,6 +743,9 @@ class JdbcObjectRegistrationWriteDaoTest {
         private final Map<UUID, Map<String, Object>> committedAttributes = new LinkedHashMap<>();
         private final Map<UUID, Map<String, Object>> committedWorkflowTasks = new LinkedHashMap<>();
         private final Map<UUID, Map<String, Object>> committedMetadataChanges = new LinkedHashMap<>();
+        private final Map<UUID, Map<String, Object>> committedObjectClassifications = new LinkedHashMap<>();
+        private final Map<UUID, Map<String, Object>> committedAttributeClassifications = new LinkedHashMap<>();
+        private final Map<Long, Map<String, Object>> committedAttributeAccessGrants = new LinkedHashMap<>();
         private final List<String> recordedSqls = new ArrayList<>();
 
         private TransactionalNamedParameterJdbcTemplate(TransactionHarness harness) {
@@ -507,7 +761,10 @@ class JdbcObjectRegistrationWriteDaoTest {
                     committedObjects,
                     committedAttributes,
                     committedWorkflowTasks,
-                    committedMetadataChanges
+                    committedMetadataChanges,
+                    committedObjectClassifications,
+                    committedAttributeClassifications,
+                    committedAttributeAccessGrants
             );
             Map<String, Object> row;
             if (sql.startsWith("INSERT INTO meta.object_catalog")) {
@@ -522,6 +779,18 @@ class JdbcObjectRegistrationWriteDaoTest {
             } else if (sql.startsWith("INSERT INTO meta.metadata_change_history")) {
                 row = metadataChangeRow((UUID) parameters.get("change_history_id"), (UUID) parameters.get("entity_id"));
                 state.metadataRows.put((UUID) parameters.get("change_history_id"), row);
+            } else if (sql.startsWith("UPDATE meta.object_catalog")) {
+                row = objectClassificationRow((UUID) parameters.get("object_id"), UUID.fromString("00000000-0000-0000-0000-000000000201"));
+                state.objectClassificationRows.put((UUID) parameters.get("object_id"), row);
+            } else if (sql.startsWith("UPDATE meta.attribute_catalog")) {
+                row = attributeClassificationRow(UUID.fromString("00000000-0000-0000-0000-000000000102"), (UUID) parameters.get("object_id"));
+                state.attributeClassificationRows.put(UUID.fromString("00000000-0000-0000-0000-000000000102"), row);
+            } else if (sql.startsWith("INSERT INTO meta.attribute_access_grant")) {
+                row = attributeAccessGrantRow(10L, (String) parameters.get("grant_status_cd"));
+                state.attributeAccessGrantRows.put(10L, row);
+            } else if (sql.startsWith("UPDATE meta.attribute_access_grant")) {
+                row = attributeAccessGrantRow((Long) parameters.get("id"), (String) parameters.get("grant_status_cd"));
+                state.attributeAccessGrantRows.put((Long) parameters.get("id"), row);
             } else {
                 throw new IllegalArgumentException("Unexpected SQL: " + sql);
             }
@@ -601,13 +870,19 @@ class JdbcObjectRegistrationWriteDaoTest {
         private TransactionState transactionState(Map<UUID, Map<String, Object>> committedObjects,
                                                   Map<UUID, Map<String, Object>> committedAttributes,
                                                   Map<UUID, Map<String, Object>> committedWorkflowTasks,
-                                                  Map<UUID, Map<String, Object>> committedMetadataChanges) {
+                                                  Map<UUID, Map<String, Object>> committedMetadataChanges,
+                                                  Map<UUID, Map<String, Object>> committedObjectClassifications,
+                                                  Map<UUID, Map<String, Object>> committedAttributeClassifications,
+                                                  Map<Long, Map<String, Object>> committedAttributeAccessGrants) {
             if (state == null) {
                 state = new TransactionState(
                         new LinkedHashMap<>(committedObjects),
                         new LinkedHashMap<>(committedAttributes),
                         new LinkedHashMap<>(committedWorkflowTasks),
-                        new LinkedHashMap<>(committedMetadataChanges)
+                        new LinkedHashMap<>(committedMetadataChanges),
+                        new LinkedHashMap<>(committedObjectClassifications),
+                        new LinkedHashMap<>(committedAttributeClassifications),
+                        new LinkedHashMap<>(committedAttributeAccessGrants)
                 );
             }
             return state;
@@ -617,7 +892,10 @@ class JdbcObjectRegistrationWriteDaoTest {
     private record TransactionState(Map<UUID, Map<String, Object>> objectRows,
                                     Map<UUID, Map<String, Object>> attributeRows,
                                     Map<UUID, Map<String, Object>> workflowRows,
-                                    Map<UUID, Map<String, Object>> metadataRows) {
+                                    Map<UUID, Map<String, Object>> metadataRows,
+                                    Map<UUID, Map<String, Object>> objectClassificationRows,
+                                    Map<UUID, Map<String, Object>> attributeClassificationRows,
+                                    Map<Long, Map<String, Object>> attributeAccessGrantRows) {
     }
 
     private static final class RecordingTransactionOperations implements TransactionOperations {
