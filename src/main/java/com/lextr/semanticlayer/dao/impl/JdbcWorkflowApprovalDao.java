@@ -140,9 +140,10 @@ public class JdbcWorkflowApprovalDao implements WorkflowApprovalDao {
     }
 
     @Override
-    public FilterLookupWorkflowTaskRecord rejectTask(Long id, String rejectedBy, OffsetDateTime rejectedTs, String rejectionNote) {
+    public FilterLookupWorkflowTaskRecord rejectTask(String clientId, Long id, String rejectedBy, OffsetDateTime rejectedTs, String rejectionNote) {
         checkJdbcTemplate();
         MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("client_id", clientId)
                 .addValue("id", id)
                 .addValue("rejected_by", rejectedBy)
                 .addValue("rejected_ts", rejectedTs)

@@ -12,6 +12,8 @@ import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -74,6 +76,12 @@ class JdbcWorkflowApprovalDaoTest {
         FilterLookupWorkflowTaskRecord result = dao.approveTask("GLOBAL", 1L, "admin", OffsetDateTime.now(), "note");
         assertNotNull(result);
         assertEquals("APPROVED", result.task_status_cd());
+
+        ArgumentCaptor<SqlParameterSource> paramsCaptor = ArgumentCaptor.forClass(SqlParameterSource.class);
+        verify(jdbcTemplate).query(anyString(), paramsCaptor.capture(), any(RowMapper.class));
+        assertEquals("GLOBAL", paramsCaptor.getValue().getValue("client_id"));
+        assertEquals(1L, paramsCaptor.getValue().getValue("id"));
+        assertEquals("admin", paramsCaptor.getValue().getValue("approved_by"));
     }
 
     @Test
@@ -127,8 +135,14 @@ class JdbcWorkflowApprovalDaoTest {
         when(jdbcTemplate.query(anyString(), any(SqlParameterSource.class), any(RowMapper.class)))
                 .thenReturn(Collections.singletonList(record));
 
-        FilterLookupWorkflowTaskRecord result = dao.rejectTask(1L, "admin", OffsetDateTime.now(), "rejection note");
+        FilterLookupWorkflowTaskRecord result = dao.rejectTask("GLOBAL", 1L, "admin", OffsetDateTime.now(), "rejection note");
         assertNotNull(result);
+
+        ArgumentCaptor<SqlParameterSource> paramsCaptor = ArgumentCaptor.forClass(SqlParameterSource.class);
+        verify(jdbcTemplate).query(anyString(), paramsCaptor.capture(), any(RowMapper.class));
+        assertEquals("GLOBAL", paramsCaptor.getValue().getValue("client_id"));
+        assertEquals(1L, paramsCaptor.getValue().getValue("id"));
+        assertEquals("admin", paramsCaptor.getValue().getValue("rejected_by"));
     }
 
     @Test
@@ -138,7 +152,7 @@ class JdbcWorkflowApprovalDaoTest {
         when(jdbcTemplate.query(anyString(), any(SqlParameterSource.class), any(RowMapper.class)))
                 .thenReturn(Collections.emptyList());
 
-        assertThrows(SemanticLayerException.class, () -> dao.rejectTask(1L, "admin", OffsetDateTime.now(), "rejection note"));
+        assertThrows(SemanticLayerException.class, () -> dao.rejectTask("GLOBAL", 1L, "admin", OffsetDateTime.now(), "rejection note"));
     }
 
     @Test
@@ -254,5 +268,16 @@ class JdbcWorkflowApprovalDaoTest {
         assertEquals("admin", result.approved_by());
         assertNotNull(result.approved_ts());
         assertEquals("approved note", result.approval_note_txt());
+    }
+
+    @Test
+    void usesNamedParameterJdbcTemplateAndDoesNotUseJpa() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/com/lextr/semanticlayer/dao/impl/JdbcWorkflowApprovalDao.java"));
+
+        assertTrue(source.contains("NamedParameterJdbcTemplate"));
+        assertFalse(source.contains("JpaRepository"));
+        assertFalse(source.contains("EntityManager"));
+        assertFalse(source.contains("jakarta.persistence"));
+        assertFalse(source.contains("javax.persistence"));
     }
 }

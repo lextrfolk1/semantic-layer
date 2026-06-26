@@ -151,6 +151,7 @@ public class WorkflowApprovalServiceImpl implements WorkflowApprovalService {
             return transactionOperations.execute(status -> {
                 // Update workflow task status to REJECTED
                 FilterLookupWorkflowTaskRecord rejectedTask = workflowApprovalDao.rejectTask(
+                        task.client_id(),
                         id,
                         rejectedBy,
                         now,

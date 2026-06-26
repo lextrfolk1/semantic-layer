@@ -48,6 +48,7 @@ class WorkflowApprovalQueryTest {
         assertTrue(rejectTaskQuery.contains("approved_by = :rejected_by"));
         assertTrue(rejectTaskQuery.contains("approved_ts = :rejected_ts"));
         assertTrue(rejectTaskQuery.contains("approval_note_txt = :rejection_note_txt"));
+        assertTrue(rejectTaskQuery.contains("WHERE client_id = :client_id AND id = :id"));
         assertTrue(rejectTaskQuery.contains("RETURNING id, task_type_cd"));
 
         assertTrue(approveLookupQuery.contains("UPDATE meta.semantic_filter_lookup"));

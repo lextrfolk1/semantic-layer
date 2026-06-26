@@ -133,6 +133,7 @@ public class WorkflowApprovalWireThroughTest {
         // Verify update SQL (approveLookup) was executed
         assertEquals(1, jdbcTemplate.recordedUpdates().size());
         assertTrue(jdbcTemplate.recordedUpdates().get(0).contains("UPDATE meta.semantic_filter_lookup"));
+        assertEquals("client-a", jdbcTemplate.recordedUpdateParameters().get(0).get("client_id"));
         
         // Verify policy requests
         assertEquals(1, workflowPolicyClient.recordedRequests().size());
@@ -292,6 +293,7 @@ public class WorkflowApprovalWireThroughTest {
 
         assertEquals(1, jdbcTemplate.recordedUpdates().size());
         assertTrue(jdbcTemplate.recordedUpdates().get(0).contains("UPDATE meta.semantic_filter_lookup"));
+        assertEquals("client-a", jdbcTemplate.recordedUpdateParameters().get(0).get("client_id"));
         assertEquals("rejecter", jdbcTemplate.recordedUpdateParameters().get(0).get("updated_by"));
         assertEquals("SUSPENDED", jdbcTemplate.recordedUpdateParameters().get(0).get("governance_status_cd"));
     }

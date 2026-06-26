@@ -11,7 +11,7 @@ public interface WorkflowApprovalDao {
 
     FilterLookupWorkflowTaskRecord approveTask(String clientId, Long id, String approvedBy, OffsetDateTime approvedTs, String approvalNote);
 
-    FilterLookupWorkflowTaskRecord rejectTask(Long id, String rejectedBy, OffsetDateTime rejectedTs, String rejectionNote);
+    FilterLookupWorkflowTaskRecord rejectTask(String clientId, Long id, String rejectedBy, OffsetDateTime rejectedTs, String rejectionNote);
 
     void approveLookup(String clientId, String lookupCd, String governanceStatus, OffsetDateTime updatedTs, String updatedBy);
 
