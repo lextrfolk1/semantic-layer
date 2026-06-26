@@ -4,6 +4,7 @@ import com.lextr.semanticlayer.dto.DqRuleAttributeDto;
 import com.lextr.semanticlayer.dto.DqRuleCatalogDto;
 import com.lextr.semanticlayer.dto.DqRuleRequestDto;
 import com.lextr.semanticlayer.dto.DqRuleResultDto;
+import com.lextr.semanticlayer.dto.DqRuleResultIngestRequestDto;
 import com.lextr.semanticlayer.dto.WorkflowTaskResponseDto;
 
 import java.util.List;
@@ -18,6 +19,8 @@ public interface DqRuleService {
     List<DqRuleAttributeDto> findRuleAttributes(String clientId, String ruleCode);
 
     List<DqRuleResultDto> findRuleResults(String clientId, String logicalAttributeCode);
+
+    DqRuleResultDto ingestResult(DqRuleResultIngestRequestDto request, String principalCd);
 
     List<WorkflowTaskResponseDto> requestRules(DqRuleRequestDto request);
 

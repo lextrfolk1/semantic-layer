@@ -5,6 +5,7 @@ import com.lextr.semanticlayer.dto.DqRuleAttributeDto;
 import com.lextr.semanticlayer.dto.DqRuleCatalogDto;
 import com.lextr.semanticlayer.dto.DqRuleRequestDto;
 import com.lextr.semanticlayer.dto.DqRuleResultDto;
+import com.lextr.semanticlayer.dto.DqRuleResultIngestRequestDto;
 import com.lextr.semanticlayer.dto.WorkflowTaskResponseDto;
 import com.lextr.semanticlayer.exception.DqRuleServiceException;
 import com.lextr.semanticlayer.service.DqRuleService;
@@ -326,6 +327,14 @@ class DqRuleControllerTest {
                 throw error;
             }
             return resultsResponse;
+        }
+
+        @Override
+        public DqRuleResultDto ingestResult(DqRuleResultIngestRequestDto request, String principalCd) {
+            if (error != null) {
+                throw error;
+            }
+            throw new UnsupportedOperationException("Not used in tests");
         }
 
         @Override

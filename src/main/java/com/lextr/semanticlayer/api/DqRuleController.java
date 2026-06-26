@@ -4,6 +4,7 @@ import com.lextr.semanticlayer.dto.DqRuleAttributeDto;
 import com.lextr.semanticlayer.dto.DqRuleCatalogDto;
 import com.lextr.semanticlayer.dto.DqRuleRequestDto;
 import com.lextr.semanticlayer.dto.DqRuleResultDto;
+import com.lextr.semanticlayer.dto.DqRuleResultIngestRequestDto;
 import com.lextr.semanticlayer.dto.WorkflowTaskResponseDto;
 import com.lextr.semanticlayer.exception.DqRuleServiceException;
 import com.lextr.semanticlayer.service.DqRuleService;
@@ -109,6 +110,11 @@ public class DqRuleController {
 
         @Override
         public List<DqRuleResultDto> findRuleResults(String clientId, String logicalAttributeCode) {
+            throw new DqRuleServiceException("DqRuleService is not configured");
+        }
+
+        @Override
+        public DqRuleResultDto ingestResult(DqRuleResultIngestRequestDto request, String principalCd) {
             throw new DqRuleServiceException("DqRuleService is not configured");
         }
 

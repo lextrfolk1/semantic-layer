@@ -5,6 +5,7 @@ import com.lextr.semanticlayer.dto.ObservabilitySignalAutoTriggerPolicyRequestDt
 import com.lextr.semanticlayer.dto.ObservabilitySignalIngestRequestDto;
 import com.lextr.semanticlayer.dto.ObservabilitySignalPolicyDecisionDto;
 import com.lextr.semanticlayer.dto.ObservabilitySignalResponseDto;
+import com.lextr.semanticlayer.dto.DqRuleResultIngestRequestDto;
 import com.lextr.semanticlayer.exception.RegistryResourceNotFoundException;
 import com.lextr.semanticlayer.dto.GovernancePolicyPresetDto;
 import com.lextr.semanticlayer.dto.WorkflowTaskResponseDto;
@@ -547,6 +548,11 @@ class ObservabilitySignalServiceImplTest {
 
         @Override
         public List<com.lextr.semanticlayer.dto.DqRuleResultDto> findRuleResults(String clientId, String logicalAttributeCode) {
+            throw new UnsupportedOperationException("Not used in tests");
+        }
+
+        @Override
+        public com.lextr.semanticlayer.dto.DqRuleResultDto ingestResult(DqRuleResultIngestRequestDto request, String principalCd) {
             throw new UnsupportedOperationException("Not used in tests");
         }
 
