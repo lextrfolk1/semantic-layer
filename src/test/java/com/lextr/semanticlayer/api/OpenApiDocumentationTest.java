@@ -130,6 +130,8 @@ class OpenApiDocumentationTest {
         assertTrue(paths.has("/api/governance/policy-presets"));
         assertTrue(paths.has("/api/governance/history"));
         assertTrue(paths.has("/api/workflow-tasks/{id}/approve"));
+        assertTrue(paths.has("/api/observability-signals"));
+        assertTrue(paths.has("/api/observability-signals/{signal_id}/correlate"));
         assertTrue(paths.has("/api/attribute-pairings"));
         assertTrue(paths.has("/api/attribute-pairings/resolve"));
 
@@ -150,6 +152,12 @@ class OpenApiDocumentationTest {
 
         JsonNode workflowApprovePost = paths.path("/api/workflow-tasks/{id}/approve").path("post");
         assertJsonRequestBody(workflowApprovePost);
+
+        JsonNode observabilityIngestPost = paths.path("/api/observability-signals").path("post");
+        assertJsonRequestBody(observabilityIngestPost);
+
+        JsonNode observabilityCorrelatePost = paths.path("/api/observability-signals/{signal_id}/correlate").path("post");
+        assertJsonRequestBody(observabilityCorrelatePost);
 
         assertFalse(hasMultipartRequestBody(paths));
     }
@@ -204,6 +212,7 @@ class OpenApiDocumentationTest {
             FilterLookupRegistrationController.class,
             GovernanceHistoryController.class,
             GovernancePolicyPresetController.class,
+            ObservabilitySignalController.class,
             WorkflowTaskController.class,
             AttributePairingController.class,
             SQLQueryLoaderUtil.class
