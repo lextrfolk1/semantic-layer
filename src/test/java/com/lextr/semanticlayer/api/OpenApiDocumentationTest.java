@@ -13,6 +13,7 @@ import com.lextr.semanticlayer.dto.FilterLookupPreviewResponseDto;
 import com.lextr.semanticlayer.dto.FilterLookupRegistrationRequestDto;
 import com.lextr.semanticlayer.dto.FilterLookupRegistrationResponseDto;
 import com.lextr.semanticlayer.dto.GovernancePolicyPresetDto;
+import com.lextr.semanticlayer.dto.LogicalPhysicalResolutionDto;
 import com.lextr.semanticlayer.dto.ObjectExposureDetailDto;
 import com.lextr.semanticlayer.dto.ObjectExposureSummaryDto;
 import com.lextr.semanticlayer.dto.ObjectRegistrationRequestDto;
@@ -32,6 +33,7 @@ import com.lextr.semanticlayer.service.FilterLookupReadService;
 import com.lextr.semanticlayer.service.FilterLookupRegistrationService;
 import com.lextr.semanticlayer.service.GovernanceHistoryReadService;
 import com.lextr.semanticlayer.service.GovernancePolicyPresetReadService;
+import com.lextr.semanticlayer.service.LogicalPhysicalResolutionService;
 import com.lextr.semanticlayer.service.ObjectExposureReadService;
 import com.lextr.semanticlayer.service.ObjectRegistrationService;
 import com.lextr.semanticlayer.service.RegistryReadService;
@@ -134,6 +136,8 @@ class OpenApiDocumentationTest {
         assertTrue(paths.has("/api/observability-signals/{signal_id}/correlate"));
         assertTrue(paths.has("/api/attribute-pairings"));
         assertTrue(paths.has("/api/attribute-pairings/resolve"));
+        assertTrue(paths.has("/api/logical-physical-resolutions/attributes"));
+        assertTrue(paths.has("/api/logical-physical-resolutions/outbounds/{outbound_id}"));
 
         JsonNode schemaGet = paths.path("/api/registry/schemas").path("get");
         assertQueryParameter(schemaGet, "client_id");
@@ -158,6 +162,15 @@ class OpenApiDocumentationTest {
 
         JsonNode observabilityCorrelatePost = paths.path("/api/observability-signals/{signal_id}/correlate").path("post");
         assertJsonRequestBody(observabilityCorrelatePost);
+
+        JsonNode logicalPhysicalAttributesGet = paths.path("/api/logical-physical-resolutions/attributes").path("get");
+        assertQueryParameter(logicalPhysicalAttributesGet, "client_id");
+        assertQueryParameter(logicalPhysicalAttributesGet, "schema_cd");
+        assertQueryParameter(logicalPhysicalAttributesGet, "object_cd");
+        assertQueryParameter(logicalPhysicalAttributesGet, "logical_attribute_cd");
+
+        JsonNode logicalPhysicalOutboundGet = paths.path("/api/logical-physical-resolutions/outbounds/{outbound_id}").path("get");
+        assertQueryParameter(logicalPhysicalOutboundGet, "client_id");
 
         assertFalse(hasMultipartRequestBody(paths));
     }
@@ -215,6 +228,7 @@ class OpenApiDocumentationTest {
             ObservabilitySignalController.class,
             WorkflowTaskController.class,
             AttributePairingController.class,
+            LogicalPhysicalResolutionController.class,
             SQLQueryLoaderUtil.class
     })
     static class OpenApiTestApplication {
@@ -358,6 +372,21 @@ class OpenApiDocumentationTest {
             @Bean
             AttributePairingResolutionService attributePairingResolutionService() {
                 return request -> null;
+            }
+
+            @Bean
+            LogicalPhysicalResolutionService logicalPhysicalResolutionService() {
+                return new LogicalPhysicalResolutionService() {
+                    @Override
+                    public List<LogicalPhysicalResolutionDto> resolveAttributes(String clientId, String schemaCode, String objectCode, List<String> logicalAttributeCodes) {
+                        return List.of();
+                    }
+
+                    @Override
+                    public List<LogicalPhysicalResolutionDto> resolveOutboundGrain(String clientId, Long outboundId) {
+                        return List.of();
+                    }
+                };
             }
         }
     }
