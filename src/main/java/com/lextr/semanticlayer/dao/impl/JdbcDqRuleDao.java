@@ -4,12 +4,12 @@ import com.lextr.semanticlayer.dao.DqRuleDao;
 import com.lextr.semanticlayer.exception.SemanticLayerException;
 import com.lextr.semanticlayer.model.DqRuleAttributeRecord;
 import com.lextr.semanticlayer.model.DqRuleCatalogRecord;
+import com.lextr.semanticlayer.model.DqRuleMetadataChangeHistoryRecord;
+import com.lextr.semanticlayer.model.DqRuleMetadataChangeHistoryWriteRequest;
 import com.lextr.semanticlayer.model.DqRuleRequestWorkflowTaskRecord;
 import com.lextr.semanticlayer.model.DqRuleRequestWorkflowTaskWriteRequest;
 import com.lextr.semanticlayer.model.DqRuleResultRecord;
 import com.lextr.semanticlayer.model.DqRuleResultWriteRequest;
-import com.lextr.semanticlayer.model.MetadataChangeHistoryRecord;
-import com.lextr.semanticlayer.model.MetadataChangeHistoryWriteRequest;
 import com.lextr.semanticlayer.util.SQLQueryLoaderUtil;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -160,22 +160,22 @@ public class JdbcDqRuleDao implements DqRuleDao {
     }
 
     @Override
-    public MetadataChangeHistoryRecord insertMetadataChangeHistory(MetadataChangeHistoryWriteRequest request) {
+    public DqRuleMetadataChangeHistoryRecord insertMetadataChangeHistory(DqRuleMetadataChangeHistoryWriteRequest request) {
         return jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery("dq_rule_request.insert_metadata_change_history"),
                 new MapSqlParameterSource()
                         .addValue("entity_type_cd", request.entity_type_cd())
-                        .addValue("entity_ref", request.entity_id())
+                        .addValue("entity_ref", request.entity_ref())
                         .addValue("change_type_cd", request.change_type_cd())
                         .addValue("change_summary_txt", request.change_summary_txt())
                         .addValue("created_by", request.created_by())
                         .addValue("created_ts", request.created_ts())
                         .addValue("client_id", request.client_id()),
-                (resultSet, rowNum) -> new MetadataChangeHistoryRecord(
+                (resultSet, rowNum) -> new DqRuleMetadataChangeHistoryRecord(
                         resultSet.getObject("change_history_id", java.util.UUID.class),
                         resultSet.getString("client_id"),
                         resultSet.getString("entity_type_cd"),
-                        resultSet.getObject("entity_id", java.util.UUID.class),
+                        resultSet.getString("entity_ref"),
                         resultSet.getString("change_type_cd"),
                         resultSet.getString("change_summary_txt"),
                         resultSet.getObject("created_ts", java.time.OffsetDateTime.class),

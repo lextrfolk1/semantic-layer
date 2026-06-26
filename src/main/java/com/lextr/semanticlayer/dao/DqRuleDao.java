@@ -4,10 +4,10 @@ import com.lextr.semanticlayer.model.DqRuleAttributeRecord;
 import com.lextr.semanticlayer.model.DqRuleCatalogRecord;
 import com.lextr.semanticlayer.model.DqRuleRequestWorkflowTaskRecord;
 import com.lextr.semanticlayer.model.DqRuleRequestWorkflowTaskWriteRequest;
+import com.lextr.semanticlayer.model.DqRuleMetadataChangeHistoryRecord;
+import com.lextr.semanticlayer.model.DqRuleMetadataChangeHistoryWriteRequest;
 import com.lextr.semanticlayer.model.DqRuleResultRecord;
 import com.lextr.semanticlayer.model.DqRuleResultWriteRequest;
-import com.lextr.semanticlayer.model.MetadataChangeHistoryRecord;
-import com.lextr.semanticlayer.model.MetadataChangeHistoryWriteRequest;
 
 import java.util.List;
 import java.util.Optional;
@@ -28,5 +28,5 @@ public interface DqRuleDao {
 
     DqRuleResultRecord insertResult(DqRuleResultWriteRequest request);
 
-    MetadataChangeHistoryRecord insertMetadataChangeHistory(MetadataChangeHistoryWriteRequest request);
+    DqRuleMetadataChangeHistoryRecord insertMetadataChangeHistory(DqRuleMetadataChangeHistoryWriteRequest request);
 }

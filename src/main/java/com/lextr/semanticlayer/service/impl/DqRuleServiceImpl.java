@@ -16,10 +16,10 @@ import com.lextr.semanticlayer.model.DqRuleAttributeRecord;
 import com.lextr.semanticlayer.model.DqRuleCatalogRecord;
 import com.lextr.semanticlayer.model.DqRuleRequestWorkflowTaskRecord;
 import com.lextr.semanticlayer.model.DqRuleRequestWorkflowTaskWriteRequest;
+import com.lextr.semanticlayer.model.DqRuleMetadataChangeHistoryRecord;
+import com.lextr.semanticlayer.model.DqRuleMetadataChangeHistoryWriteRequest;
 import com.lextr.semanticlayer.model.DqRuleResultRecord;
 import com.lextr.semanticlayer.model.DqRuleResultWriteRequest;
-import com.lextr.semanticlayer.model.MetadataChangeHistoryRecord;
-import com.lextr.semanticlayer.model.MetadataChangeHistoryWriteRequest;
 import com.lextr.semanticlayer.service.DqRulePolicyClient;
 import com.lextr.semanticlayer.service.DqRuleService;
 import org.springframework.beans.factory.ObjectProvider;
@@ -153,11 +153,11 @@ public class DqRuleServiceImpl implements DqRuleService {
                 ));
 
                 DqRuleMatrixCoverageDto coverage = computeMatrixCoverage(request.client_id(), request.rule_cd());
-                dqRuleDao.insertMetadataChangeHistory(new MetadataChangeHistoryWriteRequest(
+                dqRuleDao.insertMetadataChangeHistory(new DqRuleMetadataChangeHistoryWriteRequest(
                         syntheticChangeId(request.client_id(), request.rule_cd(), RESULT_CHANGE_TYPE_CD),
                         request.client_id(),
                         ENTITY_TYPE_CD,
-                        syntheticChangeId(request.client_id(), request.rule_cd(), RESULT_CHANGE_TYPE_CD),
+                        request.rule_cd(),
                         RESULT_CHANGE_TYPE_CD,
                         "Ingested DQ result for " + request.rule_cd() + "; coverage=" + coverage.coverage_pct() + "%",
                         now,
@@ -200,11 +200,11 @@ public class DqRuleServiceImpl implements DqRuleService {
         ));
 
         DqRuleMatrixCoverageDto coverage = computeMatrixCoverage(request.client_id(), ruleCode);
-        dqRuleDao.insertMetadataChangeHistory(new MetadataChangeHistoryWriteRequest(
+        dqRuleDao.insertMetadataChangeHistory(new DqRuleMetadataChangeHistoryWriteRequest(
                 syntheticChangeId(request.client_id(), ruleCode, REQUEST_CHANGE_TYPE_CD),
                 request.client_id(),
                 ENTITY_TYPE_CD,
-                syntheticChangeId(request.client_id(), ruleCode, REQUEST_CHANGE_TYPE_CD),
+                ruleCode,
                 REQUEST_CHANGE_TYPE_CD,
                 "Requested DQ rule " + ruleCode + "; coverage=" + coverage.coverage_pct() + "%",
                 now,
@@ -338,7 +338,7 @@ public class DqRuleServiceImpl implements DqRuleService {
         }
 
         @Override
-        public MetadataChangeHistoryRecord insertMetadataChangeHistory(MetadataChangeHistoryWriteRequest request) {
+        public DqRuleMetadataChangeHistoryRecord insertMetadataChangeHistory(DqRuleMetadataChangeHistoryWriteRequest request) {
             throw new SemanticLayerException("DqRuleDao is not configured");
         }
     }

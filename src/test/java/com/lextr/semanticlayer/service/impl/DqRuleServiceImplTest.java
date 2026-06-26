@@ -14,10 +14,10 @@ import com.lextr.semanticlayer.model.DqRuleAttributeRecord;
 import com.lextr.semanticlayer.model.DqRuleCatalogRecord;
 import com.lextr.semanticlayer.model.DqRuleRequestWorkflowTaskRecord;
 import com.lextr.semanticlayer.model.DqRuleRequestWorkflowTaskWriteRequest;
+import com.lextr.semanticlayer.model.DqRuleMetadataChangeHistoryRecord;
+import com.lextr.semanticlayer.model.DqRuleMetadataChangeHistoryWriteRequest;
 import com.lextr.semanticlayer.model.DqRuleResultRecord;
 import com.lextr.semanticlayer.model.DqRuleResultWriteRequest;
-import com.lextr.semanticlayer.model.MetadataChangeHistoryRecord;
-import com.lextr.semanticlayer.model.MetadataChangeHistoryWriteRequest;
 import com.lextr.semanticlayer.service.DqRulePolicyClient;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.TransactionStatus;
@@ -69,6 +69,7 @@ class DqRuleServiceImplTest {
         assertEquals(1, dao.insertedWorkflowTasks.size());
         assertEquals(1, dao.insertedMetadataChanges.size());
         assertEquals("REQUESTED", dao.insertedWorkflowTasks.get(0).task_status_cd());
+        assertEquals("LEDGER_COMPLETENESS", dao.insertedMetadataChanges.get(0).entity_ref());
         assertTrue(dao.insertedMetadataChanges.get(0).change_summary_txt().contains("coverage=50%"));
     }
 
@@ -169,6 +170,7 @@ class DqRuleServiceImplTest {
         assertEquals("LEDGER_COMPLETENESS", response.rule_cd());
         assertEquals(1, dao.insertedResults.size());
         assertEquals(1, dao.insertedMetadataChanges.size());
+        assertEquals("LEDGER_COMPLETENESS", dao.insertedMetadataChanges.get(0).entity_ref());
         assertTrue(dao.insertedMetadataChanges.get(0).change_summary_txt().contains("coverage=50%"));
     }
 
@@ -253,7 +255,7 @@ class DqRuleServiceImplTest {
         private List<DqRuleResultRecord> resultRecords = new ArrayList<>();
         private final List<DqRuleRequestWorkflowTaskWriteRequest> insertedWorkflowTasks = new ArrayList<>();
         private final List<DqRuleResultWriteRequest> insertedResults = new ArrayList<>();
-        private final List<MetadataChangeHistoryWriteRequest> insertedMetadataChanges = new ArrayList<>();
+        private final List<DqRuleMetadataChangeHistoryWriteRequest> insertedMetadataChanges = new ArrayList<>();
 
         private RecordingDqRuleDao(TransactionHarness harness) {
             this.harness = harness;
@@ -326,13 +328,13 @@ class DqRuleServiceImplTest {
         }
 
         @Override
-        public MetadataChangeHistoryRecord insertMetadataChangeHistory(MetadataChangeHistoryWriteRequest request) {
+        public DqRuleMetadataChangeHistoryRecord insertMetadataChangeHistory(DqRuleMetadataChangeHistoryWriteRequest request) {
             insertedMetadataChanges.add(request);
-            return new MetadataChangeHistoryRecord(
+            return new DqRuleMetadataChangeHistoryRecord(
                     request.change_history_id(),
                     request.client_id(),
                     request.entity_type_cd(),
-                    request.entity_id(),
+                    request.entity_ref(),
                     request.change_type_cd(),
                     request.change_summary_txt(),
                     request.created_ts(),
@@ -351,9 +353,13 @@ class DqRuleServiceImplTest {
 
         @Override
         public <T> T execute(TransactionCallback<T> action) {
-            T result = action.doInTransaction(new RecordingTransactionStatus());
-            harness.committed = true;
-            return result;
+            try {
+                T result = action.doInTransaction(new RecordingTransactionStatus());
+                harness.committed = true;
+                return result;
+            } catch (Throwable exception) {
+                throw exception instanceof RuntimeException runtimeException ? runtimeException : new RuntimeException(exception);
+            }
         }
     }
 
