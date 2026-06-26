@@ -12,12 +12,21 @@ class ConsumptionQueryAssetsTest {
     void loadsConsumptionLayerReadAndPromotionQueriesFromProperties() {
         SQLQueryLoaderUtil loader = new SQLQueryLoaderUtil(new DefaultResourceLoader());
 
+        String layerInsertQuery = loader.getQuery("consumption_layer.insert_request");
         String layerListQuery = loader.getQuery("consumption_layer.find_all");
         String layerByCodeQuery = loader.getQuery("consumption_layer.find_by_code");
+        String outboundInsertQuery = loader.getQuery("consumption_outbound.insert_request");
+        String outboundGrainInsertQuery = loader.getQuery("consumption_outbound_grain.insert_request");
         String outboundListQuery = loader.getQuery("consumption_outbound.find_all_by_object");
         String outboundByIdQuery = loader.getQuery("consumption_outbound.find_by_id");
         String outboundGrainQuery = loader.getQuery("consumption_outbound_grain.find_by_outbound");
         String promotionListQuery = loader.getQuery("consumption_promotion.find_by_outbound");
+
+        assertTrue(layerInsertQuery.contains("INSERT INTO meta.consumption_layer"));
+        assertTrue(layerInsertQuery.contains(":client_id"));
+        assertTrue(layerInsertQuery.contains(":layer_cd"));
+        assertTrue(layerInsertQuery.contains(":layer_nm"));
+        assertTrue(layerInsertQuery.contains(":layer_type_cd"));
 
         assertTrue(layerListQuery.contains("FROM meta.consumption_layer"));
         assertTrue(layerListQuery.contains("layer_cd"));
@@ -31,6 +40,17 @@ class ConsumptionQueryAssetsTest {
 
         assertTrue(layerByCodeQuery.contains("layer_cd = :layer_cd"));
         assertTrue(layerByCodeQuery.contains("LIMIT 1"));
+
+        assertTrue(outboundInsertQuery.contains("INSERT INTO meta.consumption_outbound"));
+        assertTrue(outboundInsertQuery.contains(":layer_cd"));
+        assertTrue(outboundInsertQuery.contains(":object_id"));
+        assertTrue(outboundInsertQuery.contains(":outbound_cd"));
+        assertTrue(outboundInsertQuery.contains(":version_nbr"));
+
+        assertTrue(outboundGrainInsertQuery.contains("INSERT INTO meta.consumption_outbound_grain"));
+        assertTrue(outboundGrainInsertQuery.contains(":outbound_id"));
+        assertTrue(outboundGrainInsertQuery.contains(":grain_level_nbr"));
+        assertTrue(outboundGrainInsertQuery.contains(":logical_attribute_cd"));
 
         assertTrue(outboundListQuery.contains("FROM meta.consumption_outbound co"));
         assertTrue(outboundListQuery.contains("co.object_id = :object_id"));

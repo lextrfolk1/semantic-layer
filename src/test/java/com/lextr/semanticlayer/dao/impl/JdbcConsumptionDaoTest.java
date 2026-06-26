@@ -1,8 +1,12 @@
 package com.lextr.semanticlayer.dao.impl;
 
 import com.lextr.semanticlayer.model.ConsumptionLayerRecord;
+import com.lextr.semanticlayer.model.ConsumptionLayerWriteRequest;
+import com.lextr.semanticlayer.model.ConsumptionOutboundGrainWriteRequest;
 import com.lextr.semanticlayer.model.ConsumptionOutboundRecord;
+import com.lextr.semanticlayer.model.ConsumptionOutboundWriteRequest;
 import com.lextr.semanticlayer.model.ConsumptionPromotionRecord;
+import com.lextr.semanticlayer.model.FilterLookupWorkflowTaskRecord;
 import com.lextr.semanticlayer.util.SQLQueryLoaderUtil;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
@@ -56,21 +60,77 @@ class JdbcConsumptionDaoTest {
     }
 
     @Test
-    void bindsPromotionWriteQueriesAndReturnsMappedRow() {
+    void bindsRegistrationAndPromotionWriteQueries() {
         RecordingNamedParameterJdbcTemplate jdbcTemplate = new RecordingNamedParameterJdbcTemplate();
+        jdbcTemplate.enqueueRows(List.of(layerRow()));
+        jdbcTemplate.enqueueRows(List.of(exposureRow()));
+        jdbcTemplate.enqueueRows(List.of(workflowTaskRow()));
         jdbcTemplate.enqueueRows(List.of(promotionRow()));
         JdbcConsumptionDao dao = new JdbcConsumptionDao(jdbcTemplateProvider(jdbcTemplate), new SQLQueryLoaderUtil(new DefaultResourceLoader()), new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules());
+
+        ConsumptionLayerRecord layer = dao.insertLayer(new ConsumptionLayerWriteRequest(
+                "client-a",
+                "CL-01",
+                "Finance Layer",
+                "Finance outbound descriptor",
+                "DATA_ASSET",
+                "DRAFT",
+                OffsetDateTime.parse("2026-06-20T10:15:30Z"),
+                "owner",
+                OffsetDateTime.parse("2026-06-20T10:15:30Z"),
+                "owner"
+        ));
+
+        ConsumptionOutboundRecord outbound = dao.insertOutbound(new ConsumptionOutboundWriteRequest(
+                "client-a",
+                "CL-01",
+                UUID.fromString("00000000-0000-0000-0000-000000000101"),
+                "OB-01",
+                "Outbound 01",
+                "TECHNICAL",
+                "Technical exposure",
+                "DEV",
+                1,
+                OffsetDateTime.parse("2026-06-20T10:15:30Z"),
+                "owner",
+                OffsetDateTime.parse("2026-06-20T10:15:30Z"),
+                "owner"
+        ));
+
+        dao.insertOutboundGrain(new ConsumptionOutboundGrainWriteRequest(
+                "client-a",
+                outbound.id(),
+                1,
+                "ledger_id",
+                "PRIMARY",
+                OffsetDateTime.parse("2026-06-20T10:15:30Z"),
+                "owner",
+                OffsetDateTime.parse("2026-06-20T10:15:30Z"),
+                "owner"
+        ));
+
+        FilterLookupWorkflowTaskRecord workflowTask = dao.insertWorkflowTask(
+                "client-a",
+                "101",
+                "PENDING",
+                "approver",
+                OffsetDateTime.parse("2026-06-20T10:15:30Z"),
+                "Promote outbound exposure OB-01 to QA",
+                null,
+                OffsetDateTime.parse("2026-06-20T10:15:30Z"),
+                null
+        );
 
         ConsumptionPromotionRecord created = dao.insertPromotionRequest(
                 "client-a",
                 101L,
                 "DEV",
                 "QA",
-                "PENDING",
-                "PENDING",
-                501L,
+                "VALIDATED",
+                "ALLOW",
+                workflowTask.id(),
                 "PENDING_APPROVAL",
-                2,
+                1,
                 OffsetDateTime.parse("2026-06-20T10:15:30Z"),
                 "approver",
                 OffsetDateTime.parse("2026-06-20T10:15:30Z"),
@@ -78,10 +138,24 @@ class JdbcConsumptionDaoTest {
         );
 
         assertEquals("QA", created.target_sdlc_status_cd());
+        assertEquals("CL-01", layer.layer_cd());
+        assertEquals("OB-01", outbound.outbound_cd());
+        assertEquals(501L, workflowTask.id());
+        assertTrue(jdbcTemplate.recordedSqls.stream().anyMatch(sql -> sql.contains("INSERT INTO meta.consumption_layer")));
+        assertTrue(jdbcTemplate.recordedSqls.stream().anyMatch(sql -> sql.contains("INSERT INTO meta.consumption_outbound")));
+        assertTrue(jdbcTemplate.recordedSqls.stream().anyMatch(sql -> sql.contains("INSERT INTO meta.consumption_outbound_grain")));
+        assertTrue(jdbcTemplate.recordedSqls.stream().anyMatch(sql -> sql.contains("INSERT INTO wkfl.workflow_task")));
         assertTrue(jdbcTemplate.recordedSqls.stream().anyMatch(sql -> sql.contains("INSERT INTO meta.consumption_promotion")));
-        assertEquals(101L, jdbcTemplate.recordedParameters.get(0).get("outbound_id"));
-        assertEquals("QA", jdbcTemplate.recordedParameters.get(0).get("target_sdlc_status_cd"));
-        assertEquals("PENDING_APPROVAL", jdbcTemplate.recordedParameters.get(0).get("promotion_status_cd"));
+        assertEquals("client-a", jdbcTemplate.recordedParameters.get(0).get("client_id"));
+        assertEquals("CL-01", jdbcTemplate.recordedParameters.get(0).get("layer_cd"));
+        assertEquals("client-a", jdbcTemplate.recordedParameters.get(1).get("client_id"));
+        assertEquals("OB-01", jdbcTemplate.recordedParameters.get(1).get("outbound_cd"));
+        assertEquals("client-a", jdbcTemplate.recordedParameters.get(2).get("client_id"));
+        assertEquals("101", jdbcTemplate.recordedParameters.get(3).get("entity_ref"));
+        assertEquals("client-a", jdbcTemplate.recordedParameters.get(3).get("client_id"));
+        assertEquals(101L, jdbcTemplate.recordedParameters.get(4).get("outbound_id"));
+        assertEquals("QA", jdbcTemplate.recordedParameters.get(4).get("target_sdlc_status_cd"));
+        assertEquals("PENDING_APPROVAL", jdbcTemplate.recordedParameters.get(4).get("promotion_status_cd"));
     }
 
     private static ObjectProvider<NamedParameterJdbcTemplate> jdbcTemplateProvider(NamedParameterJdbcTemplate jdbcTemplate) {
@@ -162,6 +236,25 @@ class JdbcConsumptionDaoTest {
         row.put("created_by", "approver");
         row.put("updated_ts", OffsetDateTime.parse("2026-06-20T10:15:30Z"));
         row.put("updated_by", "approver");
+        return row;
+    }
+
+    private static Map<String, Object> workflowTaskRow() {
+        Map<String, Object> row = new HashMap<>();
+        row.put("id", 501L);
+        row.put("task_type_cd", "CONSUMPTION_PROMOTE");
+        row.put("entity_type_cd", "CONSUMPTION_EXPOSURE");
+        row.put("entity_ref", "101");
+        row.put("task_status_cd", "PENDING");
+        row.put("submitted_by", "approver");
+        row.put("submitted_ts", OffsetDateTime.parse("2026-06-20T10:15:30Z"));
+        row.put("assigned_to", null);
+        row.put("due_dt", null);
+        row.put("description_txt", "Promote outbound exposure OB-01 to QA");
+        row.put("client_id", "client-a");
+        row.put("approved_by", null);
+        row.put("approved_ts", null);
+        row.put("approval_note_txt", null);
         return row;
     }
 

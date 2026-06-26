@@ -5,8 +5,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lextr.semanticlayer.dao.ConsumptionDao;
 import com.lextr.semanticlayer.exception.SemanticLayerException;
 import com.lextr.semanticlayer.model.ConsumptionLayerRecord;
+import com.lextr.semanticlayer.model.ConsumptionLayerWriteRequest;
 import com.lextr.semanticlayer.model.ConsumptionOutboundRecord;
+import com.lextr.semanticlayer.model.ConsumptionOutboundGrainWriteRequest;
+import com.lextr.semanticlayer.model.ConsumptionOutboundWriteRequest;
 import com.lextr.semanticlayer.model.ConsumptionPromotionRecord;
+import com.lextr.semanticlayer.model.FilterLookupWorkflowTaskRecord;
 import com.lextr.semanticlayer.util.SQLQueryLoaderUtil;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -23,6 +27,9 @@ import java.util.UUID;
 @Repository
 public class JdbcConsumptionDao implements ConsumptionDao {
 
+    static final String INSERT_LAYER = "consumption_layer.insert_request";
+    static final String INSERT_OUTBOUND = "consumption_outbound.insert_request";
+    static final String INSERT_OUTBOUND_GRAIN = "consumption_outbound_grain.insert_request";
     static final String FIND_LAYERS = "consumption_layer.find_all";
     static final String FIND_LAYER = "consumption_layer.find_by_code";
     static final String FIND_EXPOSURES = "consumption_outbound.find_all_by_object";
@@ -43,6 +50,64 @@ public class JdbcConsumptionDao implements ConsumptionDao {
         this.jdbcTemplateProvider = jdbcTemplateProvider;
         this.sqlQueryLoaderUtil = sqlQueryLoaderUtil;
         this.objectMapper = objectMapper;
+    }
+
+    @Override
+    public ConsumptionLayerRecord insertLayer(ConsumptionLayerWriteRequest request) {
+        return jdbcTemplate().query(
+                sqlQueryLoaderUtil.getQuery(INSERT_LAYER),
+                new MapSqlParameterSource()
+                        .addValue("client_id", request.client_id())
+                        .addValue("layer_cd", request.layer_cd())
+                        .addValue("layer_nm", request.layer_nm())
+                        .addValue("layer_desc_txt", request.layer_desc_txt())
+                        .addValue("layer_type_cd", request.layer_type_cd())
+                        .addValue("lifecycle_status_cd", request.lifecycle_status_cd())
+                        .addValue("created_ts", request.created_ts())
+                        .addValue("created_by", request.created_by())
+                        .addValue("updated_ts", request.updated_ts())
+                        .addValue("updated_by", request.updated_by()),
+                (rs, rowNum) -> toLayerRecord(rs)
+        ).stream().findFirst().orElseThrow(() -> new SemanticLayerException("Insert consumption layer returned no rows"));
+    }
+
+    @Override
+    public ConsumptionOutboundRecord insertOutbound(ConsumptionOutboundWriteRequest request) {
+        return jdbcTemplate().query(
+                sqlQueryLoaderUtil.getQuery(INSERT_OUTBOUND),
+                new MapSqlParameterSource()
+                        .addValue("client_id", request.client_id())
+                        .addValue("layer_cd", request.layer_cd())
+                        .addValue("object_id", request.object_id())
+                        .addValue("outbound_cd", request.outbound_cd())
+                        .addValue("outbound_nm", request.outbound_nm())
+                        .addValue("structure_type_cd", request.structure_type_cd())
+                        .addValue("description_txt", request.description_txt())
+                        .addValue("sdlc_status_cd", request.sdlc_status_cd())
+                        .addValue("version_nbr", request.version_nbr())
+                        .addValue("created_ts", request.created_ts())
+                        .addValue("created_by", request.created_by())
+                        .addValue("updated_ts", request.updated_ts())
+                        .addValue("updated_by", request.updated_by()),
+                (rs, rowNum) -> toExposureRecord(rs)
+        ).stream().findFirst().orElseThrow(() -> new SemanticLayerException("Insert consumption outbound returned no rows"));
+    }
+
+    @Override
+    public void insertOutboundGrain(ConsumptionOutboundGrainWriteRequest request) {
+        jdbcTemplate().update(
+                sqlQueryLoaderUtil.getQuery(INSERT_OUTBOUND_GRAIN),
+                new MapSqlParameterSource()
+                        .addValue("client_id", request.client_id())
+                        .addValue("outbound_id", request.outbound_id())
+                        .addValue("grain_level_nbr", request.grain_level_nbr())
+                        .addValue("logical_attribute_cd", request.logical_attribute_cd())
+                        .addValue("attribute_role_cd", request.attribute_role_cd())
+                        .addValue("created_ts", request.created_ts())
+                        .addValue("created_by", request.created_by())
+                        .addValue("updated_ts", request.updated_ts())
+                        .addValue("updated_by", request.updated_by())
+        );
     }
 
     @Override
@@ -162,16 +227,16 @@ public class JdbcConsumptionDao implements ConsumptionDao {
     }
 
     @Override
-    public void insertWorkflowTask(String clientId,
-                                   String entityRef,
-                                   String taskStatusCode,
-                                   String submittedBy,
-                                   OffsetDateTime submittedTs,
-                                   String descriptionTxt,
-                                   String approvedBy,
-                                   OffsetDateTime approvedTs,
-                                   String approvalNoteTxt) {
-        jdbcTemplate().update(
+    public FilterLookupWorkflowTaskRecord insertWorkflowTask(String clientId,
+                                                            String entityRef,
+                                                            String taskStatusCode,
+                                                            String submittedBy,
+                                                            OffsetDateTime submittedTs,
+                                                            String descriptionTxt,
+                                                            String approvedBy,
+                                                            OffsetDateTime approvedTs,
+                                                            String approvalNoteTxt) {
+        return jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(INSERT_WORKFLOW_TASK),
                 new MapSqlParameterSource()
                         .addValue("entity_type_cd", "CONSUMPTION_EXPOSURE")
@@ -186,7 +251,24 @@ public class JdbcConsumptionDao implements ConsumptionDao {
                         .addValue("approved_by", approvedBy)
                         .addValue("approved_ts", approvedTs)
                         .addValue("approval_note_txt", approvalNoteTxt)
-        );
+                ,
+                (rs, rowNum) -> new FilterLookupWorkflowTaskRecord(
+                        resultSetLong(rs, "id"),
+                        rs.getString("task_type_cd"),
+                        rs.getString("entity_type_cd"),
+                        rs.getString("entity_ref"),
+                        rs.getString("task_status_cd"),
+                        rs.getString("submitted_by"),
+                        rs.getObject("submitted_ts", OffsetDateTime.class),
+                        rs.getString("assigned_to"),
+                        rs.getObject("due_dt", java.time.LocalDate.class),
+                        rs.getString("description_txt"),
+                        rs.getString("client_id"),
+                        rs.getString("approved_by"),
+                        rs.getObject("approved_ts", OffsetDateTime.class),
+                        rs.getString("approval_note_txt")
+                )
+        ).stream().findFirst().orElseThrow(() -> new SemanticLayerException("Insert workflow task returned no rows"));
     }
 
     @Override
@@ -295,5 +377,10 @@ public class JdbcConsumptionDao implements ConsumptionDao {
     private static Integer getInteger(ResultSet resultSet, String columnLabel) throws SQLException {
         Object value = resultSet.getObject(columnLabel);
         return value == null ? null : ((Number) value).intValue();
+    }
+
+    private static Long resultSetLong(ResultSet resultSet, String columnLabel) throws SQLException {
+        Object value = resultSet.getObject(columnLabel);
+        return value == null ? null : ((Number) value).longValue();
     }
 }

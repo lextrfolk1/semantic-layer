@@ -3,6 +3,10 @@ package com.lextr.semanticlayer.dao;
 import com.lextr.semanticlayer.model.ConsumptionLayerRecord;
 import com.lextr.semanticlayer.model.ConsumptionOutboundRecord;
 import com.lextr.semanticlayer.model.ConsumptionPromotionRecord;
+import com.lextr.semanticlayer.model.ConsumptionLayerWriteRequest;
+import com.lextr.semanticlayer.model.ConsumptionOutboundGrainWriteRequest;
+import com.lextr.semanticlayer.model.ConsumptionOutboundWriteRequest;
+import com.lextr.semanticlayer.model.FilterLookupWorkflowTaskRecord;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -10,6 +14,12 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface ConsumptionDao {
+
+    ConsumptionLayerRecord insertLayer(ConsumptionLayerWriteRequest request);
+
+    ConsumptionOutboundRecord insertOutbound(ConsumptionOutboundWriteRequest request);
+
+    void insertOutboundGrain(ConsumptionOutboundGrainWriteRequest request);
 
     List<ConsumptionLayerRecord> findLayers(String clientId, String lifecycleStatusCode);
 
@@ -46,15 +56,15 @@ public interface ConsumptionDao {
                                               OffsetDateTime updatedTs,
                                               String updatedBy);
 
-    void insertWorkflowTask(String clientId,
-                            String entityRef,
-                            String taskStatusCode,
-                            String submittedBy,
-                            OffsetDateTime submittedTs,
-                            String descriptionTxt,
-                            String approvedBy,
-                            OffsetDateTime approvedTs,
-                            String approvalNoteTxt);
+    FilterLookupWorkflowTaskRecord insertWorkflowTask(String clientId,
+                                                      String entityRef,
+                                                      String taskStatusCode,
+                                                      String submittedBy,
+                                                      OffsetDateTime submittedTs,
+                                                      String descriptionTxt,
+                                                      String approvedBy,
+                                                      OffsetDateTime approvedTs,
+                                                      String approvalNoteTxt);
 
     void insertMetadataChangeHistory(String clientId,
                                      String entityTypeCode,

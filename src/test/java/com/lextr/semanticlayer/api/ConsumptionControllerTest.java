@@ -3,7 +3,9 @@ package com.lextr.semanticlayer.api;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lextr.semanticlayer.dto.ConsumptionExposureDto;
 import com.lextr.semanticlayer.dto.ConsumptionLayerDto;
+import com.lextr.semanticlayer.dto.ConsumptionLayerRegistrationRequestDto;
 import com.lextr.semanticlayer.dto.ConsumptionPromotionRequestDto;
+import com.lextr.semanticlayer.exception.PolicyViolationException;
 import com.lextr.semanticlayer.exception.SemanticLayerException;
 import com.lextr.semanticlayer.service.ConsumptionService;
 import org.junit.jupiter.api.Test;
@@ -105,6 +107,27 @@ class ConsumptionControllerTest {
                 .andExpect(jsonPath("$.message").value("consumption failed"));
     }
 
+    @Test
+    void mapsPolicyViolationsToUnprocessableEntity() throws Exception {
+        RecordingConsumptionService service = new RecordingConsumptionService();
+        service.error = new PolicyViolationException("POL-CL-001", "Consumption layer blocked");
+        MockMvc mockMvc = mockMvc(service);
+
+        mockMvc.perform(post("/api/consumption/exposures/101/promote")
+                        .queryParam("client_id", "client-a")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "target_sdlc_status_cd": "QA",
+                                  "promoted_by": "approver",
+                                  "promotion_reason_txt": "Promote for QA"
+                                }
+                                """))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("POL-CL-001"))
+                .andExpect(jsonPath("$.message").value("Consumption layer blocked"));
+    }
+
     private static MockMvc mockMvc(ConsumptionService service) {
         ConsumptionController controller = new ConsumptionController(service);
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
@@ -190,6 +213,14 @@ class ConsumptionControllerTest {
                 throw error;
             }
             return exposures;
+        }
+
+        @Override
+        public ConsumptionLayerDto registerConsumptionLayer(ConsumptionLayerRegistrationRequestDto request) {
+            if (error != null) {
+                throw error;
+            }
+            return layer == null ? layerDto() : layer;
         }
 
         @Override
