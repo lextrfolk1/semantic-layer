@@ -68,6 +68,19 @@ class JdbcFilterLookupRegistrationWriteDaoTest {
     }
 
     @Test
+    void failsWhenLookupInsertReturnsNoRows() {
+        RecordingNamedParameterJdbcTemplate jdbcTemplate = new RecordingNamedParameterJdbcTemplate(List.of());
+        JdbcFilterLookupRegistrationWriteDao dao = new JdbcFilterLookupRegistrationWriteDao(
+                providerOf(jdbcTemplate),
+                new SQLQueryLoaderUtil(new DefaultResourceLoader())
+        );
+
+        SemanticLayerException exception = assertThrows(SemanticLayerException.class, () -> dao.insertLookup(lookupRequest()));
+
+        assertEquals("Insert filter lookup returned no rows", exception.getMessage());
+    }
+
+    @Test
     void bindsWorkflowTaskInsertParametersAndMapsReturnedColumns() {
         RecordingNamedParameterJdbcTemplate jdbcTemplate = new RecordingNamedParameterJdbcTemplate(List.of(workflowTaskRow()));
         JdbcFilterLookupRegistrationWriteDao dao = new JdbcFilterLookupRegistrationWriteDao(
@@ -86,6 +99,19 @@ class JdbcFilterLookupRegistrationWriteDaoTest {
     }
 
     @Test
+    void failsWhenWorkflowTaskInsertReturnsNoRows() {
+        RecordingNamedParameterJdbcTemplate jdbcTemplate = new RecordingNamedParameterJdbcTemplate(List.of());
+        JdbcFilterLookupRegistrationWriteDao dao = new JdbcFilterLookupRegistrationWriteDao(
+                providerOf(jdbcTemplate),
+                new SQLQueryLoaderUtil(new DefaultResourceLoader())
+        );
+
+        SemanticLayerException exception = assertThrows(SemanticLayerException.class, () -> dao.insertWorkflowTask(workflowTaskRequest()));
+
+        assertEquals("Insert filter lookup workflow task returned no rows", exception.getMessage());
+    }
+
+    @Test
     void bindsMetadataChangeInsertParametersAndMapsReturnedColumns() {
         RecordingNamedParameterJdbcTemplate jdbcTemplate = new RecordingNamedParameterJdbcTemplate(List.of(metadataChangeRow()));
         JdbcFilterLookupRegistrationWriteDao dao = new JdbcFilterLookupRegistrationWriteDao(
@@ -101,6 +127,22 @@ class JdbcFilterLookupRegistrationWriteDaoTest {
         assertEquals("REGISTERED", jdbcTemplate.recordedParameters.get("change_type_cd"));
         assertEquals(401L, result.id());
         assertEquals("Registered filter lookup LEDGER_SCOPE", result.change_reason_txt());
+    }
+
+    @Test
+    void failsWhenMetadataChangeInsertReturnsNoRows() {
+        RecordingNamedParameterJdbcTemplate jdbcTemplate = new RecordingNamedParameterJdbcTemplate(List.of());
+        JdbcFilterLookupRegistrationWriteDao dao = new JdbcFilterLookupRegistrationWriteDao(
+                providerOf(jdbcTemplate),
+                new SQLQueryLoaderUtil(new DefaultResourceLoader())
+        );
+
+        SemanticLayerException exception = assertThrows(
+                SemanticLayerException.class,
+                () -> dao.insertMetadataChangeHistory(metadataChangeRequest())
+        );
+
+        assertEquals("Insert filter lookup metadata change history returned no rows", exception.getMessage());
     }
 
     @Test
@@ -124,6 +166,19 @@ class JdbcFilterLookupRegistrationWriteDaoTest {
         assertEquals("certifier", result.last_certified_by());
         assertEquals(LocalDate.parse("2026-09-16"), result.next_review_due_dt());
         assertEquals(OffsetDateTime.parse("2026-06-18T10:15:30Z"), result.last_certified_ts());
+    }
+
+    @Test
+    void failsWhenCertificationUpdateReturnsNoRows() {
+        RecordingNamedParameterJdbcTemplate jdbcTemplate = new RecordingNamedParameterJdbcTemplate(List.of());
+        JdbcFilterLookupRegistrationWriteDao dao = new JdbcFilterLookupRegistrationWriteDao(
+                providerOf(jdbcTemplate),
+                new SQLQueryLoaderUtil(new DefaultResourceLoader())
+        );
+
+        SemanticLayerException exception = assertThrows(SemanticLayerException.class, () -> dao.certifyLookup(certificationRequest()));
+
+        assertEquals("Certify filter lookup returned no rows", exception.getMessage());
     }
 
     @Test
@@ -153,6 +208,19 @@ class JdbcFilterLookupRegistrationWriteDaoTest {
         assertEquals("daily-pipeline", result.binding_ref());
         assertEquals("binder", result.bound_by());
         assertTrue(result.is_active_flg());
+    }
+
+    @Test
+    void failsWhenBindingInsertReturnsNoRows() {
+        RecordingNamedParameterJdbcTemplate jdbcTemplate = new RecordingNamedParameterJdbcTemplate(List.of());
+        JdbcFilterLookupRegistrationWriteDao dao = new JdbcFilterLookupRegistrationWriteDao(
+                providerOf(jdbcTemplate),
+                new SQLQueryLoaderUtil(new DefaultResourceLoader())
+        );
+
+        SemanticLayerException exception = assertThrows(SemanticLayerException.class, () -> dao.insertBinding(bindingRequest()));
+
+        assertEquals("Insert filter lookup binding returned no rows", exception.getMessage());
     }
 
     @Test

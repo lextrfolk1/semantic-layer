@@ -9,6 +9,7 @@ import com.lextr.semanticlayer.dto.FilterLookupEffectiveReviewDto;
 import com.lextr.semanticlayer.dto.FilterLookupPolicyDecisionDto;
 import com.lextr.semanticlayer.exception.FilterLookupCertificationServiceException;
 import com.lextr.semanticlayer.exception.PolicyViolationException;
+import com.lextr.semanticlayer.exception.RegistryResourceNotFoundException;
 import com.lextr.semanticlayer.model.FilterLookupCertificationWriteRequest;
 import com.lextr.semanticlayer.model.FilterLookupMetadataChangeHistoryRecord;
 import com.lextr.semanticlayer.model.FilterLookupMetadataChangeHistoryWriteRequest;
@@ -17,6 +18,7 @@ import com.lextr.semanticlayer.model.SemanticFilterLookupRecord;
 import com.lextr.semanticlayer.model.SemanticFilterLookupWriteRequest;
 import com.lextr.semanticlayer.service.FilterLookupPolicyClient;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionOperations;
@@ -46,12 +48,18 @@ class FilterLookupCertificationServiceImplTest {
         RecordingFilterLookupPolicyClient policyClient = new RecordingFilterLookupPolicyClient(
                 new FilterLookupPolicyDecisionDto(true, null, null)
         );
+        StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
+        beanFactory.addBean("filterLookupReadDao", readDao);
+        beanFactory.addBean("filterLookupRegistrationWriteDao", writeDao);
+        beanFactory.addBean("governancePolicyPresetReadDao", new RecordingGovernancePolicyPresetReadDao(policyPreset("90")));
+        beanFactory.addBean("filterLookupPolicyClient", policyClient);
+        beanFactory.addBean("semanticLayerTransactionOperations", new RecordingTransactionOperations(harness));
         FilterLookupCertificationServiceImpl service = new FilterLookupCertificationServiceImpl(
-                readDao,
-                writeDao,
-                new RecordingGovernancePolicyPresetReadDao(policyPreset("90")),
-                policyClient,
-                new RecordingTransactionOperations(harness)
+                beanFactory.getBeanProvider(FilterLookupReadDao.class),
+                beanFactory.getBeanProvider(FilterLookupRegistrationWriteDao.class),
+                beanFactory.getBeanProvider(GovernancePolicyPresetReadDao.class),
+                beanFactory.getBeanProvider(FilterLookupPolicyClient.class),
+                beanFactory.getBeanProvider(TransactionOperations.class)
         );
 
         FilterLookupEffectiveReviewDto response = service.certifyLookup(
@@ -76,6 +84,64 @@ class FilterLookupCertificationServiceImplTest {
         assertEquals("certifier", response.last_certified_by());
         assertEquals(2L, response.value_count());
         assertEquals("GOV_DEFAULT", response.effective_review_period_source_cd());
+    }
+
+    @Test
+    void usesLookupOverrideWhenOverrideIsWithinGovernanceFloor() {
+        TransactionHarness harness = new TransactionHarness();
+        RecordingFilterLookupReadDao readDao = new RecordingFilterLookupReadDao();
+        readDao.lookupsByCode.put(
+                "LEDGER_SCOPE",
+                lookup("LEDGER_SCOPE", "PENDING", 30, null, null, LocalDate.parse("2026-08-02"))
+        );
+        readDao.valueCountsByLookup.put("LEDGER_SCOPE", 2L);
+        readDao.staleCountsByLookup.put("LEDGER_SCOPE", 0L);
+        RecordingFilterLookupRegistrationWriteDao writeDao = new RecordingFilterLookupRegistrationWriteDao(harness);
+        writeDao.certifiedReviewPeriodDaysOverride = 30;
+        FilterLookupCertificationServiceImpl service = new FilterLookupCertificationServiceImpl(
+                readDao,
+                writeDao,
+                new RecordingGovernancePolicyPresetReadDao(policyPreset("90")),
+                new RecordingFilterLookupPolicyClient(new FilterLookupPolicyDecisionDto(true, null, null)),
+                new RecordingTransactionOperations(harness)
+        );
+
+        FilterLookupEffectiveReviewDto response = service.certifyLookup(
+                "LEDGER_SCOPE",
+                new FilterLookupCertificationRequestDto("client-a", "certifier")
+        );
+
+        assertEquals(30, response.effective_review_period_days());
+        assertEquals("LOOKUP_OVERRIDE", response.effective_review_period_source_cd());
+    }
+
+    @Test
+    void enforcesGovernanceFloorWhenOverrideExceedsPolicyFloor() {
+        TransactionHarness harness = new TransactionHarness();
+        RecordingFilterLookupReadDao readDao = new RecordingFilterLookupReadDao();
+        readDao.lookupsByCode.put(
+                "LEDGER_SCOPE",
+                lookup("LEDGER_SCOPE", "PENDING", 120, null, null, LocalDate.parse("2026-08-02"))
+        );
+        readDao.valueCountsByLookup.put("LEDGER_SCOPE", 2L);
+        readDao.staleCountsByLookup.put("LEDGER_SCOPE", 0L);
+        RecordingFilterLookupRegistrationWriteDao writeDao = new RecordingFilterLookupRegistrationWriteDao(harness);
+        writeDao.certifiedReviewPeriodDaysOverride = 120;
+        FilterLookupCertificationServiceImpl service = new FilterLookupCertificationServiceImpl(
+                readDao,
+                writeDao,
+                new RecordingGovernancePolicyPresetReadDao(policyPreset("90")),
+                new RecordingFilterLookupPolicyClient(new FilterLookupPolicyDecisionDto(true, null, null)),
+                new RecordingTransactionOperations(harness)
+        );
+
+        FilterLookupEffectiveReviewDto response = service.certifyLookup(
+                "LEDGER_SCOPE",
+                new FilterLookupCertificationRequestDto("client-a", "certifier")
+        );
+
+        assertEquals(90, response.effective_review_period_days());
+        assertEquals("GOV_ENFORCED", response.effective_review_period_source_cd());
     }
 
     @Test
@@ -107,6 +173,89 @@ class FilterLookupCertificationServiceImplTest {
         assertTrue(!harness.committed);
         assertEquals(1, policyClient.certificationRequests.size());
         assertEquals(3L, policyClient.certificationRequests.get(0).stale_value_count());
+    }
+
+    @Test
+    void failsWhenLookupDoesNotExist() {
+        TransactionHarness harness = new TransactionHarness();
+        RecordingFilterLookupReadDao readDao = new RecordingFilterLookupReadDao();
+        RecordingFilterLookupRegistrationWriteDao writeDao = new RecordingFilterLookupRegistrationWriteDao(harness);
+        RecordingFilterLookupPolicyClient policyClient = new RecordingFilterLookupPolicyClient(
+                new FilterLookupPolicyDecisionDto(true, null, null)
+        );
+        FilterLookupCertificationServiceImpl service = new FilterLookupCertificationServiceImpl(
+                readDao,
+                writeDao,
+                new RecordingGovernancePolicyPresetReadDao(policyPreset("90")),
+                policyClient,
+                new RecordingTransactionOperations(harness)
+        );
+
+        RegistryResourceNotFoundException exception = assertThrows(
+                RegistryResourceNotFoundException.class,
+                () -> service.certifyLookup("UNKNOWN_LOOKUP", new FilterLookupCertificationRequestDto("client-a", "certifier"))
+        );
+
+        assertTrue(exception.getMessage().contains("UNKNOWN_LOOKUP"));
+        assertEquals(0, policyClient.certificationRequests.size());
+        assertEquals(0, writeDao.committedCertifiedLookups.size());
+        assertEquals(0, writeDao.committedMetadataChanges.size());
+    }
+
+    @Test
+    void failsWhenGovernancePolicyIsMissing() {
+        TransactionHarness harness = new TransactionHarness();
+        RecordingFilterLookupReadDao readDao = new RecordingFilterLookupReadDao();
+        readDao.lookupsByCode.put("LEDGER_SCOPE", lookup("LEDGER_SCOPE", "PENDING", null, null, LocalDate.parse("2026-08-02")));
+        RecordingFilterLookupRegistrationWriteDao writeDao = new RecordingFilterLookupRegistrationWriteDao(harness);
+        RecordingFilterLookupPolicyClient policyClient = new RecordingFilterLookupPolicyClient(
+                new FilterLookupPolicyDecisionDto(true, null, null)
+        );
+        FilterLookupCertificationServiceImpl service = new FilterLookupCertificationServiceImpl(
+                readDao,
+                writeDao,
+                new EmptyGovernancePolicyPresetReadDao(),
+                policyClient,
+                new RecordingTransactionOperations(harness)
+        );
+
+        FilterLookupCertificationServiceException exception = assertThrows(
+                FilterLookupCertificationServiceException.class,
+                () -> service.certifyLookup("LEDGER_SCOPE", new FilterLookupCertificationRequestDto("client-a", "certifier"))
+        );
+
+        assertTrue(exception.getMessage().contains("Unable to resolve governance policy GOV-FL-001"));
+        assertEquals(0, policyClient.certificationRequests.size());
+        assertEquals(0, writeDao.committedCertifiedLookups.size());
+        assertEquals(0, writeDao.committedMetadataChanges.size());
+    }
+
+    @Test
+    void failsWhenGovernancePolicyValueCannotBeParsed() {
+        TransactionHarness harness = new TransactionHarness();
+        RecordingFilterLookupReadDao readDao = new RecordingFilterLookupReadDao();
+        readDao.lookupsByCode.put("LEDGER_SCOPE", lookup("LEDGER_SCOPE", "PENDING", null, null, LocalDate.parse("2026-08-02")));
+        RecordingFilterLookupRegistrationWriteDao writeDao = new RecordingFilterLookupRegistrationWriteDao(harness);
+        RecordingFilterLookupPolicyClient policyClient = new RecordingFilterLookupPolicyClient(
+                new FilterLookupPolicyDecisionDto(true, null, null)
+        );
+        FilterLookupCertificationServiceImpl service = new FilterLookupCertificationServiceImpl(
+                readDao,
+                writeDao,
+                new RecordingGovernancePolicyPresetReadDao(policyPreset("not-a-number")),
+                policyClient,
+                new RecordingTransactionOperations(harness)
+        );
+
+        FilterLookupCertificationServiceException exception = assertThrows(
+                FilterLookupCertificationServiceException.class,
+                () -> service.certifyLookup("LEDGER_SCOPE", new FilterLookupCertificationRequestDto("client-a", "certifier"))
+        );
+
+        assertTrue(exception.getMessage().contains("Unable to parse governance policy value for GOV-FL-001"));
+        assertEquals(0, policyClient.certificationRequests.size());
+        assertEquals(0, writeDao.committedCertifiedLookups.size());
+        assertEquals(0, writeDao.committedMetadataChanges.size());
     }
 
     @Test
@@ -159,6 +308,15 @@ class FilterLookupCertificationServiceImplTest {
                                                      OffsetDateTime lastCertifiedTs,
                                                      String lastCertifiedBy,
                                                      LocalDate nextReviewDueDate) {
+        return lookup(lookupCode, healthStatusCode, null, lastCertifiedTs, lastCertifiedBy, nextReviewDueDate);
+    }
+
+    private static SemanticFilterLookupRecord lookup(String lookupCode,
+                                                     String healthStatusCode,
+                                                     Integer reviewPeriodDaysOverride,
+                                                     OffsetDateTime lastCertifiedTs,
+                                                     String lastCertifiedBy,
+                                                     LocalDate nextReviewDueDate) {
         return new SemanticFilterLookupRecord(
                 101L,
                 lookupCode,
@@ -174,7 +332,7 @@ class FilterLookupCertificationServiceImplTest {
                 500,
                 10_000,
                 60,
-                null,
+                reviewPeriodDaysOverride,
                 true,
                 true,
                 false,
@@ -212,6 +370,21 @@ class FilterLookupCertificationServiceImplTest {
         @Override
         public java.util.List<GovernancePolicyPresetRecord> findPolicyPresets(String policyScopeCode, LocalDate asOfDate) {
             return java.util.List.of(record);
+        }
+    }
+
+    private static final class EmptyGovernancePolicyPresetReadDao implements GovernancePolicyPresetReadDao {
+
+        @Override
+        public Optional<GovernancePolicyPresetRecord> findPolicyPreset(String policyCode,
+                                                                       String policyScopeCode,
+                                                                       LocalDate asOfDate) {
+            return Optional.empty();
+        }
+
+        @Override
+        public List<GovernancePolicyPresetRecord> findPolicyPresets(String policyScopeCode, LocalDate asOfDate) {
+            return List.of();
         }
     }
 
@@ -277,6 +450,7 @@ class FilterLookupCertificationServiceImplTest {
         private final TransactionHarness harness;
         private FilterLookupCertificationWriteRequest certificationRequest;
         private FilterLookupMetadataChangeHistoryWriteRequest metadataChangeHistoryRequest;
+        private Integer certifiedReviewPeriodDaysOverride;
         protected final List<SemanticFilterLookupRecord> committedCertifiedLookups = new ArrayList<>();
         protected final List<FilterLookupMetadataChangeHistoryRecord> committedMetadataChanges = new ArrayList<>();
 
@@ -295,6 +469,7 @@ class FilterLookupCertificationServiceImplTest {
             SemanticFilterLookupRecord record = lookup(
                     request.lookup_cd(),
                     request.health_status_cd(),
+                    certifiedReviewPeriodDaysOverride,
                     request.last_certified_ts(),
                     request.last_certified_by(),
                     request.next_review_due_dt()
