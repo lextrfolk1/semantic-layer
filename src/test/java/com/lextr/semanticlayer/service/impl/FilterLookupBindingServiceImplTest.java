@@ -16,6 +16,7 @@ import com.lextr.semanticlayer.model.FilterLookupMetadataChangeHistoryWriteReque
 import com.lextr.semanticlayer.model.SemanticFilterLookupRecord;
 import com.lextr.semanticlayer.service.FilterLookupPolicyClient;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionOperations;
@@ -44,11 +45,16 @@ class FilterLookupBindingServiceImplTest {
         RecordingFilterLookupPolicyClient policyClient = new RecordingFilterLookupPolicyClient(
                 new FilterLookupPolicyDecisionDto(true, null, null)
         );
+        StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
+        beanFactory.addBean("filterLookupReadDao", readDao);
+        beanFactory.addBean("filterLookupRegistrationWriteDao", writeDao);
+        beanFactory.addBean("filterLookupPolicyClient", policyClient);
+        beanFactory.addBean("semanticLayerTransactionOperations", new RecordingTransactionOperations(harness));
         FilterLookupBindingServiceImpl service = new FilterLookupBindingServiceImpl(
-                readDao,
-                writeDao,
-                policyClient,
-                new RecordingTransactionOperations(harness)
+                beanFactory.getBeanProvider(FilterLookupReadDao.class),
+                beanFactory.getBeanProvider(FilterLookupRegistrationWriteDao.class),
+                beanFactory.getBeanProvider(FilterLookupPolicyClient.class),
+                beanFactory.getBeanProvider(TransactionOperations.class)
         );
 
         FilterLookupBindingResponseDto response = service.bindLookup(
@@ -91,6 +97,40 @@ class FilterLookupBindingServiceImplTest {
         assertEquals("daily-pipeline", response.binding_ref());
         assertEquals("binder", response.bound_by());
         assertTrue(response.is_active_flg());
+    }
+
+    @Test
+    void treatsMissingReviewDueDateAsNotOverdue() {
+        TransactionHarness harness = new TransactionHarness();
+        RecordingFilterLookupReadDao readDao = new RecordingFilterLookupReadDao();
+        readDao.lookupsByCode.put("LEDGER_SCOPE", lookup("LEDGER_SCOPE", null));
+        RecordingFilterLookupRegistrationWriteDao writeDao = new RecordingFilterLookupRegistrationWriteDao(harness);
+        RecordingFilterLookupPolicyClient policyClient = new RecordingFilterLookupPolicyClient(
+                new FilterLookupPolicyDecisionDto(true, null, null)
+        );
+        FilterLookupBindingServiceImpl service = new FilterLookupBindingServiceImpl(
+                readDao,
+                writeDao,
+                policyClient,
+                new RecordingTransactionOperations(harness)
+        );
+
+        FilterLookupBindingResponseDto response = service.bindLookup(
+                "LEDGER_SCOPE",
+                new FilterLookupBindingRequestDto(
+                        "client-a",
+                        "meta.gl_balance",
+                        "ledger_id",
+                        "PIPELINE",
+                        "daily-pipeline",
+                        "binder"
+                )
+        );
+
+        assertEquals(1, policyClient.bindingRequests.size());
+        assertEquals(false, policyClient.bindingRequests.get(0).is_overdue());
+        assertEquals("LEDGER_SCOPE", response.lookup_cd());
+        assertTrue(harness.committed);
     }
 
     @Test

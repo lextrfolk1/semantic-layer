@@ -30,6 +30,7 @@ class SQLQueryLoaderUtilTest {
         String updateRelationshipProjectionSyncQuery = loader.getQuery("relationship_registration.update_neo4j_projection_sync");
         String insertFilterLookupQuery = loader.getQuery("filter_lookup_registration.insert_lookup");
         String certifyFilterLookupQuery = loader.getQuery("filter_lookup_registration.certify_lookup");
+        String insertFilterLookupBindingQuery = loader.getQuery("filter_lookup_registration.insert_binding");
         String insertFilterLookupWorkflowTaskQuery = loader.getQuery("filter_lookup_registration.insert_workflow_task");
         String insertFilterLookupMetadataChangeHistoryQuery = loader.getQuery("filter_lookup_registration.insert_metadata_change_history");
         String governancePolicyPresetByCodeQuery = loader.getQuery("governance_policy_preset.find_by_code");
@@ -107,6 +108,11 @@ class SQLQueryLoaderUtilTest {
         assertTrue(certifyFilterLookupQuery.contains(":last_certified_by"));
         assertTrue(certifyFilterLookupQuery.contains(":next_review_due_dt"));
         assertTrue(certifyFilterLookupQuery.contains("WHERE client_id = :client_id AND lookup_cd = :lookup_cd"));
+        assertTrue(insertFilterLookupBindingQuery.contains("INSERT INTO meta.filter_lookup_binding"));
+        assertTrue(insertFilterLookupBindingQuery.contains(":lookup_cd"));
+        assertTrue(insertFilterLookupBindingQuery.contains(":binding_context_cd"));
+        assertTrue(insertFilterLookupBindingQuery.contains(":bound_ts"));
+        assertTrue(insertFilterLookupBindingQuery.contains(":is_active_flg"));
         assertTrue(insertFilterLookupWorkflowTaskQuery.contains("INSERT INTO wkfl.workflow_task"));
         assertTrue(insertFilterLookupWorkflowTaskQuery.contains(":entity_ref"));
         assertTrue(insertFilterLookupWorkflowTaskQuery.contains(":submitted_ts"));
