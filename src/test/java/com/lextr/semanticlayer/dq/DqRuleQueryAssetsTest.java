@@ -16,8 +16,10 @@ class DqRuleQueryAssetsTest {
         String catalogByCodeQuery = loader.getQuery("dq_rule_catalog.find_by_code");
         String requestInsertQuery = loader.getQuery("dq_rule_request.insert_workflow_task");
         String requestByIdQuery = loader.getQuery("dq_rule_request.find_by_id");
+        String requestAuditQuery = loader.getQuery("dq_rule_request.insert_metadata_change_history");
         String matrixByRuleQuery = loader.getQuery("dq_rule_attribute.find_by_rule_code");
         String resultByAttributeQuery = loader.getQuery("dq_result.find_by_attribute");
+        String resultInsertQuery = loader.getQuery("dq_result.insert_result");
 
         assertTrue(catalogListQuery.contains("FROM meta.dq_rule_catalog"));
         assertTrue(catalogListQuery.contains("rule_cd"));
@@ -40,18 +42,21 @@ class DqRuleQueryAssetsTest {
         assertTrue(requestInsertQuery.contains(":workflow_type_cd"));
         assertTrue(requestInsertQuery.contains(":entity_type_cd"));
         assertTrue(requestInsertQuery.contains(":rule_cd"));
+        assertTrue(requestInsertQuery.contains(":task_status_cd"));
         assertTrue(requestInsertQuery.contains(":assigned_to"));
         assertTrue(requestInsertQuery.contains(":due_dt"));
         assertTrue(requestInsertQuery.contains(":description_txt"));
         assertTrue(requestInsertQuery.contains(":client_id"));
-        assertTrue(requestInsertQuery.contains("workflow_task_id"));
+        assertTrue(requestInsertQuery.contains("RETURNING id"));
         assertTrue(requestInsertQuery.contains("entity_ref AS rule_cd"));
 
         assertTrue(requestByIdQuery.contains("FROM wkfl.workflow_task"));
         assertTrue(requestByIdQuery.contains("task_type_cd = 'DQ_RULE_REQUEST'"));
-        assertTrue(requestByIdQuery.contains("WHERE client_id = :client_id AND id = :id"));
+        assertTrue(requestByIdQuery.contains("WHERE client_id = :client_id AND CAST(md5(id::text) AS uuid) = :workflow_task_id"));
         assertTrue(requestByIdQuery.contains("entity_ref AS rule_cd"));
         assertTrue(requestByIdQuery.contains("approval_note_txt"));
+        assertTrue(requestAuditQuery.contains("INSERT INTO meta.metadata_change_history"));
+        assertTrue(requestAuditQuery.contains("CAST(:entity_ref AS varchar)"));
 
         assertTrue(matrixByRuleQuery.contains("FROM meta.dq_rule_attribute"));
         assertTrue(matrixByRuleQuery.contains("rule_cd = :rule_cd"));
@@ -70,5 +75,7 @@ class DqRuleQueryAssetsTest {
         assertTrue(resultByAttributeQuery.contains("observed_ts"));
         assertTrue(resultByAttributeQuery.contains("created_ts"));
         assertTrue(resultByAttributeQuery.contains("updated_by"));
+        assertTrue(resultInsertQuery.contains("INSERT INTO meta.dq_result"));
+        assertTrue(resultInsertQuery.contains("result_status_cd"));
     }
 }
