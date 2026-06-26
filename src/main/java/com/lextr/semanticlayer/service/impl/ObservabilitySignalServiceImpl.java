@@ -4,8 +4,10 @@ import com.lextr.semanticlayer.dao.FilterLookupRegistrationWriteDao;
 import com.lextr.semanticlayer.dao.ObservabilitySignalDao;
 import com.lextr.semanticlayer.dto.DqRuleRequestDto;
 import com.lextr.semanticlayer.dto.GovernancePolicyPresetDto;
+import com.lextr.semanticlayer.dto.ObservabilitySignalAutoTriggerPolicyRequestDto;
 import com.lextr.semanticlayer.dto.ObservabilitySignalCorrelationRequestDto;
 import com.lextr.semanticlayer.dto.ObservabilitySignalIngestRequestDto;
+import com.lextr.semanticlayer.dto.ObservabilitySignalPolicyDecisionDto;
 import com.lextr.semanticlayer.dto.ObservabilitySignalResponseDto;
 import com.lextr.semanticlayer.dto.WorkflowTaskResponseDto;
 import com.lextr.semanticlayer.exception.ObservabilitySignalServiceException;
@@ -20,6 +22,7 @@ import com.lextr.semanticlayer.model.ObservabilitySignalWriteRequest;
 import com.lextr.semanticlayer.service.DqRuleService;
 import com.lextr.semanticlayer.service.GovernancePolicyPresetReadService;
 import com.lextr.semanticlayer.service.ObservabilitySignalService;
+import com.lextr.semanticlayer.service.ObservabilitySignalPolicyClient;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -49,11 +52,15 @@ public class ObservabilitySignalServiceImpl implements ObservabilitySignalServic
     private static final String AUDIT_CORRELATED = "CORRELATED";
     private static final String AUDIT_ROUTED = "ROUTED";
     private static final String AUDIT_DQ_RERUN_TRIGGERED = "DQ_RERUN_TRIGGERED";
+    private static final String AUTO_TRIGGER_POLICY_CD = "POL-OS-001";
+    private static final String WORKFLOW_ROUTE_TRIGGER_CD = "WORKFLOW_ROUTE";
+    private static final String DQ_RERUN_TRIGGER_CD = "DQ_RERUN";
 
     private static final String DEFAULT_SIGNAL_STATUS_CD = "OPEN";
     private static final String DEFAULT_SEVERITY_CD = "INFO";
 
     private final ObservabilitySignalDao observabilitySignalDao;
+    private final ObservabilitySignalPolicyClient observabilitySignalPolicyClient;
     private final GovernancePolicyPresetReadService governancePolicyPresetReadService;
     private final FilterLookupRegistrationWriteDao filterLookupRegistrationWriteDao;
     private final DqRuleService dqRuleService;
@@ -63,6 +70,7 @@ public class ObservabilitySignalServiceImpl implements ObservabilitySignalServic
     public ObservabilitySignalServiceImpl(ObjectProvider<ObservabilitySignalDao> observabilitySignalDaoProvider) {
         this(
                 observabilitySignalDaoProvider.getIfAvailable(MissingObservabilitySignalDao::new),
+                new DefaultObservabilitySignalPolicyClient(),
                 null,
                 null,
                 null,
@@ -72,11 +80,12 @@ public class ObservabilitySignalServiceImpl implements ObservabilitySignalServic
     }
 
     ObservabilitySignalServiceImpl(ObservabilitySignalDao observabilitySignalDao) {
-        this(observabilitySignalDao, null, null, null, new NoOpTransactionOperations(), false);
+        this(observabilitySignalDao, new DefaultObservabilitySignalPolicyClient(), null, null, null, new NoOpTransactionOperations(), false);
     }
 
     @Autowired
     public ObservabilitySignalServiceImpl(ObjectProvider<ObservabilitySignalDao> observabilitySignalDaoProvider,
+                                          ObjectProvider<ObservabilitySignalPolicyClient> observabilitySignalPolicyClientProvider,
                                           ObjectProvider<GovernancePolicyPresetReadService> governancePolicyPresetReadServiceProvider,
                                           ObjectProvider<FilterLookupRegistrationWriteDao> filterLookupRegistrationWriteDaoProvider,
                                           ObjectProvider<DqRuleService> dqRuleServiceProvider,
@@ -84,6 +93,7 @@ public class ObservabilitySignalServiceImpl implements ObservabilitySignalServic
                                           ObjectProvider<TransactionOperations> transactionOperationsProvider) {
         this(
                 observabilitySignalDaoProvider.getIfAvailable(MissingObservabilitySignalDao::new),
+                observabilitySignalPolicyClientProvider.getIfAvailable(DefaultObservabilitySignalPolicyClient::new),
                 governancePolicyPresetReadServiceProvider.getIfAvailable(),
                 filterLookupRegistrationWriteDaoProvider.getIfAvailable(),
                 dqRuleServiceProvider.getIfAvailable(),
@@ -93,20 +103,23 @@ public class ObservabilitySignalServiceImpl implements ObservabilitySignalServic
     }
 
     public ObservabilitySignalServiceImpl(ObservabilitySignalDao observabilitySignalDao,
+                                          ObservabilitySignalPolicyClient observabilitySignalPolicyClient,
                                           GovernancePolicyPresetReadService governancePolicyPresetReadService,
                                           FilterLookupRegistrationWriteDao filterLookupRegistrationWriteDao,
                                           DqRuleService dqRuleService,
                                           TransactionOperations transactionOperations) {
-        this(observabilitySignalDao, governancePolicyPresetReadService, filterLookupRegistrationWriteDao, dqRuleService, transactionOperations, true);
+        this(observabilitySignalDao, observabilitySignalPolicyClient, governancePolicyPresetReadService, filterLookupRegistrationWriteDao, dqRuleService, transactionOperations, true);
     }
 
     ObservabilitySignalServiceImpl(ObservabilitySignalDao observabilitySignalDao,
+                                   ObservabilitySignalPolicyClient observabilitySignalPolicyClient,
                                    GovernancePolicyPresetReadService governancePolicyPresetReadService,
                                    FilterLookupRegistrationWriteDao filterLookupRegistrationWriteDao,
                                    DqRuleService dqRuleService,
                                    TransactionOperations transactionOperations,
                                    boolean automationEnabled) {
         this.observabilitySignalDao = observabilitySignalDao;
+        this.observabilitySignalPolicyClient = observabilitySignalPolicyClient;
         this.governancePolicyPresetReadService = governancePolicyPresetReadService;
         this.filterLookupRegistrationWriteDao = filterLookupRegistrationWriteDao;
         this.dqRuleService = dqRuleService;
@@ -348,11 +361,25 @@ public class ObservabilitySignalServiceImpl implements ObservabilitySignalServic
     }
 
     private boolean shouldRouteToWorkflow(ObservabilitySignalRecord record, ObservabilityAutomationPolicies policies) {
-        return severityRank(record.severity_cd()) >= severityRank(policies.workflowRouteThresholdCd());
+        return autoTriggerAllowed(record, policies.workflowRouteThresholdCd(), WORKFLOW_ROUTE_TRIGGER_CD);
     }
 
     private boolean shouldTriggerDqRerun(ObservabilitySignalRecord record, ObservabilityAutomationPolicies policies) {
-        return severityRank(record.severity_cd()) >= severityRank(policies.dqRerunThresholdCd());
+        return autoTriggerAllowed(record, policies.dqRerunThresholdCd(), DQ_RERUN_TRIGGER_CD);
+    }
+
+    private boolean autoTriggerAllowed(ObservabilitySignalRecord record, String thresholdSeverityCd, String triggerCd) {
+        ObservabilitySignalPolicyDecisionDto decision = observabilitySignalPolicyClient.validateAutoTrigger(
+                new ObservabilitySignalAutoTriggerPolicyRequestDto(
+                        AUTO_TRIGGER_POLICY_CD,
+                        record.client_id(),
+                        record.signal_type_cd(),
+                        triggerCd,
+                        record.severity_cd(),
+                        thresholdSeverityCd
+                )
+        );
+        return decision.allowed();
     }
 
     private FilterLookupWorkflowTaskRecord routeToWorkflow(ObservabilitySignalRecord record, String submittedBy, OffsetDateTime now) {
@@ -411,18 +438,6 @@ public class ObservabilitySignalServiceImpl implements ObservabilitySignalServic
         ));
     }
 
-    private static int severityRank(String severityCode) {
-        if (severityCode == null) {
-            return 0;
-        }
-        return switch (severityCode.trim().toUpperCase()) {
-            case "HIGH" -> 3;
-            case "WARN" -> 2;
-            case "INFO" -> 1;
-            default -> 0;
-        };
-    }
-
     private static String defaultText(String value, String defaultValue) {
         return value == null || value.isBlank() ? defaultValue : value;
     }
@@ -455,6 +470,63 @@ public class ObservabilitySignalServiceImpl implements ObservabilitySignalServic
         public <T> T execute(TransactionCallback<T> action) {
             return action.doInTransaction(new NoOpTransactionStatus());
         }
+    }
+
+    private static final class DefaultObservabilitySignalPolicyClient implements ObservabilitySignalPolicyClient {
+
+        @Override
+        public ObservabilitySignalPolicyDecisionDto validateAutoTrigger(ObservabilitySignalAutoTriggerPolicyRequestDto request) {
+            if (!validInput(request)) {
+                return deny("POL-OS-001: unknown or invalid input");
+            }
+
+            int severityRank = severityRank(request.severity_cd());
+            int thresholdRank = severityRank(request.threshold_severity_cd());
+            if (severityRank >= thresholdRank) {
+                return allow("POL-OS-001: allow");
+            }
+
+            return deny("POL-OS-001: auto-trigger denied for " + request.trigger_cd()
+                    + " because severity " + request.severity_cd()
+                    + " is below threshold " + request.threshold_severity_cd());
+        }
+
+        private boolean validInput(ObservabilitySignalAutoTriggerPolicyRequestDto request) {
+            return request != null
+                    && "POL-OS-001".equals(request.policy_cd())
+                    && isPopulated(request.client_id())
+                    && isPopulated(request.signal_type_cd())
+                    && isPopulated(request.trigger_cd())
+                    && isPopulated(request.severity_cd())
+                    && isPopulated(request.threshold_severity_cd())
+                    && severityRank(request.severity_cd()) > 0
+                    && severityRank(request.threshold_severity_cd()) > 0
+                    && ("WORKFLOW_ROUTE".equals(request.trigger_cd()) || "DQ_RERUN".equals(request.trigger_cd()));
+        }
+
+        private boolean isPopulated(String value) {
+            return value != null && !value.isBlank();
+        }
+
+        private ObservabilitySignalPolicyDecisionDto allow(String reason) {
+            return new ObservabilitySignalPolicyDecisionDto(true, "POL-OS-001", reason);
+        }
+
+        private ObservabilitySignalPolicyDecisionDto deny(String reason) {
+            return new ObservabilitySignalPolicyDecisionDto(false, "POL-OS-001", reason);
+        }
+    }
+
+    private static int severityRank(String severityCode) {
+        if (severityCode == null) {
+            return 0;
+        }
+        return switch (severityCode.trim().toUpperCase()) {
+            case "HIGH" -> 3;
+            case "WARN" -> 2;
+            case "INFO" -> 1;
+            default -> 0;
+        };
     }
 
     private static final class NoOpTransactionStatus implements TransactionStatus {

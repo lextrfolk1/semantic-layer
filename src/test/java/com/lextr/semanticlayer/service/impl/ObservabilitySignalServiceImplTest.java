@@ -1,7 +1,9 @@
 package com.lextr.semanticlayer.service.impl;
 
 import com.lextr.semanticlayer.dto.ObservabilitySignalCorrelationRequestDto;
+import com.lextr.semanticlayer.dto.ObservabilitySignalAutoTriggerPolicyRequestDto;
 import com.lextr.semanticlayer.dto.ObservabilitySignalIngestRequestDto;
+import com.lextr.semanticlayer.dto.ObservabilitySignalPolicyDecisionDto;
 import com.lextr.semanticlayer.dto.ObservabilitySignalResponseDto;
 import com.lextr.semanticlayer.exception.RegistryResourceNotFoundException;
 import com.lextr.semanticlayer.dto.GovernancePolicyPresetDto;
@@ -16,6 +18,7 @@ import com.lextr.semanticlayer.model.ObservabilitySignalRecord;
 import com.lextr.semanticlayer.model.ObservabilitySignalWriteRequest;
 import com.lextr.semanticlayer.service.DqRuleService;
 import com.lextr.semanticlayer.service.GovernancePolicyPresetReadService;
+import com.lextr.semanticlayer.service.ObservabilitySignalPolicyClient;
 import com.lextr.semanticlayer.service.ObservabilitySignalService;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.TransactionStatus;
@@ -141,10 +144,14 @@ class ObservabilitySignalServiceImplTest {
                         policy("GOV-OS-002", "HIGH")
                 )
         );
+        RecordingObservabilitySignalPolicyClient policyClient = new RecordingObservabilitySignalPolicyClient()
+                .allow("WORKFLOW_ROUTE", "POL-OS-001: allow")
+                .deny("DQ_RERUN", "POL-OS-001: auto-trigger denied for DQ_RERUN because severity WARN is below threshold HIGH");
         RecordingFilterLookupRegistrationWriteDao workflowDao = new RecordingFilterLookupRegistrationWriteDao();
         RecordingDqRuleService dqRuleService = new RecordingDqRuleService();
         ObservabilitySignalService service = new ObservabilitySignalServiceImpl(
                 signalDao,
+                policyClient,
                 policyService,
                 workflowDao,
                 dqRuleService,
@@ -170,6 +177,9 @@ class ObservabilitySignalServiceImplTest {
 
         assertEquals("OBSERVABILITY_SIGNAL", policyService.lastPolicyScopeCode);
         assertEquals("client-a", policyService.lastClientId);
+        assertEquals(2, policyClient.requests.size());
+        assertEquals("WARN", policyClient.requests.get(0).threshold_severity_cd());
+        assertEquals("HIGH", policyClient.requests.get(1).threshold_severity_cd());
         assertEquals(1, workflowDao.insertedWorkflowTasks.size());
         assertEquals(2, workflowDao.insertedMetadataChanges.size());
         assertEquals(0, dqRuleService.requests.size());
@@ -188,10 +198,14 @@ class ObservabilitySignalServiceImplTest {
                         policy("GOV-OS-002", "WARN")
                 )
         );
+        RecordingObservabilitySignalPolicyClient policyClient = new RecordingObservabilitySignalPolicyClient()
+                .deny("WORKFLOW_ROUTE", "POL-OS-001: auto-trigger denied for WORKFLOW_ROUTE because severity WARN is below threshold HIGH")
+                .allow("DQ_RERUN", "POL-OS-001: allow");
         RecordingFilterLookupRegistrationWriteDao workflowDao = new RecordingFilterLookupRegistrationWriteDao();
         RecordingDqRuleService dqRuleService = new RecordingDqRuleService();
         ObservabilitySignalService service = new ObservabilitySignalServiceImpl(
                 signalDao,
+                policyClient,
                 policyService,
                 workflowDao,
                 dqRuleService,
@@ -215,6 +229,7 @@ class ObservabilitySignalServiceImplTest {
                 "tooling"
         ));
 
+        assertEquals(2, policyClient.requests.size());
         assertEquals(0, workflowDao.insertedWorkflowTasks.size());
         assertEquals(1, dqRuleService.requests.size());
         assertEquals(List.of("FRESHNESS"), dqRuleService.requests.get(0).rule_names());
@@ -234,11 +249,15 @@ class ObservabilitySignalServiceImplTest {
                         policy("GOV-OS-002", "HIGH")
                 )
         );
+        RecordingObservabilitySignalPolicyClient policyClient = new RecordingObservabilitySignalPolicyClient()
+                .allow("WORKFLOW_ROUTE", "POL-OS-001: allow")
+                .deny("DQ_RERUN", "POL-OS-001: auto-trigger denied for DQ_RERUN because severity WARN is below threshold HIGH");
         RecordingFilterLookupRegistrationWriteDao workflowDao = new RecordingFilterLookupRegistrationWriteDao(true, false);
         RecordingDqRuleService dqRuleService = new RecordingDqRuleService();
         RecordingTransactionOperations transactionOperations = new RecordingTransactionOperations();
         ObservabilitySignalService service = new ObservabilitySignalServiceImpl(
                 signalDao,
+                policyClient,
                 policyService,
                 workflowDao,
                 dqRuleService,
@@ -315,6 +334,31 @@ class ObservabilitySignalServiceImplTest {
                 OffsetDateTime.parse("2026-06-01T10:15:30Z"),
                 "reviewer"
         );
+    }
+
+    private static final class RecordingObservabilitySignalPolicyClient implements ObservabilitySignalPolicyClient {
+
+        private final List<ObservabilitySignalAutoTriggerPolicyRequestDto> requests = new ArrayList<>();
+        private final java.util.Map<String, ObservabilitySignalPolicyDecisionDto> decisionsByTrigger = new java.util.LinkedHashMap<>();
+
+        private RecordingObservabilitySignalPolicyClient allow(String triggerCd, String reason) {
+            decisionsByTrigger.put(triggerCd, new ObservabilitySignalPolicyDecisionDto(true, "POL-OS-001", reason));
+            return this;
+        }
+
+        private RecordingObservabilitySignalPolicyClient deny(String triggerCd, String reason) {
+            decisionsByTrigger.put(triggerCd, new ObservabilitySignalPolicyDecisionDto(false, "POL-OS-001", reason));
+            return this;
+        }
+
+        @Override
+        public ObservabilitySignalPolicyDecisionDto validateAutoTrigger(ObservabilitySignalAutoTriggerPolicyRequestDto request) {
+            requests.add(request);
+            return decisionsByTrigger.getOrDefault(
+                    request.trigger_cd(),
+                    new ObservabilitySignalPolicyDecisionDto(false, "POL-OS-001", "POL-OS-001: unknown or invalid input")
+            );
+        }
     }
 
     private static final class RecordingObservabilitySignalDao implements com.lextr.semanticlayer.dao.ObservabilitySignalDao {
