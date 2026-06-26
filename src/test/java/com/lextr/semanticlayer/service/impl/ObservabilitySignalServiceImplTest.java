@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -223,6 +224,50 @@ class ObservabilitySignalServiceImplTest {
         assertEquals("Refresh DQ checks", response.dq_rerun_reason_txt());
     }
 
+    @Test
+    void ingestSignalRollsBackWhenWorkflowRoutingFails() {
+        RecordingObservabilitySignalDao signalDao = new RecordingObservabilitySignalDao();
+        signalDao.insertedRecord = record(701L, "OPEN", "WARN", null);
+        RecordingGovernancePolicyPresetReadService policyService = new RecordingGovernancePolicyPresetReadService(
+                List.of(
+                        policy("GOV-OS-001", "WARN"),
+                        policy("GOV-OS-002", "HIGH")
+                )
+        );
+        RecordingFilterLookupRegistrationWriteDao workflowDao = new RecordingFilterLookupRegistrationWriteDao(true, false);
+        RecordingDqRuleService dqRuleService = new RecordingDqRuleService();
+        RecordingTransactionOperations transactionOperations = new RecordingTransactionOperations();
+        ObservabilitySignalService service = new ObservabilitySignalServiceImpl(
+                signalDao,
+                policyService,
+                workflowDao,
+                dqRuleService,
+                transactionOperations
+        );
+
+        assertThrows(IllegalStateException.class, () -> service.ingestSignal(new ObservabilitySignalIngestRequestDto(
+                "client-a",
+                "FRESHNESS",
+                "WARN",
+                "OPEN",
+                "PIPELINE",
+                "DATASET",
+                "orders",
+                "orders#2026-06-18",
+                "Freshness lag detected",
+                "Latest event lagged by 4h",
+                false,
+                null,
+                OffsetDateTime.parse("2026-06-18T10:15:30Z"),
+                "tooling"
+        )));
+
+        assertTrue(transactionOperations.rolledBack);
+        assertFalse(transactionOperations.committed);
+        assertEquals(1, signalDao.insertCalls);
+        assertEquals(0, workflowDao.insertedWorkflowTasks.size());
+    }
+
     private static ObservabilitySignalRecord record(Long id, String signalStatusCode, String severityCode) {
         return record(id, signalStatusCode, severityCode, 701L);
     }
@@ -281,12 +326,14 @@ class ObservabilitySignalServiceImplTest {
         private String lastSeverityCode;
         private String lastSignalStatusCode;
         private String lastCorrelationKeyText;
+        private int insertCalls;
         private List<ObservabilitySignalRecord> signals = new ArrayList<>();
         private ObservabilitySignalRecord insertedRecord;
         private Optional<ObservabilitySignalRecord> correlatedRecord = Optional.empty();
 
         @Override
         public ObservabilitySignalRecord insertSignal(ObservabilitySignalWriteRequest request) {
+            insertCalls++;
             lastInsertRequest = request;
             return insertedRecord;
         }
@@ -374,6 +421,17 @@ class ObservabilitySignalServiceImplTest {
 
         private final List<FilterLookupWorkflowTaskWriteRequest> insertedWorkflowTasks = new ArrayList<>();
         private final List<FilterLookupMetadataChangeHistoryWriteRequest> insertedMetadataChanges = new ArrayList<>();
+        private final boolean failWorkflowTaskInsert;
+        private final boolean failMetadataChangeInsert;
+
+        private RecordingFilterLookupRegistrationWriteDao() {
+            this(false, false);
+        }
+
+        private RecordingFilterLookupRegistrationWriteDao(boolean failWorkflowTaskInsert, boolean failMetadataChangeInsert) {
+            this.failWorkflowTaskInsert = failWorkflowTaskInsert;
+            this.failMetadataChangeInsert = failMetadataChangeInsert;
+        }
 
         @Override
         public com.lextr.semanticlayer.model.SemanticFilterLookupRecord insertLookup(com.lextr.semanticlayer.model.SemanticFilterLookupWriteRequest request) {
@@ -382,6 +440,9 @@ class ObservabilitySignalServiceImplTest {
 
         @Override
         public FilterLookupWorkflowTaskRecord insertWorkflowTask(FilterLookupWorkflowTaskWriteRequest request) {
+            if (failWorkflowTaskInsert) {
+                throw new IllegalStateException("workflow routing failed");
+            }
             insertedWorkflowTasks.add(request);
             return new FilterLookupWorkflowTaskRecord(
                     900L + insertedWorkflowTasks.size(),
@@ -403,6 +464,9 @@ class ObservabilitySignalServiceImplTest {
 
         @Override
         public FilterLookupMetadataChangeHistoryRecord insertMetadataChangeHistory(FilterLookupMetadataChangeHistoryWriteRequest request) {
+            if (failMetadataChangeInsert) {
+                throw new IllegalStateException("metadata audit failed");
+            }
             insertedMetadataChanges.add(request);
             return new FilterLookupMetadataChangeHistoryRecord(
                     800L + insertedMetadataChanges.size(),
@@ -456,9 +520,22 @@ class ObservabilitySignalServiceImplTest {
 
     private static final class RecordingTransactionOperations implements TransactionOperations {
 
+        private boolean committed;
+        private boolean rolledBack;
+
         @Override
         public <T> T execute(TransactionCallback<T> action) {
-            return action.doInTransaction(new RecordingTransactionStatus());
+            try {
+                T result = action.doInTransaction(new RecordingTransactionStatus());
+                committed = true;
+                return result;
+            } catch (Throwable exception) {
+                rolledBack = true;
+                if (exception instanceof RuntimeException runtimeException) {
+                    throw runtimeException;
+                }
+                throw new RuntimeException(exception);
+            }
         }
     }
 

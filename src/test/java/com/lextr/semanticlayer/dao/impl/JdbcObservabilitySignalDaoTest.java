@@ -9,19 +9,28 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.support.TransactionOperations;
 
 import javax.sql.DataSource;
 import java.lang.reflect.Proxy;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class JdbcObservabilitySignalDaoTest {
@@ -108,6 +117,70 @@ class JdbcObservabilitySignalDaoTest {
         assertEquals(501L, result.map(ObservabilitySignalRecord::id).orElseThrow());
     }
 
+    @Test
+    void transactionRollsBackSignalWritesOnFailure() {
+        TransactionHarness harness = new TransactionHarness();
+        RecordingNamedParameterJdbcTemplate jdbcTemplate = new RecordingNamedParameterJdbcTemplate();
+        jdbcTemplate.setResponses(List.of(
+                List.of(signalRow(501L, "OPEN", "WARN")),
+                List.of(signalRow(501L, "TRIAGE", "WARN"))
+        ));
+        JdbcObservabilitySignalDao dao = new JdbcObservabilitySignalDao(providerOf(jdbcTemplate), new SQLQueryLoaderUtil(new DefaultResourceLoader()));
+        RecordingTransactionOperations transactionOperations = new RecordingTransactionOperations(harness);
+
+        assertThrows(IllegalStateException.class, () -> transactionOperations.execute(status -> {
+            dao.insertSignal(new ObservabilitySignalWriteRequest(
+                    "client-a",
+                    "FRESHNESS",
+                    "WARN",
+                    "OPEN",
+                    "PIPELINE",
+                    "DATASET",
+                    "orders",
+                    "orders#2026-06-18",
+                    "Freshness lag detected",
+                    "Latest event lagged by 4h",
+                    OffsetDateTime.parse("2026-06-18T10:15:30Z"),
+                    true,
+                    "Re-run ETL",
+                    OffsetDateTime.parse("2026-06-18T10:16:30Z"),
+                    "tooling",
+                    OffsetDateTime.parse("2026-06-18T10:16:30Z"),
+                    "tooling"
+            ));
+            dao.correlateSignal(new ObservabilitySignalCorrelationWriteRequest(
+                    501L,
+                    "client-a",
+                    "TRIAGE",
+                    701L,
+                    true,
+                    "Create DQ rerun",
+                    OffsetDateTime.parse("2026-06-18T10:20:30Z"),
+                    OffsetDateTime.parse("2026-06-18T11:20:30Z"),
+                    OffsetDateTime.parse("2026-06-18T10:25:30Z"),
+                    "analyst"
+            ));
+            throw new IllegalStateException("signal transaction failed");
+        }));
+
+        assertTrue(harness.rolledBack);
+        assertFalse(harness.committed);
+        assertEquals(2, jdbcTemplate.recordedSqls().size());
+        assertTrue(jdbcTemplate.recordedSqls().get(0).contains("INSERT INTO meta.observability_signal"));
+        assertTrue(jdbcTemplate.recordedSqls().get(1).contains("UPDATE meta.observability_signal"));
+    }
+
+    @Test
+    void usesNamedParameterJdbcTemplateAndDoesNotUseJpa() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/com/lextr/semanticlayer/dao/impl/JdbcObservabilitySignalDao.java"));
+
+        assertTrue(source.contains("NamedParameterJdbcTemplate"));
+        assertFalse(source.contains("EntityManager"));
+        assertFalse(source.contains("JpaRepository"));
+        assertFalse(source.contains("jakarta.persistence"));
+        assertFalse(source.contains("javax.persistence"));
+    }
+
     private static Map<String, Object> signalRow(Long id, String signalStatusCode, String severityCode) {
         OffsetDateTime timestamp = OffsetDateTime.parse("2026-06-18T10:15:30Z");
         Map<String, Object> row = new HashMap<>();
@@ -155,6 +228,11 @@ class JdbcObservabilitySignalDaoTest {
             @Override
             public T getObject() {
                 return instance;
+            }
+
+            @Override
+            public Iterator<T> iterator() {
+                return instance == null ? Collections.emptyIterator() : List.of(instance).iterator();
             }
         };
     }
@@ -301,6 +379,79 @@ class JdbcObservabilitySignalDaoTest {
                     throw new UnsupportedOperationException("Not used in tests");
                 }
             };
+        }
+    }
+
+    private static final class TransactionHarness {
+        private boolean committed;
+        private boolean rolledBack;
+    }
+
+    private static final class RecordingTransactionOperations implements TransactionOperations {
+
+        private final TransactionHarness harness;
+
+        private RecordingTransactionOperations(TransactionHarness harness) {
+            this.harness = harness;
+        }
+
+        @Override
+        public <T> T execute(TransactionCallback<T> action) {
+            try {
+                T result = action.doInTransaction(new RecordingTransactionStatus());
+                harness.committed = true;
+                return result;
+            } catch (Throwable exception) {
+                harness.rolledBack = true;
+                if (exception instanceof RuntimeException runtimeException) {
+                    throw runtimeException;
+                }
+                throw new RuntimeException(exception);
+            }
+        }
+    }
+
+    private static final class RecordingTransactionStatus implements TransactionStatus {
+
+        @Override
+        public boolean isNewTransaction() {
+            return false;
+        }
+
+        @Override
+        public boolean hasSavepoint() {
+            return false;
+        }
+
+        @Override
+        public void setRollbackOnly() {
+        }
+
+        @Override
+        public boolean isRollbackOnly() {
+            return false;
+        }
+
+        @Override
+        public void flush() {
+        }
+
+        @Override
+        public boolean isCompleted() {
+            return false;
+        }
+
+        @Override
+        public Object createSavepoint() {
+            return null;
+        }
+
+        @Override
+        public void rollbackToSavepoint(Object savepoint) {
+        }
+
+        @Override
+        public void releaseSavepoint(Object savepoint) {
         }
     }
 }
