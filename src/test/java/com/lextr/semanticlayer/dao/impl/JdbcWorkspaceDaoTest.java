@@ -7,9 +7,9 @@ import com.lextr.semanticlayer.util.SQLQueryLoaderUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Mockito;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.jdbc.core.RowMapper;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 
@@ -54,10 +54,13 @@ class JdbcWorkspaceDaoTest {
         TenantWorkspaceRecord record = new TenantWorkspaceRecord(1L, "WS-CD", "GLOBAL", "Workspace", "Desc", "ACTIVE", "system", null, null, null);
         when(jdbcTemplate.query(anyString(), any(SqlParameterSource.class), any(RowMapper.class)))
                 .thenReturn(Collections.singletonList(record));
+        ArgumentCaptor<SqlParameterSource> paramCaptor = ArgumentCaptor.forClass(SqlParameterSource.class);
 
         List<TenantWorkspaceRecord> result = dao.findAll("GLOBAL");
+        verify(jdbcTemplate).query(anyString(), paramCaptor.capture(), any(RowMapper.class));
         assertEquals(1, result.size());
         assertEquals("WS-CD", result.get(0).workspace_cd());
+        assertEquals("GLOBAL", paramCaptor.getValue().getValue("tenant_cd"));
     }
 
     @Test
@@ -67,10 +70,18 @@ class JdbcWorkspaceDaoTest {
         TenantWorkspaceRecord record = new TenantWorkspaceRecord(1L, "WS-CD", "GLOBAL", "Workspace", "Desc", "ACTIVE", "system", null, null, null);
         when(jdbcTemplate.query(anyString(), any(SqlParameterSource.class), any(RowMapper.class)))
                 .thenReturn(Collections.singletonList(record));
+        ArgumentCaptor<SqlParameterSource> paramCaptor = ArgumentCaptor.forClass(SqlParameterSource.class);
 
         TenantWorkspaceRecord result = dao.insert("WS-CD", "GLOBAL", "Workspace", "Desc", "ACTIVE", "system");
+        verify(jdbcTemplate).query(anyString(), paramCaptor.capture(), any(RowMapper.class));
         assertNotNull(result);
         assertEquals("WS-CD", result.workspace_cd());
+        assertEquals("WS-CD", paramCaptor.getValue().getValue("workspace_cd"));
+        assertEquals("GLOBAL", paramCaptor.getValue().getValue("tenant_cd"));
+        assertEquals("Workspace", paramCaptor.getValue().getValue("workspace_nm"));
+        assertEquals("Desc", paramCaptor.getValue().getValue("workspace_desc"));
+        assertEquals("ACTIVE", paramCaptor.getValue().getValue("workspace_status_cd"));
+        assertEquals("system", paramCaptor.getValue().getValue("created_by"));
     }
 
     @Test
@@ -86,33 +97,42 @@ class JdbcWorkspaceDaoTest {
     @Test
     @SuppressWarnings("unchecked")
     void findObjectsByWorkspaceSuccess() {
-        when(sqlQueryLoaderUtil.getQuery("workspace_object.find_by_workspace")).thenReturn("SELECT * FROM workspace_object");
+        when(sqlQueryLoaderUtil.getQuery("tenant_workspace_object.find_by_workspace")).thenReturn("SELECT * FROM tenant_workspace_object");
         WorkspaceObjectRecord record = new WorkspaceObjectRecord(1L, "WS-CD", "core", "gl_balance", "system", null);
         when(jdbcTemplate.query(anyString(), any(SqlParameterSource.class), any(RowMapper.class)))
                 .thenReturn(Collections.singletonList(record));
+        ArgumentCaptor<SqlParameterSource> paramCaptor = ArgumentCaptor.forClass(SqlParameterSource.class);
 
         List<WorkspaceObjectRecord> result = dao.findObjectsByWorkspace("WS-CD");
+        verify(jdbcTemplate).query(anyString(), paramCaptor.capture(), any(RowMapper.class));
         assertEquals(1, result.size());
         assertEquals("gl_balance", result.get(0).object_cd());
+        assertEquals("WS-CD", paramCaptor.getValue().getValue("workspace_cd"));
     }
 
     @Test
     @SuppressWarnings("unchecked")
     void insertObjectSuccess() {
-        when(sqlQueryLoaderUtil.getQuery("workspace_object.insert")).thenReturn("INSERT INTO workspace_object");
+        when(sqlQueryLoaderUtil.getQuery("tenant_workspace_object.insert")).thenReturn("INSERT INTO tenant_workspace_object");
         WorkspaceObjectRecord record = new WorkspaceObjectRecord(1L, "WS-CD", "core", "gl_balance", "system", null);
         when(jdbcTemplate.query(anyString(), any(SqlParameterSource.class), any(RowMapper.class)))
                 .thenReturn(Collections.singletonList(record));
+        ArgumentCaptor<SqlParameterSource> paramCaptor = ArgumentCaptor.forClass(SqlParameterSource.class);
 
         WorkspaceObjectRecord result = dao.insertObject("WS-CD", "core", "gl_balance", "system");
+        verify(jdbcTemplate).query(anyString(), paramCaptor.capture(), any(RowMapper.class));
         assertNotNull(result);
         assertEquals("gl_balance", result.object_cd());
+        assertEquals("WS-CD", paramCaptor.getValue().getValue("workspace_cd"));
+        assertEquals("core", paramCaptor.getValue().getValue("schema_cd"));
+        assertEquals("gl_balance", paramCaptor.getValue().getValue("object_cd"));
+        assertEquals("system", paramCaptor.getValue().getValue("added_by"));
     }
 
     @Test
     @SuppressWarnings("unchecked")
     void insertObjectThrowsIfEmpty() {
-        when(sqlQueryLoaderUtil.getQuery("workspace_object.insert")).thenReturn("INSERT INTO workspace_object");
+        when(sqlQueryLoaderUtil.getQuery("tenant_workspace_object.insert")).thenReturn("INSERT INTO tenant_workspace_object");
         when(jdbcTemplate.query(anyString(), any(SqlParameterSource.class), any(RowMapper.class)))
                 .thenReturn(Collections.emptyList());
 
@@ -121,9 +141,13 @@ class JdbcWorkspaceDaoTest {
 
     @Test
     void deleteObjectSuccess() {
-        when(sqlQueryLoaderUtil.getQuery("workspace_object.delete")).thenReturn("DELETE FROM workspace_object");
+        when(sqlQueryLoaderUtil.getQuery("tenant_workspace_object.delete")).thenReturn("DELETE FROM tenant_workspace_object");
         dao.deleteObject("WS-CD", "core", "gl_balance");
-        verify(jdbcTemplate).update(anyString(), any(SqlParameterSource.class));
+        ArgumentCaptor<SqlParameterSource> paramCaptor = ArgumentCaptor.forClass(SqlParameterSource.class);
+        verify(jdbcTemplate).update(anyString(), paramCaptor.capture());
+        assertEquals("WS-CD", paramCaptor.getValue().getValue("workspace_cd"));
+        assertEquals("core", paramCaptor.getValue().getValue("schema_cd"));
+        assertEquals("gl_balance", paramCaptor.getValue().getValue("object_cd"));
     }
 
     @Test
@@ -165,7 +189,7 @@ class JdbcWorkspaceDaoTest {
     @Test
     @SuppressWarnings("unchecked")
     void objectRowMapperTest() throws Exception {
-        when(sqlQueryLoaderUtil.getQuery("workspace_object.find_by_workspace")).thenReturn("SELECT * FROM workspace_object");
+        when(sqlQueryLoaderUtil.getQuery("tenant_workspace_object.find_by_workspace")).thenReturn("SELECT * FROM tenant_workspace_object");
         ArgumentCaptor<RowMapper<WorkspaceObjectRecord>> captor = ArgumentCaptor.forClass(RowMapper.class);
 
         dao.findObjectsByWorkspace("WS-CD");

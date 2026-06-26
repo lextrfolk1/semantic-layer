@@ -22,9 +22,9 @@ public class JdbcWorkspaceDao implements WorkspaceDao {
 
     private static final String FIND_ALL = "tenant_workspace.find_all";
     private static final String INSERT = "tenant_workspace.insert";
-    private static final String FIND_OBJECTS = "workspace_object.find_by_workspace";
-    private static final String INSERT_OBJECT = "workspace_object.insert";
-    private static final String DELETE_OBJECT = "workspace_object.delete";
+    private static final String FIND_OBJECTS = "tenant_workspace_object.find_by_workspace";
+    private static final String INSERT_OBJECT = "tenant_workspace_object.insert";
+    private static final String DELETE_OBJECT = "tenant_workspace_object.delete";
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
     private final SQLQueryLoaderUtil sqlQueryLoaderUtil;
