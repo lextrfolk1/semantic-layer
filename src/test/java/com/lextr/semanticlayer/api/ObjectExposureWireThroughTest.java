@@ -112,17 +112,20 @@ class ObjectExposureWireThroughTest {
                 List.of(attributeRow(attributeId, objectId)),
                 List.of(attributeGrantRow())
         ));
-        policyClient.maskAttribute("AMOUNT");
 
         mockMvc.perform(get("/api/objects/{object_id}", objectId)
                         .queryParam("client_id", "client-a")
-                        .header("X-Actor-Id", "analyst-1"))
+                        .header("X-Actor-Id", "analyst-1")
+                        .header("X-Role-Cd", "FINANCE")
+                        .header("X-Purpose-Cd", "REPORTING"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.object_id").value(objectId.toString()))
                 .andExpect(jsonPath("$.attributes[0].attribute_id").value(attributeId.toString()))
                 .andExpect(jsonPath("$.attributes[0].attribute_cd").value("AMOUNT"))
-                .andExpect(jsonPath("$.attributes[0].attribute_nm").value("MASKED"))
-                .andExpect(jsonPath("$.attributes[0].taxonomy_cd").value("MASKED"));
+                .andExpect(jsonPath("$.attributes[0].attribute_nm").value("REDACTED"))
+                .andExpect(jsonPath("$.attributes[0].taxonomy_cd").value("REDACTED"))
+                .andExpect(jsonPath("$.attributes[0].taxonomy_source_cd").value("REDACTED"))
+                .andExpect(jsonPath("$.attributes[0].taxonomy_jurisdiction_cd").value("REDACTED"));
 
         assertEquals(4, jdbcTemplate.recordedSqls().size());
         assertTrue(jdbcTemplate.recordedSqls().get(2).contains("FROM meta.attribute_access_grant"));
@@ -134,17 +137,62 @@ class ObjectExposureWireThroughTest {
         UUID objectId = UUID.fromString("00000000-0000-0000-0000-000000000101");
         UUID connectionId = UUID.fromString("00000000-0000-0000-0000-000000000201");
         jdbcTemplate.setResponses(List.of(List.of(objectRow(objectId, connectionId))));
-        policyClient.denyObject();
 
         mockMvc.perform(get("/api/objects/{object_id}", objectId)
-                        .queryParam("client_id", "client-a")
-                        .header("X-Actor-Id", "analyst-1"))
+                        .queryParam("client_id", "client-b")
+                        .header("X-Actor-Id", "analyst-1")
+                        .header("X-Role-Cd", "FINANCE")
+                        .header("X-Purpose-Cd", "REPORTING"))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.code").value("POL-AC-001"))
                 .andExpect(jsonPath("$.message").value("Cross-tenant access denied"));
 
         assertEquals(2, jdbcTemplate.recordedSqls().size());
         assertTrue(jdbcTemplate.recordedSqls().get(1).contains("INSERT INTO meta.metadata_change_history"));
+    }
+
+    @Test
+    void returnsUnprocessableEntityEndToEndWhenRoleOrPurposeMissing() throws Exception {
+        UUID objectId = UUID.fromString("00000000-0000-0000-0000-000000000101");
+        UUID connectionId = UUID.fromString("00000000-0000-0000-0000-000000000201");
+        jdbcTemplate.setResponses(List.of(List.of(objectRow(objectId, connectionId))));
+
+        mockMvc.perform(get("/api/objects/{object_id}", objectId)
+                        .queryParam("client_id", "client-a")
+                        .header("X-Actor-Id", "analyst-1"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("POL-AC-001"))
+                .andExpect(jsonPath("$.message").value("Need-to-know denied"));
+
+        assertEquals(2, jdbcTemplate.recordedSqls().size());
+        assertTrue(jdbcTemplate.recordedSqls().get(1).contains("INSERT INTO meta.metadata_change_history"));
+    }
+
+    @Test
+    void withholdsBlockedAiAttributesEndToEnd() throws Exception {
+        UUID objectId = UUID.fromString("00000000-0000-0000-0000-000000000101");
+        UUID connectionId = UUID.fromString("00000000-0000-0000-0000-000000000201");
+        UUID attributeId = UUID.fromString("00000000-0000-0000-0000-000000000103");
+        jdbcTemplate.setResponses(List.of(
+                List.of(objectRow(objectId, connectionId)),
+                List.of(blockedAiAttributeRow(attributeId, objectId)),
+                List.of(attributeGrantRow())
+        ));
+
+        mockMvc.perform(get("/api/objects/{object_id}", objectId)
+                        .queryParam("client_id", "client-a")
+                        .header("X-Actor-Id", "assistant-1")
+                        .header("X-Role-Cd", "AI_AGENT")
+                        .header("X-Purpose-Cd", "AI_ASSIST"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.object_id").value(objectId.toString()))
+                .andExpect(jsonPath("$.attributes").isEmpty());
+
+        assertEquals(4, jdbcTemplate.recordedSqls().size());
+        assertTrue(jdbcTemplate.recordedSqls().get(2).contains("FROM meta.attribute_access_grant"));
+        assertTrue(jdbcTemplate.recordedSqls().get(3).contains("INSERT INTO meta.metadata_change_history"));
+        assertEquals("assistant-1", jdbcTemplate.recordedParameters().get(3).get("changed_by"));
+        assertTrue(((String) jdbcTemplate.recordedParameters().get(3).get("change_reason_txt")).contains("withheld=1"));
     }
 
     private static Map<String, Object> objectRow(UUID objectId, UUID connectionId) {
@@ -214,6 +262,21 @@ class ObjectExposureWireThroughTest {
         row.put("created_by", "approver");
         row.put("updated_ts", null);
         row.put("updated_by", null);
+        return row;
+    }
+
+    private static Map<String, Object> blockedAiAttributeRow(UUID attributeId, UUID objectId) {
+        Map<String, Object> row = attributeRow(attributeId, objectId);
+        row.put("attribute_cd", "ACCOUNT_NO");
+        row.put("attribute_nm", "Account Number");
+        row.put("effective_attribute_nm", "Account Number");
+        row.put("data_classification_cd", "CONFIDENTIAL");
+        row.put("pii_flg", true);
+        row.put("confidential_flg", true);
+        row.put("masking_policy_cd", "MASK_FULL");
+        row.put("mnpi_flg", false);
+        row.put("csi_flg", false);
+        row.put("ai_exposure_cd", "BLOCKED");
         return row;
     }
 
@@ -356,21 +419,9 @@ class ObjectExposureWireThroughTest {
     static final class RecordingObjectExposurePolicyClient implements ObjectExposurePolicyClient {
 
         private final List<ObjectExposureAccessPolicyRequestDto> accessRequests = new ArrayList<>();
-        private boolean denyObject;
-        private String maskedAttributeCode;
 
         void reset() {
             accessRequests.clear();
-            denyObject = false;
-            maskedAttributeCode = null;
-        }
-
-        void denyObject() {
-            denyObject = true;
-        }
-
-        void maskAttribute(String attributeCode) {
-            maskedAttributeCode = attributeCode;
         }
 
         List<ObjectExposureAccessPolicyRequestDto> accessRequests() {
@@ -380,26 +431,70 @@ class ObjectExposureWireThroughTest {
         @Override
         public ObjectExposurePolicyDecisionDto evaluateAccess(ObjectExposureAccessPolicyRequestDto request) {
             accessRequests.add(request);
-            if (denyObject && request.attribute_cd() == null) {
+            if (!sameTenant(request)) {
                 return new ObjectExposurePolicyDecisionDto(false, "POL-AC-001", "Cross-tenant access denied");
+            }
+            if (missingNeedToKnow(request)) {
+                return new ObjectExposurePolicyDecisionDto(false, "POL-AC-001", "Need-to-know denied");
+            }
+            if (request.attribute_cd() != null && !hasActiveReadGrant(request)) {
+                return new ObjectExposurePolicyDecisionDto(false, "POL-AC-001", "Need-to-know denied");
             }
             return new ObjectExposurePolicyDecisionDto(true, null, null);
         }
 
         @Override
         public ObjectExposureClassificationPolicyDecisionDto evaluateClassification(ObjectExposureClassificationPolicyRequestDto request) {
-            if (request.attribute_cd() != null && request.attribute_cd().equals(maskedAttributeCode)) {
+            if (isAiPrincipal(request) && "BLOCKED".equals(request.ai_exposure_cd())) {
+                return new ObjectExposureClassificationPolicyDecisionDto(
+                        false,
+                        false,
+                        true,
+                        null,
+                        List.of(),
+                        "POL-DC-001",
+                        "AI exposure is blocked"
+                );
+            }
+            if (request.attribute_cd() != null
+                    && "RESTRICTED".equals(request.attribute_data_classification_cd())
+                    && request.masking_policy_cd() != null
+                    && !request.masking_policy_cd().isBlank()) {
                 return new ObjectExposureClassificationPolicyDecisionDto(
                         true,
                         true,
                         false,
-                        "MASKED",
-                        List.of("attribute_nm", "taxonomy_cd"),
-                        null,
-                        null
+                        "REDACTED",
+                        List.of("attribute_nm", "taxonomy_cd", "taxonomy_source_cd", "taxonomy_jurisdiction_cd"),
+                        "POL-DC-001",
+                        "Classification requires masked exposure"
                 );
             }
             return new ObjectExposureClassificationPolicyDecisionDto(true, false, false, null, List.of(), null, null);
+        }
+
+        private boolean sameTenant(ObjectExposureAccessPolicyRequestDto request) {
+            return request.client_id() != null && request.client_id().equals(request.object_client_id());
+        }
+
+        private boolean missingNeedToKnow(ObjectExposureAccessPolicyRequestDto request) {
+            return request.role_cd() == null
+                    || request.role_cd().isBlank()
+                    || request.purpose_cd() == null
+                    || request.purpose_cd().isBlank();
+        }
+
+        private boolean hasActiveReadGrant(ObjectExposureAccessPolicyRequestDto request) {
+            return request.grant_scope_cds().stream().anyMatch("READ"::equals)
+                    && request.grant_status_cds().stream().anyMatch("ACTIVE"::equals);
+        }
+
+        private boolean isAiPrincipal(ObjectExposureClassificationPolicyRequestDto request) {
+            return containsAi(request.role_cd()) || containsAi(request.purpose_cd());
+        }
+
+        private boolean containsAi(String value) {
+            return value != null && value.toUpperCase().contains("AI");
         }
     }
 
