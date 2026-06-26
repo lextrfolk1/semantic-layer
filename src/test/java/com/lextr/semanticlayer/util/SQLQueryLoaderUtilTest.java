@@ -29,6 +29,7 @@ class SQLQueryLoaderUtilTest {
         String insertFilterLookupWorkflowTaskQuery = loader.getQuery("filter_lookup_registration.insert_workflow_task");
         String insertFilterLookupMetadataChangeHistoryQuery = loader.getQuery("filter_lookup_registration.insert_metadata_change_history");
         String governancePolicyPresetByCodeQuery = loader.getQuery("governance_policy_preset.find_by_code");
+        String governanceHistoryByEntityQuery = loader.getQuery("governance_history.find_by_entity");
         String effectiveFilterLookupListQuery = loader.getQuery("filter_lookup_effective_review.find_all");
         String effectiveFilterLookupByCodeQuery = loader.getQuery("filter_lookup_effective_review.find_lookup_by_code");
         String manualFilterLookupPreviewQuery = loader.getQuery("filter_lookup_effective_review.find_manual_values_by_lookup");
@@ -94,6 +95,12 @@ class SQLQueryLoaderUtilTest {
         assertTrue(governancePolicyPresetByCodeQuery.contains(":policy_cd"));
         assertTrue(governancePolicyPresetByCodeQuery.contains(":policy_scope_cd"));
         assertTrue(governancePolicyPresetByCodeQuery.contains(":as_of_dt"));
+        assertTrue(governanceHistoryByEntityQuery.contains("FROM meta.metadata_change_history mch"));
+        assertTrue(governanceHistoryByEntityQuery.contains(":client_id"));
+        assertTrue(governanceHistoryByEntityQuery.contains(":entity_type_cd"));
+        assertTrue(governanceHistoryByEntityQuery.contains(":entity_ref"));
+        assertTrue(governanceHistoryByEntityQuery.contains(":change_type_cd"));
+        assertTrue(governanceHistoryByEntityQuery.contains("EXISTS (SELECT 1 FROM wkfl.workflow_task wt"));
         assertTrue(effectiveFilterLookupListQuery.contains("FROM meta.semantic_filter_lookup"));
         assertTrue(effectiveFilterLookupListQuery.contains(":client_id"));
         assertTrue(effectiveFilterLookupListQuery.contains(":governance_status_cd"));

@@ -30,6 +30,7 @@ import com.lextr.semanticlayer.service.FilterLookupCertificationService;
 import com.lextr.semanticlayer.service.FilterLookupPreviewService;
 import com.lextr.semanticlayer.service.FilterLookupReadService;
 import com.lextr.semanticlayer.service.FilterLookupRegistrationService;
+import com.lextr.semanticlayer.service.GovernanceHistoryReadService;
 import com.lextr.semanticlayer.service.GovernancePolicyPresetReadService;
 import com.lextr.semanticlayer.service.ObjectExposureReadService;
 import com.lextr.semanticlayer.service.ObjectRegistrationService;
@@ -127,6 +128,7 @@ class OpenApiDocumentationTest {
         assertTrue(paths.has("/api/filter-lookups/preview"));
         assertTrue(paths.has("/api/filter-lookups/{lookup_code}/bindings"));
         assertTrue(paths.has("/api/governance/policy-presets"));
+        assertTrue(paths.has("/api/governance/history"));
         assertTrue(paths.has("/api/workflow-tasks/{id}/approve"));
         assertTrue(paths.has("/api/attribute-pairings"));
         assertTrue(paths.has("/api/attribute-pairings/resolve"));
@@ -140,6 +142,11 @@ class OpenApiDocumentationTest {
 
         JsonNode previewPost = paths.path("/api/filter-lookups/preview").path("post");
         assertJsonRequestBody(previewPost);
+
+        JsonNode governanceHistoryGet = paths.path("/api/governance/history").path("get");
+        assertQueryParameter(governanceHistoryGet, "client_id");
+        assertQueryParameter(governanceHistoryGet, "entity_type_cd");
+        assertQueryParameter(governanceHistoryGet, "entity_ref");
 
         JsonNode workflowApprovePost = paths.path("/api/workflow-tasks/{id}/approve").path("post");
         assertJsonRequestBody(workflowApprovePost);
@@ -195,6 +202,7 @@ class OpenApiDocumentationTest {
             ObjectRegistrationController.class,
             RelationshipRegistrationController.class,
             FilterLookupRegistrationController.class,
+            GovernanceHistoryController.class,
             GovernancePolicyPresetController.class,
             WorkflowTaskController.class,
             AttributePairingController.class,
@@ -288,6 +296,11 @@ class OpenApiDocumentationTest {
             @Bean
             FilterLookupPreviewService filterLookupPreviewService() {
                 return request -> List.of();
+            }
+
+            @Bean
+            GovernanceHistoryReadService governanceHistoryReadService() {
+                return (clientId, entityTypeCode, entityRef, changeTypeCode) -> List.of();
             }
 
             @Bean
