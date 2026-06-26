@@ -247,12 +247,21 @@ class OpenApiDocumentationTest {
             ObjectExposureReadService objectExposureReadService() {
                 return new ObjectExposureReadService() {
                     @Override
-                    public List<ObjectExposureSummaryDto> findObjects(String clientId, String schemaCode, String lifecycleStatusCode) {
+                    public List<ObjectExposureSummaryDto> findObjects(String clientId,
+                                                                      String actorId,
+                                                                      String roleCode,
+                                                                      String purposeCode,
+                                                                      String schemaCode,
+                                                                      String lifecycleStatusCode) {
                         return List.of();
                     }
 
                     @Override
-                    public ObjectExposureDetailDto findObject(String clientId, UUID objectId) {
+                    public ObjectExposureDetailDto findObject(String clientId,
+                                                              String actorId,
+                                                              String roleCode,
+                                                              String purposeCode,
+                                                              UUID objectId) {
                         return null;
                     }
                 };

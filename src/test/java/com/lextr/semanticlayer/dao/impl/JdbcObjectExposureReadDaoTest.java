@@ -1,7 +1,9 @@
 package com.lextr.semanticlayer.dao.impl;
 
 import com.lextr.semanticlayer.exception.SemanticLayerException;
+import com.lextr.semanticlayer.model.AttributeAccessGrantRecord;
 import com.lextr.semanticlayer.model.AttributeExposureRecord;
+import com.lextr.semanticlayer.model.ObjectExposureAccessAuditWriteRequest;
 import com.lextr.semanticlayer.model.ObjectExposureRecord;
 import com.lextr.semanticlayer.util.SQLQueryLoaderUtil;
 import org.junit.jupiter.api.Test;
@@ -48,6 +50,9 @@ class JdbcObjectExposureReadDaoTest {
         assertEquals(1, results.size());
         assertEquals(objectId, results.get(0).object_id());
         assertEquals("GL Balance", results.get(0).effective_object_nm());
+        assertEquals("CONFIDENTIAL", results.get(0).data_classification_cd());
+        assertTrue(results.get(0).pii_flg());
+        assertTrue(results.get(0).confidential_flg());
         assertEquals("DRAFT", results.get(0).lifecycle_status_cd());
     }
 
@@ -65,6 +70,7 @@ class JdbcObjectExposureReadDaoTest {
         assertEquals(objectId, jdbcTemplate.recordedParameters.get("object_id"));
         assertEquals("GL_BALANCE", result.object_cd());
         assertEquals("GL Balance", result.effective_object_nm());
+        assertEquals("CONFIDENTIAL", result.data_classification_cd());
     }
 
     @Test
@@ -104,9 +110,50 @@ class JdbcObjectExposureReadDaoTest {
         assertEquals(attributeId, results.get(0).attribute_id());
         assertEquals("Amount Override", results.get(0).effective_attribute_nm());
         assertEquals("MDRM12345678", results.get(0).taxonomy_cd());
+        assertEquals("RESTRICTED", results.get(0).data_classification_cd());
+        assertTrue(results.get(0).pii_flg());
+        assertTrue(results.get(0).confidential_flg());
+        assertEquals("MASK_FULL", results.get(0).masking_policy_cd());
+        assertEquals("RESTRICTED", results.get(0).ai_exposure_cd());
         assertTrue(results.get(0).pk_flg());
         assertEquals(false, results.get(0).fk_flg());
         assertEquals(false, results.get(0).nullable_flg());
+    }
+
+    @Test
+    void bindsGrantLookupParametersAndMapsGrantRows() {
+        RecordingNamedParameterJdbcTemplate jdbcTemplate = new RecordingNamedParameterJdbcTemplate(List.of(attributeGrantRow()));
+        JdbcObjectExposureReadDao dao = new JdbcObjectExposureReadDao(providerOf(jdbcTemplate), new SQLQueryLoaderUtil(new DefaultResourceLoader()));
+
+        List<AttributeAccessGrantRecord> results = dao.findAttributeAccessGrants("client-a", "meta", "GL_BALANCE", "AMOUNT");
+
+        assertTrue(jdbcTemplate.recordedSql.contains("FROM meta.attribute_access_grant"));
+        assertEquals("client-a", jdbcTemplate.recordedParameters.get("client_id"));
+        assertEquals("meta", jdbcTemplate.recordedParameters.get("schema_cd"));
+        assertEquals("GL_BALANCE", jdbcTemplate.recordedParameters.get("object_cd"));
+        assertEquals("AMOUNT", jdbcTemplate.recordedParameters.get("attribute_cd"));
+        assertEquals(1, results.size());
+        assertEquals("READ", results.get(0).grant_scope_cd());
+        assertEquals("ACTIVE", results.get(0).grant_status_cd());
+    }
+
+    @Test
+    void writesAccessAuditUsingMetadataHistoryInsert() {
+        RecordingNamedParameterJdbcTemplate jdbcTemplate = new RecordingNamedParameterJdbcTemplate(List.of());
+        JdbcObjectExposureReadDao dao = new JdbcObjectExposureReadDao(providerOf(jdbcTemplate), new SQLQueryLoaderUtil(new DefaultResourceLoader()));
+
+        dao.insertAccessAudit(new ObjectExposureAccessAuditWriteRequest(
+                "OBJECT_EXPOSURE",
+                "client-a:meta:ACTIVE",
+                "READ",
+                "analyst-1",
+                OffsetDateTime.parse("2026-06-18T12:00:00Z"),
+                "Object exposure list returned 1 objects; masked=0; withheld=0"
+        ));
+
+        assertTrue(jdbcTemplate.recordedSql.contains("INSERT INTO meta.metadata_change_history"));
+        assertEquals("OBJECT_EXPOSURE", jdbcTemplate.recordedParameters.get("entity_type_cd"));
+        assertEquals("analyst-1", jdbcTemplate.recordedParameters.get("changed_by"));
     }
 
     @Test
@@ -155,6 +202,9 @@ class JdbcObjectExposureReadDaoTest {
         row.put("object_type_cd", "TABLE");
         row.put("schema_cd", "meta");
         row.put("connection_id", connectionId);
+        row.put("data_classification_cd", "CONFIDENTIAL");
+        row.put("pii_flg", true);
+        row.put("confidential_flg", true);
         row.put("lifecycle_status_cd", "DRAFT");
         row.put("created_ts", OffsetDateTime.parse("2026-06-16T10:15:30+05:30"));
         row.put("created_by", "producer");
@@ -175,6 +225,13 @@ class JdbcObjectExposureReadDaoTest {
         row.put("taxonomy_cd", "MDRM12345678");
         row.put("taxonomy_source_cd", "MDRM");
         row.put("taxonomy_jurisdiction_cd", "US");
+        row.put("data_classification_cd", "RESTRICTED");
+        row.put("pii_flg", true);
+        row.put("confidential_flg", true);
+        row.put("masking_policy_cd", "MASK_FULL");
+        row.put("mnpi_flg", false);
+        row.put("csi_flg", false);
+        row.put("ai_exposure_cd", "RESTRICTED");
         row.put("pk_flg", true);
         row.put("fk_flg", false);
         row.put("nullable_flg", false);
@@ -182,6 +239,26 @@ class JdbcObjectExposureReadDaoTest {
         row.put("created_by", "producer");
         row.put("updated_ts", OffsetDateTime.parse("2026-06-17T10:15:30+05:30"));
         row.put("updated_by", "producer");
+        return row;
+    }
+
+    private static Map<String, Object> attributeGrantRow() {
+        Map<String, Object> row = new HashMap<>();
+        row.put("id", 10L);
+        row.put("client_id", "client-a");
+        row.put("schema_cd", "meta");
+        row.put("object_cd", "GL_BALANCE");
+        row.put("attribute_cd", "AMOUNT");
+        row.put("role_cd", "FINANCE");
+        row.put("purpose_cd", "REPORTING");
+        row.put("grant_scope_cd", "READ");
+        row.put("grant_status_cd", "ACTIVE");
+        row.put("approved_by", "approver");
+        row.put("approved_ts", OffsetDateTime.parse("2026-06-18T12:00:00Z"));
+        row.put("created_ts", OffsetDateTime.parse("2026-06-18T11:00:00Z"));
+        row.put("created_by", "approver");
+        row.put("updated_ts", null);
+        row.put("updated_by", null);
         return row;
     }
 
@@ -203,6 +280,15 @@ class JdbcObjectExposureReadDaoTest {
                 this.recordedParameters = source.getValues();
             }
             return rows.stream().map(row -> mapRow(rowMapper, row)).toList();
+        }
+
+        @Override
+        public int update(String sql, SqlParameterSource paramSource) {
+            this.recordedSql = sql;
+            if (paramSource instanceof MapSqlParameterSource source) {
+                this.recordedParameters = source.getValues();
+            }
+            return 1;
         }
 
         private <T> T mapRow(RowMapper<T> rowMapper, Map<String, Object> row) {

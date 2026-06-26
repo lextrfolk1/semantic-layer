@@ -440,6 +440,19 @@ class RelationshipRegistrationServiceImplTest {
         public List<com.lextr.semanticlayer.model.AttributeExposureRecord> findAttributes(String clientId, UUID objectId) {
             throw new UnsupportedOperationException("Not used in relationship tests");
         }
+
+        @Override
+        public List<com.lextr.semanticlayer.model.AttributeAccessGrantRecord> findAttributeAccessGrants(String clientId,
+                                                                                                        String schemaCode,
+                                                                                                        String objectCode,
+                                                                                                        String attributeCode) {
+            throw new UnsupportedOperationException("Not used in relationship tests");
+        }
+
+        @Override
+        public void insertAccessAudit(com.lextr.semanticlayer.model.ObjectExposureAccessAuditWriteRequest request) {
+            throw new UnsupportedOperationException("Not used in relationship tests");
+        }
     }
 
     private static final class RecordingRegistryReadDao implements RegistryReadDao {
@@ -591,6 +604,9 @@ class RelationshipRegistrationServiceImplTest {
                 "TABLE",
                 schemaCode,
                 connectionId,
+                "INTERNAL",
+                false,
+                false,
                 "ACTIVE",
                 OffsetDateTime.parse("2026-06-17T10:15:30Z"),
                 "producer",

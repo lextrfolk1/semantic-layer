@@ -1,7 +1,9 @@
 package com.lextr.semanticlayer.dao;
 
 import com.lextr.semanticlayer.model.AttributeExposureRecord;
+import com.lextr.semanticlayer.model.AttributeAccessGrantRecord;
 import com.lextr.semanticlayer.model.ObjectExposureRecord;
+import com.lextr.semanticlayer.model.ObjectExposureAccessAuditWriteRequest;
 
 import java.util.List;
 import java.util.Optional;
@@ -16,4 +18,11 @@ public interface ObjectExposureReadDao {
     Optional<ObjectExposureRecord> findObject(String schemaCode, String objectCode);
 
     List<AttributeExposureRecord> findAttributes(String clientId, UUID objectId);
+
+    List<AttributeAccessGrantRecord> findAttributeAccessGrants(String clientId,
+                                                               String schemaCode,
+                                                               String objectCode,
+                                                               String attributeCode);
+
+    void insertAccessAudit(ObjectExposureAccessAuditWriteRequest request);
 }

@@ -9,6 +9,7 @@ import com.lextr.semanticlayer.dto.AttributePairingRegistrationRequestDto;
 import com.lextr.semanticlayer.dto.AttributePairingRegistrationResponseDto;
 import com.lextr.semanticlayer.exception.AttributePairingRegistrationServiceException;
 import com.lextr.semanticlayer.exception.PolicyViolationException;
+import com.lextr.semanticlayer.model.AttributeAccessGrantRecord;
 import com.lextr.semanticlayer.model.AttributeExposureRecord;
 import com.lextr.semanticlayer.model.AttributePairingCatalogRecord;
 import com.lextr.semanticlayer.model.AttributePairingCatalogWriteRequest;
@@ -16,6 +17,7 @@ import com.lextr.semanticlayer.model.FilterLookupMetadataChangeHistoryRecord;
 import com.lextr.semanticlayer.model.FilterLookupMetadataChangeHistoryWriteRequest;
 import com.lextr.semanticlayer.model.FilterLookupWorkflowTaskRecord;
 import com.lextr.semanticlayer.model.FilterLookupWorkflowTaskWriteRequest;
+import com.lextr.semanticlayer.model.ObjectExposureAccessAuditWriteRequest;
 import com.lextr.semanticlayer.model.ObjectExposureRecord;
 import com.lextr.semanticlayer.service.AttributePairingPolicyClient;
 import org.junit.jupiter.api.Test;
@@ -201,6 +203,9 @@ class AttributePairingRegistrationServiceImplTest {
                 "TABLE",
                 "meta",
                 UUID.fromString("00000000-0000-0000-0000-000000000401"),
+                "INTERNAL",
+                false,
+                false,
                 "ACTIVE",
                 OffsetDateTime.parse("2026-06-18T10:15:30Z"),
                 "producer",
@@ -221,6 +226,13 @@ class AttributePairingRegistrationServiceImplTest {
                 "TAX",
                 "SRC",
                 "US",
+                "INTERNAL",
+                false,
+                false,
+                null,
+                false,
+                false,
+                "ALLOWED",
                 false,
                 false,
                 true,
@@ -254,6 +266,18 @@ class AttributePairingRegistrationServiceImplTest {
         @Override
         public List<AttributeExposureRecord> findAttributes(String clientId, UUID objectId) {
             return attributes;
+        }
+
+        @Override
+        public List<AttributeAccessGrantRecord> findAttributeAccessGrants(String clientId,
+                                                                          String schemaCode,
+                                                                          String objectCode,
+                                                                          String attributeCode) {
+            return List.of();
+        }
+
+        @Override
+        public void insertAccessAudit(ObjectExposureAccessAuditWriteRequest request) {
         }
     }
 

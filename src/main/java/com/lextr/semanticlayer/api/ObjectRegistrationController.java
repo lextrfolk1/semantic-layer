@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -48,16 +49,28 @@ public class ObjectRegistrationController {
     @Operation(summary = "List objects", description = "Returns registered objects visible for the supplied client.")
     public List<ObjectExposureSummaryDto> findObjects(
             @Parameter(description = "Tenant identifier.") @RequestParam("client_id") String clientId,
+            @Parameter(description = "Optional actor identifier propagated by the gateway.")
+            @RequestHeader(value = "X-Actor-Id", required = false) String actorId,
+            @Parameter(description = "Optional role code propagated by the gateway.")
+            @RequestHeader(value = "X-Role-Cd", required = false) String roleCode,
+            @Parameter(description = "Optional purpose code propagated by the gateway.")
+            @RequestHeader(value = "X-Purpose-Cd", required = false) String purposeCode,
             @Parameter(description = "Optional schema filter.") @RequestParam(value = "schema_cd", required = false) String schemaCode,
             @Parameter(description = "Optional lifecycle status filter.") @RequestParam(value = "lifecycle_status_cd", required = false) String lifecycleStatusCode) {
-        return objectExposureReadService.findObjects(clientId, schemaCode, lifecycleStatusCode);
+        return objectExposureReadService.findObjects(clientId, actorId, roleCode, purposeCode, schemaCode, lifecycleStatusCode);
     }
 
     @GetMapping("/{object_id}")
     @Operation(summary = "Get object", description = "Returns one object with its attributes for the supplied client.")
     public ObjectExposureDetailDto findObject(
             @Parameter(description = "Tenant identifier.") @RequestParam("client_id") String clientId,
+            @Parameter(description = "Optional actor identifier propagated by the gateway.")
+            @RequestHeader(value = "X-Actor-Id", required = false) String actorId,
+            @Parameter(description = "Optional role code propagated by the gateway.")
+            @RequestHeader(value = "X-Role-Cd", required = false) String roleCode,
+            @Parameter(description = "Optional purpose code propagated by the gateway.")
+            @RequestHeader(value = "X-Purpose-Cd", required = false) String purposeCode,
             @Parameter(description = "Object identifier.") @PathVariable("object_id") UUID objectId) {
-        return objectExposureReadService.findObject(clientId, objectId);
+        return objectExposureReadService.findObject(clientId, actorId, roleCode, purposeCode, objectId);
     }
 }

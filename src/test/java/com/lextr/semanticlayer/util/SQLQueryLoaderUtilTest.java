@@ -44,6 +44,7 @@ class SQLQueryLoaderUtilTest {
         String objectByIdQuery = loader.getQuery("object_exposure.find_by_id");
         String objectBySchemaAndCodeQuery = loader.getQuery("object_exposure.find_by_schema_and_code");
         String attributeByObjectIdQuery = loader.getQuery("object_exposure.find_attributes_by_object_id");
+        String objectAccessAuditInsertQuery = loader.getQuery("object_exposure.insert_access_audit");
 
         assertTrue(schemaQuery.contains("schema_cd"));
         assertTrue(schemaQuery.contains("client_id"));
@@ -163,6 +164,9 @@ class SQLQueryLoaderUtilTest {
         assertTrue(filterLookupExecutionLogInsertQuery.contains("RETURNING id, lookup_cd, executed_by, executed_ts"));
         assertTrue(objectListQuery.contains("FROM meta.object_catalog"));
         assertTrue(objectListQuery.contains("effective_object_nm"));
+        assertTrue(objectListQuery.contains("data_classification_cd"));
+        assertTrue(objectListQuery.contains("pii_flg"));
+        assertTrue(objectListQuery.contains("confidential_flg"));
         assertTrue(objectListQuery.contains(":schema_cd"));
         assertTrue(objectListQuery.contains(":lifecycle_status_cd"));
         assertTrue(objectByIdQuery.contains(":object_id"));
@@ -171,12 +175,18 @@ class SQLQueryLoaderUtilTest {
         assertTrue(objectBySchemaAndCodeQuery.contains("effective_object_nm"));
         assertTrue(attributeByObjectIdQuery.contains("FROM meta.attribute_catalog"));
         assertTrue(attributeByObjectIdQuery.contains("effective_attribute_nm"));
+        assertTrue(attributeByObjectIdQuery.contains("a.data_classification_cd"));
+        assertTrue(attributeByObjectIdQuery.contains("a.masking_policy_cd"));
+        assertTrue(attributeByObjectIdQuery.contains("a.ai_exposure_cd"));
         assertTrue(attributeByObjectIdQuery.contains("meta.attribute_logical_name_override"));
         assertTrue(attributeByObjectIdQuery.contains("override_status_cd = 'APPROVED'"));
         assertTrue(attributeByObjectIdQuery.contains("pk_flg"));
         assertTrue(attributeByObjectIdQuery.contains("fk_flg"));
         assertTrue(attributeByObjectIdQuery.contains("nullable_flg"));
         assertTrue(attributeByObjectIdQuery.contains(":object_id"));
+        assertTrue(objectAccessAuditInsertQuery.contains("INSERT INTO meta.metadata_change_history"));
+        assertTrue(objectAccessAuditInsertQuery.contains(":entity_type_cd"));
+        assertTrue(objectAccessAuditInsertQuery.contains(":change_reason_txt"));
     }
 
     @Test

@@ -239,6 +239,19 @@ public class AttributePairingRegistrationServiceImpl implements AttributePairing
         public List<AttributeExposureRecord> findAttributes(String clientId, java.util.UUID objectId) {
             throw new SemanticLayerException("ObjectExposureReadDao is not configured");
         }
+
+        @Override
+        public List<com.lextr.semanticlayer.model.AttributeAccessGrantRecord> findAttributeAccessGrants(String clientId,
+                                                                                                        String schemaCode,
+                                                                                                        String objectCode,
+                                                                                                        String attributeCode) {
+            throw new SemanticLayerException("ObjectExposureReadDao is not configured");
+        }
+
+        @Override
+        public void insertAccessAudit(com.lextr.semanticlayer.model.ObjectExposureAccessAuditWriteRequest request) {
+            throw new SemanticLayerException("ObjectExposureReadDao is not configured");
+        }
     }
 
     private static final class MissingAttributePairingRegistrationWriteDao implements AttributePairingRegistrationWriteDao {

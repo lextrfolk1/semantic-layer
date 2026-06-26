@@ -223,12 +223,21 @@ class ApiExceptionHandlerWebMvcTest {
         private UUID lastObjectId;
 
         @Override
-        public List<ObjectExposureSummaryDto> findObjects(String clientId, String schemaCode, String lifecycleStatusCode) {
+        public List<ObjectExposureSummaryDto> findObjects(String clientId,
+                                                          String actorId,
+                                                          String roleCode,
+                                                          String purposeCode,
+                                                          String schemaCode,
+                                                          String lifecycleStatusCode) {
             throw new UnsupportedOperationException("Not used in exception handler tests");
         }
 
         @Override
-        public ObjectExposureDetailDto findObject(String clientId, UUID objectId) {
+        public ObjectExposureDetailDto findObject(String clientId,
+                                                  String actorId,
+                                                  String roleCode,
+                                                  String purposeCode,
+                                                  UUID objectId) {
             lastObjectId = objectId;
             throw new UnsupportedOperationException("Not used in exception handler tests");
         }
