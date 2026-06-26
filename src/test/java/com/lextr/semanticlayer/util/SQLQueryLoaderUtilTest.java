@@ -29,6 +29,9 @@ class SQLQueryLoaderUtilTest {
         String insertFilterLookupWorkflowTaskQuery = loader.getQuery("filter_lookup_registration.insert_workflow_task");
         String insertFilterLookupMetadataChangeHistoryQuery = loader.getQuery("filter_lookup_registration.insert_metadata_change_history");
         String governancePolicyPresetByCodeQuery = loader.getQuery("governance_policy_preset.find_by_code");
+        String classificationListQuery = loader.getQuery("classification_ref.find_all");
+        String classificationByCodeQuery = loader.getQuery("classification_ref.find_by_code");
+        String attributeAccessGrantQuery = loader.getQuery("attribute_access_grant.find_by_attribute");
         String governanceHistoryByEntityQuery = loader.getQuery("governance_history.find_by_entity");
         String effectiveFilterLookupListQuery = loader.getQuery("filter_lookup_effective_review.find_all");
         String effectiveFilterLookupByCodeQuery = loader.getQuery("filter_lookup_effective_review.find_lookup_by_code");
@@ -95,6 +98,15 @@ class SQLQueryLoaderUtilTest {
         assertTrue(governancePolicyPresetByCodeQuery.contains(":policy_cd"));
         assertTrue(governancePolicyPresetByCodeQuery.contains(":policy_scope_cd"));
         assertTrue(governancePolicyPresetByCodeQuery.contains(":as_of_dt"));
+        assertTrue(classificationListQuery.contains("FROM meta.data_classification_ref"));
+        assertTrue(classificationListQuery.contains("classification_rank_nbr"));
+        assertTrue(classificationByCodeQuery.contains("data_classification_cd = :data_classification_cd"));
+        assertTrue(attributeAccessGrantQuery.contains("FROM meta.attribute_access_grant"));
+        assertTrue(attributeAccessGrantQuery.contains(":client_id"));
+        assertTrue(attributeAccessGrantQuery.contains(":schema_cd"));
+        assertTrue(attributeAccessGrantQuery.contains(":object_cd"));
+        assertTrue(attributeAccessGrantQuery.contains(":attribute_cd"));
+        assertTrue(attributeAccessGrantQuery.contains(":grant_status_cd"));
         assertTrue(governanceHistoryByEntityQuery.contains("FROM meta.metadata_change_history mch"));
         assertTrue(governanceHistoryByEntityQuery.contains(":client_id"));
         assertTrue(governanceHistoryByEntityQuery.contains(":entity_type_cd"));
