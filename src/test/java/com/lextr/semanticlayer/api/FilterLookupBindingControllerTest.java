@@ -69,7 +69,7 @@ class FilterLookupBindingControllerTest {
     }
 
     @Test
-    void rejectsBoundAttributeCodeLongerThanThirtyTwoCharacters() throws Exception {
+    void rejectsBoundByLongerThanThirtyTwoCharacters() throws Exception {
         MockMvc mockMvc = mockMvc(new RecordingFilterLookupBindingService());
 
         mockMvc.perform(post("/api/filter-lookups/{lookup_code}/bindings", "LEDGER_SCOPE")
@@ -78,10 +78,10 @@ class FilterLookupBindingControllerTest {
                                 {
                                   "client_id": "client-a",
                                   "bound_obj": "meta.gl_balance",
-                                  "bound_attr_cd": "123456789012345678901234567890123",
+                                  "bound_attr_cd": "ledger_id",
                                   "binding_context_cd": "PIPELINE",
                                   "binding_ref": "daily-pipeline",
-                                  "bound_by": "binder"
+                                  "bound_by": "123456789012345678901234567890123"
                                 }
                                 """))
                 .andExpect(status().isBadRequest());
