@@ -4,19 +4,33 @@ import com.lextr.semanticlayer.dto.ObservabilitySignalCorrelationRequestDto;
 import com.lextr.semanticlayer.dto.ObservabilitySignalIngestRequestDto;
 import com.lextr.semanticlayer.dto.ObservabilitySignalResponseDto;
 import com.lextr.semanticlayer.exception.RegistryResourceNotFoundException;
+import com.lextr.semanticlayer.dto.GovernancePolicyPresetDto;
+import com.lextr.semanticlayer.dto.WorkflowTaskResponseDto;
+import com.lextr.semanticlayer.dao.FilterLookupRegistrationWriteDao;
 import com.lextr.semanticlayer.model.ObservabilitySignalCorrelationWriteRequest;
+import com.lextr.semanticlayer.model.FilterLookupMetadataChangeHistoryRecord;
+import com.lextr.semanticlayer.model.FilterLookupMetadataChangeHistoryWriteRequest;
+import com.lextr.semanticlayer.model.FilterLookupWorkflowTaskRecord;
+import com.lextr.semanticlayer.model.FilterLookupWorkflowTaskWriteRequest;
 import com.lextr.semanticlayer.model.ObservabilitySignalRecord;
 import com.lextr.semanticlayer.model.ObservabilitySignalWriteRequest;
+import com.lextr.semanticlayer.service.DqRuleService;
+import com.lextr.semanticlayer.service.GovernancePolicyPresetReadService;
 import com.lextr.semanticlayer.service.ObservabilitySignalService;
 import org.junit.jupiter.api.Test;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.support.TransactionOperations;
 
 import java.time.OffsetDateTime;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ObservabilitySignalServiceImplTest {
 
@@ -116,7 +130,104 @@ class ObservabilitySignalServiceImplTest {
         )));
     }
 
+    @Test
+    void routesWorkflowTaskAndWritesAuditWhenSeverityMeetsPolicyThreshold() {
+        RecordingObservabilitySignalDao signalDao = new RecordingObservabilitySignalDao();
+        signalDao.insertedRecord = record(501L, "OPEN", "WARN", null);
+        RecordingGovernancePolicyPresetReadService policyService = new RecordingGovernancePolicyPresetReadService(
+                List.of(
+                        policy("GOV-OS-001", "WARN"),
+                        policy("GOV-OS-002", "HIGH")
+                )
+        );
+        RecordingFilterLookupRegistrationWriteDao workflowDao = new RecordingFilterLookupRegistrationWriteDao();
+        RecordingDqRuleService dqRuleService = new RecordingDqRuleService();
+        ObservabilitySignalService service = new ObservabilitySignalServiceImpl(
+                signalDao,
+                policyService,
+                workflowDao,
+                dqRuleService,
+                new RecordingTransactionOperations()
+        );
+
+        ObservabilitySignalResponseDto response = service.ingestSignal(new ObservabilitySignalIngestRequestDto(
+                "client-a",
+                "FRESHNESS",
+                "WARN",
+                "OPEN",
+                "PIPELINE",
+                "DATASET",
+                "orders",
+                "orders#2026-06-18",
+                "Freshness lag detected",
+                "Latest event lagged by 4h",
+                false,
+                null,
+                OffsetDateTime.parse("2026-06-18T10:15:30Z"),
+                "tooling"
+        ));
+
+        assertEquals("OBSERVABILITY_SIGNAL", policyService.lastPolicyScopeCode);
+        assertEquals("client-a", policyService.lastClientId);
+        assertEquals(1, workflowDao.insertedWorkflowTasks.size());
+        assertEquals(2, workflowDao.insertedMetadataChanges.size());
+        assertEquals(0, dqRuleService.requests.size());
+        assertEquals(501L, response.id());
+        assertEquals(901L, response.workflow_task_id());
+        assertEquals("TRIAGE", response.signal_status_cd());
+    }
+
+    @Test
+    void triggersDqRerunWhenSeverityMeetsPolicyThreshold() {
+        RecordingObservabilitySignalDao signalDao = new RecordingObservabilitySignalDao();
+        signalDao.insertedRecord = record(601L, "OPEN", "WARN", null);
+        RecordingGovernancePolicyPresetReadService policyService = new RecordingGovernancePolicyPresetReadService(
+                List.of(
+                        policy("GOV-OS-001", "HIGH"),
+                        policy("GOV-OS-002", "WARN")
+                )
+        );
+        RecordingFilterLookupRegistrationWriteDao workflowDao = new RecordingFilterLookupRegistrationWriteDao();
+        RecordingDqRuleService dqRuleService = new RecordingDqRuleService();
+        ObservabilitySignalService service = new ObservabilitySignalServiceImpl(
+                signalDao,
+                policyService,
+                workflowDao,
+                dqRuleService,
+                new RecordingTransactionOperations()
+        );
+
+        ObservabilitySignalResponseDto response = service.ingestSignal(new ObservabilitySignalIngestRequestDto(
+                "client-a",
+                "FRESHNESS",
+                "WARN",
+                "OPEN",
+                "PIPELINE",
+                "DATASET",
+                "orders",
+                "orders#2026-06-18",
+                "Freshness lag detected",
+                "Latest event lagged by 4h",
+                false,
+                "Refresh DQ checks",
+                OffsetDateTime.parse("2026-06-18T10:15:30Z"),
+                "tooling"
+        ));
+
+        assertEquals(0, workflowDao.insertedWorkflowTasks.size());
+        assertEquals(1, dqRuleService.requests.size());
+        assertEquals(List.of("FRESHNESS"), dqRuleService.requests.get(0).rule_names());
+        assertEquals("tooling", dqRuleService.requests.get(0).requested_by());
+        assertEquals(601L, response.id());
+        assertTrue(response.dq_rerun_requested_flg());
+        assertEquals("Refresh DQ checks", response.dq_rerun_reason_txt());
+    }
+
     private static ObservabilitySignalRecord record(Long id, String signalStatusCode, String severityCode) {
+        return record(id, signalStatusCode, severityCode, 701L);
+    }
+
+    private static ObservabilitySignalRecord record(Long id, String signalStatusCode, String severityCode, Long workflowTaskId) {
         OffsetDateTime timestamp = OffsetDateTime.parse("2026-06-18T10:15:30Z");
         return new ObservabilitySignalRecord(
                 id,
@@ -133,13 +244,31 @@ class ObservabilitySignalServiceImplTest {
                 timestamp,
                 null,
                 null,
-                701L,
+                workflowTaskId,
                 true,
                 "Create DQ rerun",
                 timestamp,
                 "tooling",
                 timestamp,
                 "tooling"
+        );
+    }
+
+    private static GovernancePolicyPresetDto policy(String policyCode, String defaultValue) {
+        return new GovernancePolicyPresetDto(
+                policyCode,
+                policyCode,
+                "OBSERVABILITY_SIGNAL",
+                defaultValue,
+                "STRING",
+                true,
+                true,
+                LocalDate.of(2026, 6, 1),
+                null,
+                "reviewer",
+                OffsetDateTime.parse("2026-06-01T10:15:30Z"),
+                OffsetDateTime.parse("2026-06-01T10:15:30Z"),
+                "reviewer"
         );
     }
 
@@ -179,7 +308,201 @@ class ObservabilitySignalServiceImplTest {
         @Override
         public Optional<ObservabilitySignalRecord> correlateSignal(ObservabilitySignalCorrelationWriteRequest request) {
             lastCorrelationRequest = request;
-            return correlatedRecord;
+            if (correlatedRecord.isPresent()) {
+                return correlatedRecord;
+            }
+            if (insertedRecord != null && insertedRecord.id().equals(request.id())) {
+                ObservabilitySignalRecord updated = new ObservabilitySignalRecord(
+                        insertedRecord.id(),
+                        insertedRecord.client_id(),
+                        insertedRecord.signal_type_cd(),
+                        insertedRecord.severity_cd(),
+                        request.signal_status_cd(),
+                        insertedRecord.source_system_cd(),
+                        insertedRecord.source_entity_type_cd(),
+                        insertedRecord.source_entity_ref_txt(),
+                        insertedRecord.correlation_key_txt(),
+                        insertedRecord.finding_summary_txt(),
+                        insertedRecord.finding_detail_txt(),
+                        insertedRecord.detected_ts(),
+                        request.acknowledged_ts(),
+                        request.resolved_ts(),
+                        request.workflow_task_id(),
+                        request.dq_rerun_requested_flg(),
+                        request.dq_rerun_reason_txt(),
+                        insertedRecord.created_ts(),
+                        insertedRecord.created_by(),
+                        request.updated_ts(),
+                        request.updated_by()
+                );
+                correlatedRecord = Optional.of(updated);
+                return correlatedRecord;
+            }
+            return Optional.empty();
+        }
+    }
+
+    private static final class RecordingGovernancePolicyPresetReadService implements GovernancePolicyPresetReadService {
+
+        private final List<GovernancePolicyPresetDto> presets;
+        private String lastClientId;
+        private String lastPolicyScopeCode;
+        private LocalDate lastAsOfDate;
+
+        private RecordingGovernancePolicyPresetReadService(List<GovernancePolicyPresetDto> presets) {
+            this.presets = presets;
+        }
+
+        @Override
+        public List<GovernancePolicyPresetDto> findPolicyPresets(String clientId, String policyScopeCode, LocalDate asOfDate) {
+            lastClientId = clientId;
+            lastPolicyScopeCode = policyScopeCode;
+            lastAsOfDate = asOfDate;
+            return presets;
+        }
+
+        @Override
+        public GovernancePolicyPresetDto findPolicyPreset(String clientId, String policyCode, String policyScopeCode, LocalDate asOfDate) {
+            lastClientId = clientId;
+            lastPolicyScopeCode = policyScopeCode;
+            lastAsOfDate = asOfDate;
+            return presets.stream().filter(policy -> policy.policy_cd().equals(policyCode)).findFirst().orElse(null);
+        }
+    }
+
+    private static final class RecordingFilterLookupRegistrationWriteDao implements FilterLookupRegistrationWriteDao {
+
+        private final List<FilterLookupWorkflowTaskWriteRequest> insertedWorkflowTasks = new ArrayList<>();
+        private final List<FilterLookupMetadataChangeHistoryWriteRequest> insertedMetadataChanges = new ArrayList<>();
+
+        @Override
+        public com.lextr.semanticlayer.model.SemanticFilterLookupRecord insertLookup(com.lextr.semanticlayer.model.SemanticFilterLookupWriteRequest request) {
+            throw new UnsupportedOperationException("Not used in tests");
+        }
+
+        @Override
+        public FilterLookupWorkflowTaskRecord insertWorkflowTask(FilterLookupWorkflowTaskWriteRequest request) {
+            insertedWorkflowTasks.add(request);
+            return new FilterLookupWorkflowTaskRecord(
+                    900L + insertedWorkflowTasks.size(),
+                    request.task_type_cd(),
+                    request.entity_type_cd(),
+                    request.entity_ref(),
+                    request.task_status_cd(),
+                    request.submitted_by(),
+                    request.submitted_ts(),
+                    request.assigned_to(),
+                    request.due_dt(),
+                    request.description_txt(),
+                    request.client_id(),
+                    request.approved_by(),
+                    request.approved_ts(),
+                    request.approval_note_txt()
+            );
+        }
+
+        @Override
+        public FilterLookupMetadataChangeHistoryRecord insertMetadataChangeHistory(FilterLookupMetadataChangeHistoryWriteRequest request) {
+            insertedMetadataChanges.add(request);
+            return new FilterLookupMetadataChangeHistoryRecord(
+                    800L + insertedMetadataChanges.size(),
+                    request.entity_type_cd(),
+                    request.entity_ref(),
+                    request.change_type_cd(),
+                    request.changed_by(),
+                    request.changed_ts(),
+                    request.old_value_json(),
+                    request.new_value_json(),
+                    request.change_reason_txt()
+            );
+        }
+    }
+
+    private static final class RecordingDqRuleService implements DqRuleService {
+
+        private final List<com.lextr.semanticlayer.dto.DqRuleRequestDto> requests = new ArrayList<>();
+
+        @Override
+        public List<com.lextr.semanticlayer.dto.DqRuleCatalogDto> findRules(String clientId, String ruleDimensionCode, String lifecycleStatusCode) {
+            throw new UnsupportedOperationException("Not used in tests");
+        }
+
+        @Override
+        public com.lextr.semanticlayer.dto.DqRuleCatalogDto findRule(String clientId, String ruleCode) {
+            throw new UnsupportedOperationException("Not used in tests");
+        }
+
+        @Override
+        public List<com.lextr.semanticlayer.dto.DqRuleAttributeDto> findRuleAttributes(String clientId, String ruleCode) {
+            throw new UnsupportedOperationException("Not used in tests");
+        }
+
+        @Override
+        public List<com.lextr.semanticlayer.dto.DqRuleResultDto> findRuleResults(String clientId, String logicalAttributeCode) {
+            throw new UnsupportedOperationException("Not used in tests");
+        }
+
+        @Override
+        public List<WorkflowTaskResponseDto> requestRules(com.lextr.semanticlayer.dto.DqRuleRequestDto request) {
+            requests.add(request);
+            return List.of();
+        }
+
+        @Override
+        public WorkflowTaskResponseDto findRequest(String clientId, java.util.UUID workflowTaskId) {
+            throw new UnsupportedOperationException("Not used in tests");
+        }
+    }
+
+    private static final class RecordingTransactionOperations implements TransactionOperations {
+
+        @Override
+        public <T> T execute(TransactionCallback<T> action) {
+            return action.doInTransaction(new RecordingTransactionStatus());
+        }
+    }
+
+    private static final class RecordingTransactionStatus implements TransactionStatus {
+
+        @Override
+        public boolean isNewTransaction() {
+            return false;
+        }
+
+        @Override
+        public boolean hasSavepoint() {
+            return false;
+        }
+
+        @Override
+        public void setRollbackOnly() {
+        }
+
+        @Override
+        public boolean isRollbackOnly() {
+            return false;
+        }
+
+        @Override
+        public void flush() {
+        }
+
+        @Override
+        public boolean isCompleted() {
+            return false;
+        }
+
+        @Override
+        public Object createSavepoint() {
+            return null;
+        }
+
+        @Override
+        public void rollbackToSavepoint(Object savepoint) {
+        }
+
+        @Override
+        public void releaseSavepoint(Object savepoint) {
         }
     }
 }
