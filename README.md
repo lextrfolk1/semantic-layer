@@ -134,6 +134,7 @@ This includes SQL for:
 Rego assets live under `src/main/resources/opa`:
 
 - `taxonomy/jurisdiction_valid.rego`
+- `object_exposure/access_control.rego`
 - `relationship/cross_engine_block.rego`
 - `relationship/cross_engine_pairing.rego`
 - `relationship/cross_engine_query.rego`
