@@ -57,6 +57,17 @@ class JdbcLogicalPhysicalResolutionDaoTest {
     }
 
     @Test
+    void returnsEmptyListWithoutQueryWhenNoLogicalAttributesProvided() {
+        RecordingNamedParameterJdbcTemplate jdbcTemplate = new RecordingNamedParameterJdbcTemplate(List.of());
+        JdbcLogicalPhysicalResolutionDao dao = new JdbcLogicalPhysicalResolutionDao(providerOf(jdbcTemplate), new SQLQueryLoaderUtil(new DefaultResourceLoader()));
+
+        List<LogicalPhysicalResolutionRecord> results = dao.findByAttributes("client-a", "meta", "ledger", List.of());
+
+        assertTrue(results.isEmpty());
+        assertTrue(jdbcTemplate.recordedSqls().isEmpty());
+    }
+
+    @Test
     void bindsOutboundResolutionParametersAndMapsGrainRows() {
         RecordingNamedParameterJdbcTemplate jdbcTemplate = new RecordingNamedParameterJdbcTemplate(List.of(List.of(outboundRow())));
         JdbcLogicalPhysicalResolutionDao dao = new JdbcLogicalPhysicalResolutionDao(providerOf(jdbcTemplate), new SQLQueryLoaderUtil(new DefaultResourceLoader()));

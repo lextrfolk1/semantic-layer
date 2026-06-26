@@ -33,6 +33,9 @@ public class JdbcLogicalPhysicalResolutionDao implements LogicalPhysicalResoluti
                                                                   String schemaCode,
                                                                   String objectCode,
                                                                   List<String> logicalAttributeCodes) {
+        if (logicalAttributeCodes == null || logicalAttributeCodes.isEmpty()) {
+            return List.of();
+        }
         return jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(FIND_BY_ATTRIBUTES),
                 new MapSqlParameterSource()
