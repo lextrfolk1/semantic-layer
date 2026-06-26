@@ -18,9 +18,15 @@ class SemanticResolvePolicyAssetsTest {
         assertTrue(policy.contains("default evaluate :="));
         assertTrue(policy.contains("\"code\": \"POL-RS-001\""));
         assertTrue(policy.contains("\"reason\": \"POL-RS-001: unknown or invalid input\""));
+        assertTrue(policy.contains("POL-RS-001: cross-tenant resolve denied"));
+        assertTrue(policy.contains("POL-RS-001: resolve denied for non-engine principal role"));
+        assertTrue(policy.contains("authorized_engine_principal"));
+        assertTrue(policy.contains("upper(input.role_cd) == \"ENGINE\""));
+        assertTrue(policy.contains("upper(input.purpose_cd) == \"RESOLUTION\""));
         assertTrue(policy.contains("input.resource_client_id"));
         assertTrue(policy.contains("input.request_type_cd == \"SEMANTIC\""));
         assertTrue(policy.contains("input.request_type_cd == \"CONSUMPTION\""));
+        assertTrue(policy.contains("input.request_type_cd == \"RESOLVE\""));
     }
 
     @Test
@@ -31,10 +37,12 @@ class SemanticResolvePolicyAssetsTest {
         assertTrue(tests.contains("import data.lextr.semantic.semantic_resolve"));
         assertTrue(tests.contains("test_evaluate_allows_same_tenant_semantic_resolve"));
         assertTrue(tests.contains("test_evaluate_allows_same_tenant_consumption_resolve"));
+        assertTrue(tests.contains("test_evaluate_denies_non_engine_principal_resolve"));
         assertTrue(tests.contains("test_evaluate_denies_cross_tenant_resolve"));
         assertTrue(tests.contains("test_evaluate_denies_missing_role_or_purpose"));
         assertTrue(tests.contains("test_evaluate_defaults_deny_on_unknown_input"));
         assertTrue(tests.contains("decision.code == \"POL-RS-001\""));
+        assertTrue(tests.contains("decision.reason == \"POL-RS-001: allow\""));
         assertTrue(tests.contains("decision.reason == \"POL-RS-001: unknown or invalid input\""));
     }
 

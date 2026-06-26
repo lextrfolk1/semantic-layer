@@ -16,6 +16,7 @@ test_evaluate_allows_same_tenant_semantic_resolve {
 
     decision.allowed == true
     decision.code == "POL-RS-001"
+    decision.reason == "POL-RS-001: allow"
 }
 
 test_evaluate_allows_same_tenant_consumption_resolve {
@@ -31,6 +32,25 @@ test_evaluate_allows_same_tenant_consumption_resolve {
     }
 
     decision.allowed == true
+    decision.code == "POL-RS-001"
+    decision.reason == "POL-RS-001: allow"
+}
+
+test_evaluate_denies_non_engine_principal_resolve {
+    decision := semantic_resolve.evaluate with input as {
+        "policy_cd": "POL-RS-001",
+        "request_type_cd": "SEMANTIC",
+        "client_id": "client-a",
+        "actor_id": "human-1",
+        "role_cd": "ANALYST",
+        "purpose_cd": "RESOLUTION",
+        "resource_client_id": "client-a",
+        "resource_ref_txt": "meta.ledger"
+    }
+
+    decision.allowed == false
+    decision.code == "POL-RS-001"
+    decision.reason == "POL-RS-001: resolve denied for non-engine principal role ANALYST and purpose RESOLUTION"
 }
 
 test_evaluate_denies_cross_tenant_resolve {
@@ -47,6 +67,7 @@ test_evaluate_denies_cross_tenant_resolve {
 
     decision.allowed == false
     decision.code == "POL-RS-001"
+    decision.reason == "POL-RS-001: cross-tenant resolve denied for actor client client-a to resource client client-b"
 }
 
 test_evaluate_denies_missing_role_or_purpose {
@@ -62,6 +83,8 @@ test_evaluate_denies_missing_role_or_purpose {
     }
 
     decision.allowed == false
+    decision.code == "POL-RS-001"
+    decision.reason == "POL-RS-001: unknown or invalid input"
 }
 
 test_evaluate_defaults_deny_on_unknown_input {

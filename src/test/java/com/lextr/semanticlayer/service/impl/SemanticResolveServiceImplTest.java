@@ -116,6 +116,36 @@ class SemanticResolveServiceImplTest {
     }
 
     @Test
+    void deniesNonEnginePrincipalSemanticResolve() {
+        UUID objectId = UUID.fromString("00000000-0000-0000-0000-000000000101");
+        RecordingObjectExposureReadDao objectDao = new RecordingObjectExposureReadDao();
+        objectDao.object = objectRecord(objectId, "client-a");
+        objectDao.attributesByObjectId.put(objectId, List.of(attributeRecord(objectId, "LEDGER_ID", "ledger_id")));
+
+        SemanticResolveServiceImpl service = new SemanticResolveServiceImpl(
+                objectDao,
+                new RecordingConsumptionDao(),
+                new RecordingLogicalPhysicalResolutionDao(),
+                new RecordingSemanticResolvePolicyClient(),
+                new RecordingObjectExposurePolicyClient()
+        );
+
+        PolicyViolationException exception = assertThrows(
+                PolicyViolationException.class,
+                () -> service.resolveAttributes(
+                        new SemanticResolveRequestDto("client-a", "meta", "ledger", List.of("LEDGER_ID")),
+                        "human-1",
+                        "ANALYST",
+                        "RESOLUTION"
+                )
+        );
+
+        assertEquals("POL-RS-001", exception.code());
+        assertTrue(exception.getMessage().contains("non-engine principal"));
+        assertTrue(objectDao.audits.get(0).change_reason_txt().contains("denied"));
+    }
+
+    @Test
     void resolvesConsumptionOutboundAndWritesAudit() {
         UUID objectId = UUID.fromString("00000000-0000-0000-0000-000000000101");
         RecordingObjectExposureReadDao objectDao = new RecordingObjectExposureReadDao();
@@ -403,8 +433,8 @@ class SemanticResolveServiceImplTest {
                     && !request.client_id().equals(request.resource_client_id())) {
                 return new ObjectExposurePolicyDecisionDto(false, "POL-RS-001", "Cross-tenant resolve denied");
             }
-            if (request.role_cd() == null || request.role_cd().isBlank() || request.purpose_cd() == null || request.purpose_cd().isBlank()) {
-                return new ObjectExposurePolicyDecisionDto(false, "POL-RS-001", "Resolve denied for role and purpose");
+            if (!"ENGINE".equalsIgnoreCase(request.role_cd()) || !"RESOLUTION".equalsIgnoreCase(request.purpose_cd())) {
+                return new ObjectExposurePolicyDecisionDto(false, "POL-RS-001", "Resolve denied for non-engine principal");
             }
             return new ObjectExposurePolicyDecisionDto(true, null, null);
         }
