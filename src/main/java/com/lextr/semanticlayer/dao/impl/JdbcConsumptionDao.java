@@ -1,0 +1,299 @@
+package com.lextr.semanticlayer.dao.impl;
+
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.lextr.semanticlayer.dao.ConsumptionDao;
+import com.lextr.semanticlayer.exception.SemanticLayerException;
+import com.lextr.semanticlayer.model.ConsumptionLayerRecord;
+import com.lextr.semanticlayer.model.ConsumptionOutboundRecord;
+import com.lextr.semanticlayer.model.ConsumptionPromotionRecord;
+import com.lextr.semanticlayer.util.SQLQueryLoaderUtil;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.stereotype.Repository;
+
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+@Repository
+public class JdbcConsumptionDao implements ConsumptionDao {
+
+    static final String FIND_LAYERS = "consumption_layer.find_all";
+    static final String FIND_LAYER = "consumption_layer.find_by_code";
+    static final String FIND_EXPOSURES = "consumption_outbound.find_all_by_object";
+    static final String FIND_EXPOSURE = "consumption_outbound.find_by_id";
+    static final String FIND_LATEST_PROMOTION = "consumption_promotion.find_by_outbound";
+    static final String INSERT_PROMOTION = "consumption_promotion.insert_request";
+    static final String APPLY_PROMOTION = "consumption_promotion.apply_promotion";
+    static final String INSERT_WORKFLOW_TASK = "consumption_promotion.insert_workflow_task";
+    static final String INSERT_METADATA_CHANGE_HISTORY = "consumption_promotion.insert_metadata_change_history";
+
+    private final ObjectProvider<NamedParameterJdbcTemplate> jdbcTemplateProvider;
+    private final SQLQueryLoaderUtil sqlQueryLoaderUtil;
+    private final ObjectMapper objectMapper;
+
+    public JdbcConsumptionDao(ObjectProvider<NamedParameterJdbcTemplate> jdbcTemplateProvider,
+                              SQLQueryLoaderUtil sqlQueryLoaderUtil,
+                              ObjectMapper objectMapper) {
+        this.jdbcTemplateProvider = jdbcTemplateProvider;
+        this.sqlQueryLoaderUtil = sqlQueryLoaderUtil;
+        this.objectMapper = objectMapper;
+    }
+
+    @Override
+    public List<ConsumptionLayerRecord> findLayers(String clientId, String lifecycleStatusCode) {
+        return jdbcTemplate().query(
+                sqlQueryLoaderUtil.getQuery(FIND_LAYERS),
+                new MapSqlParameterSource()
+                        .addValue("client_id", clientId)
+                        .addValue("lifecycle_status_cd", lifecycleStatusCode),
+                (rs, rowNum) -> toLayerRecord(rs)
+        );
+    }
+
+    @Override
+    public Optional<ConsumptionLayerRecord> findLayer(String clientId, String layerCode) {
+        return jdbcTemplate().query(
+                sqlQueryLoaderUtil.getQuery(FIND_LAYER),
+                new MapSqlParameterSource()
+                        .addValue("client_id", clientId)
+                        .addValue("layer_cd", layerCode),
+                (rs, rowNum) -> toLayerRecord(rs)
+        ).stream().findFirst();
+    }
+
+    @Override
+    public List<ConsumptionOutboundRecord> findExposures(String clientId, UUID objectId, String structureTypeCode) {
+        return jdbcTemplate().query(
+                sqlQueryLoaderUtil.getQuery(FIND_EXPOSURES),
+                new MapSqlParameterSource()
+                        .addValue("client_id", clientId)
+                        .addValue("object_id", objectId)
+                        .addValue("structure_type_cd", structureTypeCode),
+                (rs, rowNum) -> toExposureRecord(rs)
+        );
+    }
+
+    @Override
+    public Optional<ConsumptionOutboundRecord> findExposure(String clientId, Long exposureId) {
+        return jdbcTemplate().query(
+                sqlQueryLoaderUtil.getQuery(FIND_EXPOSURE),
+                new MapSqlParameterSource()
+                        .addValue("client_id", clientId)
+                        .addValue("outbound_id", exposureId),
+                (rs, rowNum) -> toExposureRecord(rs)
+        ).stream().findFirst();
+    }
+
+    @Override
+    public Optional<ConsumptionPromotionRecord> findLatestPromotion(String clientId, Long exposureId) {
+        return jdbcTemplate().query(
+                sqlQueryLoaderUtil.getQuery(FIND_LATEST_PROMOTION),
+                new MapSqlParameterSource()
+                        .addValue("client_id", clientId)
+                        .addValue("outbound_id", exposureId),
+                (rs, rowNum) -> toPromotionRecord(rs)
+        ).stream().findFirst();
+    }
+
+    @Override
+    public ConsumptionPromotionRecord insertPromotionRequest(String clientId,
+                                                              Long outboundId,
+                                                              String sourceSdlcStatusCode,
+                                                              String targetSdlcStatusCode,
+                                                              String validationStatusCode,
+                                                              String opaDecisionCode,
+                                                              Long workflowTaskId,
+                                                              String promotionStatusCode,
+                                                              Integer versionNumber,
+                                                              OffsetDateTime createdTs,
+                                                              String createdBy,
+                                                              OffsetDateTime updatedTs,
+                                                              String updatedBy) {
+        return queryForPromotion(
+                sqlQueryLoaderUtil.getQuery(INSERT_PROMOTION),
+                new MapSqlParameterSource()
+                        .addValue("client_id", clientId)
+                        .addValue("outbound_id", outboundId)
+                        .addValue("source_sdlc_status_cd", sourceSdlcStatusCode)
+                        .addValue("target_sdlc_status_cd", targetSdlcStatusCode)
+                        .addValue("validation_status_cd", validationStatusCode)
+                        .addValue("opa_decision_cd", opaDecisionCode)
+                        .addValue("workflow_task_id", workflowTaskId)
+                        .addValue("promotion_status_cd", promotionStatusCode)
+                        .addValue("version_nbr", versionNumber)
+                        .addValue("created_ts", createdTs)
+                        .addValue("created_by", createdBy)
+                        .addValue("updated_ts", updatedTs)
+                        .addValue("updated_by", updatedBy)
+        );
+    }
+
+    @Override
+    public ConsumptionPromotionRecord applyPromotion(String clientId,
+                                                     Long id,
+                                                     String targetSdlcStatusCode,
+                                                     String validationStatusCode,
+                                                     String opaDecisionCode,
+                                                     String promotionStatusCode,
+                                                     OffsetDateTime appliedTs,
+                                                     String appliedBy,
+                                                     OffsetDateTime updatedTs,
+                                                     String updatedBy) {
+        return queryForPromotion(
+                sqlQueryLoaderUtil.getQuery(APPLY_PROMOTION),
+                new MapSqlParameterSource()
+                        .addValue("client_id", clientId)
+                        .addValue("id", id)
+                        .addValue("target_sdlc_status_cd", targetSdlcStatusCode)
+                        .addValue("validation_status_cd", validationStatusCode)
+                        .addValue("opa_decision_cd", opaDecisionCode)
+                        .addValue("promotion_status_cd", promotionStatusCode)
+                        .addValue("applied_ts", appliedTs)
+                        .addValue("applied_by", appliedBy)
+                        .addValue("updated_ts", updatedTs)
+                        .addValue("updated_by", updatedBy)
+        );
+    }
+
+    @Override
+    public void insertWorkflowTask(String clientId,
+                                   String entityRef,
+                                   String taskStatusCode,
+                                   String submittedBy,
+                                   OffsetDateTime submittedTs,
+                                   String descriptionTxt,
+                                   String approvedBy,
+                                   OffsetDateTime approvedTs,
+                                   String approvalNoteTxt) {
+        jdbcTemplate().update(
+                sqlQueryLoaderUtil.getQuery(INSERT_WORKFLOW_TASK),
+                new MapSqlParameterSource()
+                        .addValue("entity_type_cd", "CONSUMPTION_EXPOSURE")
+                        .addValue("entity_ref", entityRef)
+                        .addValue("task_status_cd", taskStatusCode)
+                        .addValue("submitted_by", submittedBy)
+                        .addValue("submitted_ts", submittedTs)
+                        .addValue("assigned_to", null)
+                        .addValue("due_dt", null)
+                        .addValue("description_txt", descriptionTxt)
+                        .addValue("client_id", clientId)
+                        .addValue("approved_by", approvedBy)
+                        .addValue("approved_ts", approvedTs)
+                        .addValue("approval_note_txt", approvalNoteTxt)
+        );
+    }
+
+    @Override
+    public void insertMetadataChangeHistory(String clientId,
+                                            String entityTypeCode,
+                                            String entityRef,
+                                            String changeTypeCode,
+                                            String changeReasonTxt,
+                                            String changedBy,
+                                            OffsetDateTime changedTs) {
+        jdbcTemplate().update(
+                sqlQueryLoaderUtil.getQuery(INSERT_METADATA_CHANGE_HISTORY),
+                new MapSqlParameterSource()
+                        .addValue("client_id", clientId)
+                        .addValue("entity_type_cd", entityTypeCode)
+                        .addValue("entity_ref", entityRef)
+                        .addValue("change_type_cd", changeTypeCode)
+                        .addValue("change_reason_txt", changeReasonTxt)
+                        .addValue("changed_by", changedBy)
+                        .addValue("changed_ts", changedTs)
+        );
+    }
+
+    private NamedParameterJdbcTemplate jdbcTemplate() {
+        NamedParameterJdbcTemplate jdbcTemplate = jdbcTemplateProvider.getIfAvailable();
+        if (jdbcTemplate == null) {
+            throw new SemanticLayerException("NamedParameterJdbcTemplate is not configured");
+        }
+        return jdbcTemplate;
+    }
+
+    private ConsumptionLayerRecord toLayerRecord(ResultSet resultSet) throws SQLException {
+        return new ConsumptionLayerRecord(
+                resultSet.getObject("id", Long.class),
+                resultSet.getString("client_id"),
+                resultSet.getString("layer_cd"),
+                resultSet.getString("layer_nm"),
+                resultSet.getString("layer_desc_txt"),
+                resultSet.getString("layer_type_cd"),
+                resultSet.getString("lifecycle_status_cd"),
+                resultSet.getObject("created_ts", OffsetDateTime.class),
+                resultSet.getString("created_by"),
+                resultSet.getObject("updated_ts", OffsetDateTime.class),
+                resultSet.getString("updated_by")
+        );
+    }
+
+    private ConsumptionOutboundRecord toExposureRecord(ResultSet resultSet) throws SQLException {
+        return new ConsumptionOutboundRecord(
+                resultSet.getObject("id", Long.class),
+                resultSet.getString("client_id"),
+                resultSet.getString("layer_cd"),
+                resultSet.getObject("object_id", Long.class),
+                resultSet.getString("outbound_cd"),
+                resultSet.getString("outbound_nm"),
+                resultSet.getString("structure_type_cd"),
+                resultSet.getString("description_txt"),
+                parseAttributes(resultSet.getObject("attributes_jsonb")),
+                resultSet.getString("sdlc_status_cd"),
+                getInteger(resultSet, "version_nbr"),
+                resultSet.getObject("created_ts", OffsetDateTime.class),
+                resultSet.getString("created_by"),
+                resultSet.getObject("updated_ts", OffsetDateTime.class),
+                resultSet.getString("updated_by")
+        );
+    }
+
+    private ConsumptionPromotionRecord toPromotionRecord(ResultSet resultSet) throws SQLException {
+        return new ConsumptionPromotionRecord(
+                resultSet.getObject("id", Long.class),
+                resultSet.getString("client_id"),
+                resultSet.getObject("outbound_id", Long.class),
+                resultSet.getString("source_sdlc_status_cd"),
+                resultSet.getString("target_sdlc_status_cd"),
+                resultSet.getString("validation_status_cd"),
+                resultSet.getString("opa_decision_cd"),
+                resultSet.getObject("workflow_task_id", Long.class),
+                resultSet.getString("promotion_status_cd"),
+                getInteger(resultSet, "version_nbr"),
+                resultSet.getObject("applied_ts", OffsetDateTime.class),
+                resultSet.getString("applied_by"),
+                resultSet.getObject("created_ts", OffsetDateTime.class),
+                resultSet.getString("created_by"),
+                resultSet.getObject("updated_ts", OffsetDateTime.class),
+                resultSet.getString("updated_by")
+        );
+    }
+
+    private ConsumptionPromotionRecord queryForPromotion(String sql, MapSqlParameterSource parameters) {
+        return jdbcTemplate().query(sql, parameters, (rs, rowNum) -> toPromotionRecord(rs)).stream()
+                .findFirst()
+                .orElseThrow(() -> new SemanticLayerException("Promotion query did not return a row"));
+    }
+
+    private List<String> parseAttributes(Object rawValue) {
+        if (rawValue == null) {
+            return List.of();
+        }
+        try {
+            return objectMapper.readValue(rawValue.toString(), new TypeReference<List<String>>() { });
+        } catch (Exception exception) {
+            throw new SemanticLayerException("Unable to parse consumption attributes JSON", exception);
+        }
+    }
+
+    private static Integer getInteger(ResultSet resultSet, String columnLabel) throws SQLException {
+        Object value = resultSet.getObject(columnLabel);
+        return value == null ? null : ((Number) value).intValue();
+    }
+}
