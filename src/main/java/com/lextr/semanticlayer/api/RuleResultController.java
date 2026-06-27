@@ -5,6 +5,7 @@ import com.lextr.semanticlayer.dto.RuleResultIngestResponseDto;
 import com.lextr.semanticlayer.exception.RuleResultServiceException;
 import com.lextr.semanticlayer.service.RuleResultService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/rule-results")
+@Tag(name = "Rule Results", description = "External rule result ingest operations.")
 public class RuleResultController {
 
     private final RuleResultService ruleResultService;
