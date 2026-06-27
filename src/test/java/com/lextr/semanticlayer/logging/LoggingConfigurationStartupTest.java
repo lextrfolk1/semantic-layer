@@ -6,6 +6,7 @@ import com.lextr.semanticlayer.dto.WorkflowApprovalRequestDto;
 import com.lextr.semanticlayer.dto.WorkflowTaskResponseDto;
 import com.lextr.semanticlayer.service.WorkflowApprovalService;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.WebApplicationType;
@@ -20,14 +21,20 @@ import com.lextr.semanticlayer.util.SQLQueryLoaderUtil;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@ExtendWith(OutputCaptureExtension.class)
 class LoggingConfigurationStartupTest {
 
     @Test
-    void startsWithStandardizedLoggingConfigurationLoaded() {
+    void startsWithStandardizedLoggingConfigurationLoaded(CapturedOutput output) {
         SpringApplication application = new SpringApplication(TestApplication.class);
         application.setWebApplicationType(WebApplicationType.NONE);
 
@@ -35,6 +42,9 @@ class LoggingConfigurationStartupTest {
             assertNotNull(context.getBean(ControllerExecutionTimeAspect.class));
             assertNotNull(context.getBean(ApiExceptionHandler.class));
             assertEquals("INFO", context.getEnvironment().getProperty("logging.level.com.lextr.semanticlayer"));
+            Logger logger = LoggerFactory.getLogger(LoggingConfigurationStartupTest.class);
+            logger.info("logging config probe");
+            assertTrue(output.getOut().contains("[semantic-layer] logging config probe"));
         }
     }
 
