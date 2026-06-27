@@ -8,11 +8,13 @@ import com.lextr.semanticlayer.exception.ObservabilitySignalServiceException;
 import com.lextr.semanticlayer.exception.RegistryResourceNotFoundException;
 import com.lextr.semanticlayer.service.ObservabilitySignalService;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 
+import java.util.Collections;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -174,8 +176,39 @@ class ObservabilitySignalControllerTest {
                 .andExpect(status().isNotFound());
     }
 
+    @Test
+    void degradesGracefullyWhenServiceBeanIsAbsent() throws Exception {
+        MockMvc mockMvc = mockMvc(new ObservabilitySignalController(providerOf(null)));
+
+        mockMvc.perform(post("/api/observability-signals")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "client_id": "client-a",
+                                  "signal_type_cd": "FRESHNESS",
+                                  "source_system_cd": "PIPELINE",
+                                  "detected_ts": "2026-06-18T10:15:30Z",
+                                  "reported_by": "tooling"
+                                }
+                                """))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.code").value("INTERNAL_SERVER_ERROR"))
+                .andExpect(jsonPath("$.message").value("ObservabilitySignalService is not configured"));
+    }
+
     private static MockMvc mockMvc(ObservabilitySignalService service) {
         ObservabilitySignalController controller = new ObservabilitySignalController(service);
+        ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+        LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
+        validator.afterPropertiesSet();
+        return MockMvcBuilders.standaloneSetup(controller)
+                .setControllerAdvice(new ApiExceptionHandler())
+                .setValidator(validator)
+                .setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))
+                .build();
+    }
+
+    private static MockMvc mockMvc(ObservabilitySignalController controller) {
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
@@ -210,6 +243,35 @@ class ObservabilitySignalControllerTest {
                 OffsetDateTime.parse("2026-06-18T10:16:30Z"),
                 "tooling"
         );
+    }
+
+    private static <T> ObjectProvider<T> providerOf(T instance) {
+        return new ObjectProvider<>() {
+            @Override
+            public T getObject(Object... args) {
+                return instance;
+            }
+
+            @Override
+            public T getIfAvailable() {
+                return instance;
+            }
+
+            @Override
+            public T getIfUnique() {
+                return instance;
+            }
+
+            @Override
+            public T getObject() {
+                return instance;
+            }
+
+            @Override
+            public java.util.Iterator<T> iterator() {
+                return instance == null ? Collections.emptyIterator() : List.of(instance).iterator();
+            }
+        };
     }
 
     private static final class RecordingObservabilitySignalService implements ObservabilitySignalService {

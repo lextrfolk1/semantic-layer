@@ -21,7 +21,9 @@ import com.lextr.semanticlayer.service.DqRuleService;
 import com.lextr.semanticlayer.service.GovernancePolicyPresetReadService;
 import com.lextr.semanticlayer.service.ObservabilitySignalPolicyClient;
 import com.lextr.semanticlayer.service.ObservabilitySignalService;
+import com.lextr.semanticlayer.exception.ObservabilitySignalServiceException;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionOperations;
@@ -29,6 +31,8 @@ import org.springframework.transaction.support.TransactionOperations;
 import java.time.OffsetDateTime;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 
@@ -133,6 +137,16 @@ class ObservabilitySignalServiceImplTest {
                 null,
                 "analyst"
         )));
+    }
+
+    @Test
+    void degradesGracefullyWhenDaoBeanIsAbsent() {
+        ObservabilitySignalService service = new ObservabilitySignalServiceImpl(providerOf(null));
+
+        ObservabilitySignalServiceException exception = assertThrows(ObservabilitySignalServiceException.class,
+                () -> service.findSignals("client-a", null, null, null, null));
+
+        assertEquals("ObservabilitySignalDao is not configured", exception.getMessage());
     }
 
     @Test
@@ -286,6 +300,35 @@ class ObservabilitySignalServiceImplTest {
         assertFalse(transactionOperations.committed);
         assertEquals(1, signalDao.insertCalls);
         assertEquals(0, workflowDao.insertedWorkflowTasks.size());
+    }
+
+    private static <T> ObjectProvider<T> providerOf(T instance) {
+        return new ObjectProvider<>() {
+            @Override
+            public T getObject(Object... args) {
+                return instance;
+            }
+
+            @Override
+            public T getIfAvailable() {
+                return instance;
+            }
+
+            @Override
+            public T getIfUnique() {
+                return instance;
+            }
+
+            @Override
+            public T getObject() {
+                return instance;
+            }
+
+            @Override
+            public Iterator<T> iterator() {
+                return instance == null ? Collections.emptyIterator() : List.of(instance).iterator();
+            }
+        };
     }
 
     private static ObservabilitySignalRecord record(Long id, String signalStatusCode, String severityCode) {
