@@ -110,6 +110,16 @@ class ApiExceptionHandlerWebMvcTest {
     }
 
     @Test
+    void appliesNotFoundContractToUnknownRoutes() throws Exception {
+        MockMvc mockMvc = mockMvc(new RecordingWorkflowApprovalService(), new NoOpObjectRegistrationService(),
+                new RecordingObjectExposureReadService(), new RecordingGovernancePolicyPresetReadService());
+
+        mockMvc.perform(get("/api/does-not-exist"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+    }
+
+    @Test
     void preservesAnnotatedSemanticLayerStatusAcrossControllers() throws Exception {
         RecordingWorkflowApprovalService workflowService = new RecordingWorkflowApprovalService();
         workflowService.error = new WorkflowTaskAlreadyApprovedException(301L);

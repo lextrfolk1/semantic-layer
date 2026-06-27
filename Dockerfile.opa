@@ -1,4 +1,4 @@
-FROM openpolicyagent/opa:0.68.0
+FROM openpolicyagent/opa:1.9.0
 WORKDIR /policies
 COPY src/main/resources/opa /policies
 EXPOSE 8181

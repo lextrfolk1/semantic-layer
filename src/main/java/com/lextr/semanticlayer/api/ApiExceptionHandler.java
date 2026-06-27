@@ -15,6 +15,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -71,6 +73,11 @@ public class ApiExceptionHandler {
                 exception.getReason() != null ? exception.getReason() : exception.getMessage(),
                 exception
         );
+    }
+
+    @ExceptionHandler({NoHandlerFoundException.class, NoResourceFoundException.class})
+    public ResponseEntity<ApiErrorResponseDto> handleNotFound(Exception exception) {
+        return buildResponse(HttpStatus.NOT_FOUND, NOT_FOUND_CODE, exception.getMessage(), exception);
     }
 
     @ExceptionHandler(SemanticLayerException.class)

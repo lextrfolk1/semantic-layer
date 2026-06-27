@@ -1,21 +1,21 @@
 package com.lextr.semanticlayer.api;
 
 import com.lextr.semanticlayer.dto.LogicalHierarchyDto;
+import com.lextr.semanticlayer.dto.LogicalHierarchyRequestDto;
 import com.lextr.semanticlayer.service.HierarchyService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/hierarchies")
@@ -38,13 +38,13 @@ public class HierarchyController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Create hierarchy", description = "Creates a new logical hierarchy.")
-    public LogicalHierarchyDto createHierarchy(@RequestBody Map<String, String> body) {
+    public LogicalHierarchyDto createHierarchy(@Valid @org.springframework.web.bind.annotation.RequestBody LogicalHierarchyRequestDto request) {
         return hierarchyService.createHierarchy(
-                body.get("hierarchy_cd"),
-                body.get("hierarchy_nm"),
-                body.getOrDefault("tenant_cd", "GLOBAL"),
-                body.getOrDefault("hierarchy_status_cd", "ACTIVE"),
-                body.getOrDefault("created_by", "system")
+                request.hierarchy_cd(),
+                request.hierarchy_nm(),
+                request.tenant_cd() == null ? "GLOBAL" : request.tenant_cd(),
+                request.hierarchy_status_cd() == null ? "ACTIVE" : request.hierarchy_status_cd(),
+                request.created_by() == null ? "system" : request.created_by()
         );
     }
 }

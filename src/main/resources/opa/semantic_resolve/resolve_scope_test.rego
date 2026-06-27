@@ -2,7 +2,7 @@ package lextr.semantic.semantic_resolve_test
 
 import data.lextr.semantic.semantic_resolve
 
-test_evaluate_allows_same_tenant_semantic_resolve {
+test_evaluate_allows_same_tenant_semantic_resolve if {
     decision := semantic_resolve.evaluate with input as {
         "policy_cd": "POL-RS-001",
         "request_type_cd": "SEMANTIC",
@@ -19,7 +19,7 @@ test_evaluate_allows_same_tenant_semantic_resolve {
     decision.reason == "POL-RS-001: allow"
 }
 
-test_evaluate_allows_same_tenant_consumption_resolve {
+test_evaluate_allows_same_tenant_consumption_resolve if {
     decision := semantic_resolve.evaluate with input as {
         "policy_cd": "POL-RS-001",
         "request_type_cd": "CONSUMPTION",
@@ -36,7 +36,7 @@ test_evaluate_allows_same_tenant_consumption_resolve {
     decision.reason == "POL-RS-001: allow"
 }
 
-test_evaluate_denies_non_engine_principal_resolve {
+test_evaluate_denies_non_engine_principal_resolve if {
     decision := semantic_resolve.evaluate with input as {
         "policy_cd": "POL-RS-001",
         "request_type_cd": "SEMANTIC",
@@ -53,7 +53,7 @@ test_evaluate_denies_non_engine_principal_resolve {
     decision.reason == "POL-RS-001: resolve denied for non-engine principal role ANALYST and purpose RESOLUTION"
 }
 
-test_evaluate_denies_cross_tenant_resolve {
+test_evaluate_denies_cross_tenant_resolve if {
     decision := semantic_resolve.evaluate with input as {
         "policy_cd": "POL-RS-001",
         "request_type_cd": "SEMANTIC",
@@ -70,7 +70,7 @@ test_evaluate_denies_cross_tenant_resolve {
     decision.reason == "POL-RS-001: cross-tenant resolve denied for actor client client-a to resource client client-b"
 }
 
-test_evaluate_denies_missing_role_or_purpose {
+test_evaluate_denies_missing_role_or_purpose if {
     decision := semantic_resolve.evaluate with input as {
         "policy_cd": "POL-RS-001",
         "request_type_cd": "RESOLVE",
@@ -87,7 +87,7 @@ test_evaluate_denies_missing_role_or_purpose {
     decision.reason == "POL-RS-001: unknown or invalid input"
 }
 
-test_evaluate_defaults_deny_on_unknown_input {
+test_evaluate_defaults_deny_on_unknown_input if {
     decision := semantic_resolve.evaluate with input as {}
 
     decision.allowed == false

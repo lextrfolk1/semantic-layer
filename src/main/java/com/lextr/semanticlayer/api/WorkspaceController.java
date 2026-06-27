@@ -1,6 +1,7 @@
 package com.lextr.semanticlayer.api;
 
 import com.lextr.semanticlayer.dto.TenantWorkspaceDto;
+import com.lextr.semanticlayer.dto.TenantWorkspaceRequestDto;
 import com.lextr.semanticlayer.service.WorkspaceService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -8,14 +9,13 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import jakarta.validation.Valid;
 
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/workspaces")
@@ -38,14 +38,14 @@ public class WorkspaceController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Create workspace", description = "Creates a new tenant workspace.")
-    public TenantWorkspaceDto createWorkspace(@RequestBody Map<String, String> body) {
+    public TenantWorkspaceDto createWorkspace(@Valid @org.springframework.web.bind.annotation.RequestBody TenantWorkspaceRequestDto request) {
         return workspaceService.createWorkspace(
-                body.get("workspace_cd"),
-                body.get("tenant_cd"),
-                body.get("workspace_nm"),
-                body.get("workspace_desc"),
-                body.getOrDefault("workspace_status_cd", "ACTIVE"),
-                body.getOrDefault("created_by", "system")
+                request.workspace_cd(),
+                request.tenant_cd(),
+                request.workspace_nm(),
+                request.workspace_desc(),
+                request.workspace_status_cd() == null ? "ACTIVE" : request.workspace_status_cd(),
+                request.created_by() == null ? "system" : request.created_by()
         );
     }
 }
