@@ -14,6 +14,7 @@ import com.lextr.semanticlayer.dto.FilterLookupRegistrationRequestDto;
 import com.lextr.semanticlayer.dto.FilterLookupRegistrationResponseDto;
 import com.lextr.semanticlayer.dto.GovernancePolicyPresetDto;
 import com.lextr.semanticlayer.dto.LogicalPhysicalResolutionDto;
+import com.lextr.semanticlayer.dto.LogicalHierarchyDto;
 import com.lextr.semanticlayer.dto.ObjectExposureDetailDto;
 import com.lextr.semanticlayer.dto.ObjectExposureSummaryDto;
 import com.lextr.semanticlayer.dto.ObjectRegistrationRequestDto;
@@ -34,6 +35,7 @@ import com.lextr.semanticlayer.service.FilterLookupRegistrationService;
 import com.lextr.semanticlayer.service.GovernanceHistoryReadService;
 import com.lextr.semanticlayer.service.GovernancePolicyPresetReadService;
 import com.lextr.semanticlayer.service.LogicalPhysicalResolutionService;
+import com.lextr.semanticlayer.service.HierarchyService;
 import com.lextr.semanticlayer.service.ObjectExposureReadService;
 import com.lextr.semanticlayer.service.ObjectRegistrationService;
 import com.lextr.semanticlayer.service.RegistryReadService;
@@ -134,6 +136,7 @@ class OpenApiDocumentationTest {
         assertTrue(paths.has("/api/workflow-tasks/{id}/approve"));
         assertTrue(paths.has("/api/observability-signals"));
         assertTrue(paths.has("/api/observability-signals/{signal_id}/correlate"));
+        assertTrue(paths.has("/api/hierarchies"));
         assertTrue(paths.has("/api/attribute-pairings"));
         assertTrue(paths.has("/api/attribute-pairings/resolve"));
         assertTrue(paths.has("/api/logical-physical-resolutions/attributes"));
@@ -164,6 +167,12 @@ class OpenApiDocumentationTest {
 
         JsonNode observabilityCorrelatePost = paths.path("/api/observability-signals/{signal_id}/correlate").path("post");
         assertJsonRequestBody(observabilityCorrelatePost);
+
+        JsonNode hierarchiesGet = paths.path("/api/hierarchies").path("get");
+        assertQueryParameter(hierarchiesGet, "tenant_cd");
+
+        JsonNode hierarchiesPost = paths.path("/api/hierarchies").path("post");
+        assertJsonRequestBody(hierarchiesPost);
 
         JsonNode logicalPhysicalAttributesGet = paths.path("/api/logical-physical-resolutions/attributes").path("get");
         assertQueryParameter(logicalPhysicalAttributesGet, "client_id");
@@ -235,6 +244,7 @@ class OpenApiDocumentationTest {
             GovernancePolicyPresetController.class,
             ObservabilitySignalController.class,
             WorkflowTaskController.class,
+            HierarchyController.class,
             AttributePairingController.class,
             LogicalPhysicalResolutionController.class,
             SemanticResolveController.class,
@@ -369,6 +379,21 @@ class OpenApiDocumentationTest {
                     }
                     @Override
                     public WorkflowTaskResponseDto rejectTask(Long id, java.util.Map<String, String> body) {
+                        return null;
+                    }
+                };
+            }
+
+            @Bean
+            HierarchyService hierarchyService() {
+                return new HierarchyService() {
+                    @Override
+                    public List<LogicalHierarchyDto> findAll(String tenantCd) {
+                        return List.of();
+                    }
+
+                    @Override
+                    public LogicalHierarchyDto createHierarchy(String hierarchyCd, String hierarchyNm, String tenantCd, String hierarchyStatusCd, String createdBy) {
                         return null;
                     }
                 };
