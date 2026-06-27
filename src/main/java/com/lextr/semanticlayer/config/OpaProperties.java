@@ -24,6 +24,8 @@ public class OpaProperties {
 
     private Duration requestTimeout = Duration.ofSeconds(2);
 
+    private String policyPath = "classpath:opa";
+
     public boolean isEnabled() {
         return enabled;
     }
@@ -54,5 +56,23 @@ public class OpaProperties {
 
     public void setRequestTimeout(Duration requestTimeout) {
         this.requestTimeout = requestTimeout;
+    }
+
+    public String getPolicyPath() {
+        return policyPath;
+    }
+
+    public void setPolicyPath(String policyPath) {
+        this.policyPath = policyPath;
+    }
+
+    private String policyIdPrefix = "policies/";
+
+    public String getPolicyIdPrefix() {
+        return policyIdPrefix;
+    }
+
+    public void setPolicyIdPrefix(String policyIdPrefix) {
+        this.policyIdPrefix = policyIdPrefix;
     }
 }

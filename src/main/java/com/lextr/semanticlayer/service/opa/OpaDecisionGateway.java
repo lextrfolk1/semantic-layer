@@ -80,6 +80,28 @@ public class OpaDecisionGateway {
         return "OPA evaluation failed for " + policyPackage + " with HTTP " + statusCode + ": " + responseBody;
     }
 
+    public void publishPolicy(String policyId, String regoContent) {
+        try {
+            String baseUrl = trimTrailingSlash(properties.getBaseUrl());
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(baseUrl + "/v1/policies/" + policyId))
+                    .timeout(resolveTimeout())
+                    .header("Content-Type", "text/plain")
+                    .PUT(HttpRequest.BodyPublishers.ofString(regoContent))
+                    .build();
+
+            HttpResponse<String> response = transport.send(request);
+            if (response.statusCode() / 100 != 2) {
+                throw new OpaPolicyClientException("Failed to publish OPA policy " + policyId + ": HTTP " + response.statusCode() + " - " + response.body());
+            }
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new OpaPolicyClientException("OPA policy publish interrupted for " + policyId, exception);
+        } catch (IOException exception) {
+            throw new OpaPolicyClientException("OPA policy publish failed for " + policyId, exception);
+        }
+    }
+
     private String trimTrailingSlash(String value) {
         if (value == null || value.isBlank()) {
             return "http://localhost:8181";

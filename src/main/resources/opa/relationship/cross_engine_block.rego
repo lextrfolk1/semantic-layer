@@ -63,6 +63,9 @@ cross_engine_detected if {
     input.parent_engine_cd != input.child_engine_cd
 }
 
-allowed_engine contains "POSTGRES"
-allowed_engine contains "CLICKHOUSE"
-allowed_engine contains "NEO4J"
+# allowed_engine contains "POSTGRES"
+# allowed_engine contains "CLICKHOUSE"
+# allowed_engine contains "NEO4J"
+allowed_engine["POSTGRES"] := true
+allowed_engine["CLICKHOUSE"] := true
+allowed_engine["NEO4J"] := true
