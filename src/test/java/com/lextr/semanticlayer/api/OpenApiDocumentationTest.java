@@ -25,6 +25,7 @@ import com.lextr.semanticlayer.dto.SchemaCatalogDto;
 import com.lextr.semanticlayer.dto.DataConnectionDto;
 import com.lextr.semanticlayer.dto.WorkflowApprovalRequestDto;
 import com.lextr.semanticlayer.dto.WorkflowTaskResponseDto;
+import com.lextr.semanticlayer.logging.ControllerExecutionTimeAspect;
 import com.lextr.semanticlayer.service.AttributePairingRegistrationService;
 import com.lextr.semanticlayer.service.AttributePairingResolutionService;
 import com.lextr.semanticlayer.service.FilterLookupBindingService;
@@ -232,6 +233,13 @@ class OpenApiDocumentationTest {
         assertFalse(hasMultipartRequestBody(paths));
     }
 
+    @Test
+    void loadsRequiredCrossCuttingConcernsForCompletenessGate() {
+        assertNotNull(webApplicationContext.getBean(ControllerExecutionTimeAspect.class));
+        assertNotNull(webApplicationContext.getBean(ApiExceptionHandler.class));
+        assertNotNull(webApplicationContext.getBean(OpenApiConfiguration.class));
+    }
+
     private static void assertQueryParameter(JsonNode operation, String parameterName) {
         for (JsonNode parameter : operation.path("parameters")) {
             if (parameterName.equals(parameter.path("name").asText())
@@ -305,6 +313,7 @@ class OpenApiDocumentationTest {
     @Import({
             OpenApiConfiguration.class,
             ApiExceptionHandler.class,
+            ControllerExecutionTimeAspect.class,
             OpenApiTestApplication.ServiceStubs.class,
             RegistryReadController.class,
             ObjectRegistrationController.class,
