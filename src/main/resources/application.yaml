@@ -14,3 +14,9 @@ spring:
 logging:
   level:
     com.lextr.semanticlayer: INFO
+app:
+  opa:
+    enabled: ${APP_OPA_ENABLED:false}
+    base-url: ${APP_OPA_BASE_URL:http://localhost:8181}
+    decision-path-prefix: ${APP_OPA_DECISION_PATH_PREFIX:/v1/data}
+    request-timeout: ${APP_OPA_REQUEST_TIMEOUT:2s}
