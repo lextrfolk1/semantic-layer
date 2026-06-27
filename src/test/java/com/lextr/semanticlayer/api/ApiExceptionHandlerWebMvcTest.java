@@ -127,6 +127,24 @@ class ApiExceptionHandlerWebMvcTest {
         assertEquals(301L, workflowService.lastId);
     }
 
+    @Test
+    void appliesUnexpectedExceptionContractToWorkflowRequests() throws Exception {
+        RecordingWorkflowApprovalService workflowService = new RecordingWorkflowApprovalService();
+        workflowService.error = new RuntimeException("boom");
+        MockMvc mockMvc = mockMvc(workflowService, new NoOpObjectRegistrationService(),
+                new RecordingObjectExposureReadService(), new RecordingGovernancePolicyPresetReadService());
+
+        mockMvc.perform(post("/api/workflow-tasks/{id}/approve", 301L)
+                        .contentType("application/json")
+                        .content(validWorkflowRequestJson()))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.code").value("INTERNAL_SERVER_ERROR"))
+                .andExpect(jsonPath("$.message").value("boom"));
+
+        assertEquals(301L, workflowService.lastId);
+        assertEquals("client-a", workflowService.lastRequest.client_id());
+    }
+
     private static MockMvc mockMvc(WorkflowApprovalService workflowApprovalService,
                                    ObjectRegistrationService objectRegistrationService,
                                    ObjectExposureReadService objectExposureReadService,
