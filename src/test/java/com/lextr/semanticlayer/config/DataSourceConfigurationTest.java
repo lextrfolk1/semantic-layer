@@ -136,6 +136,21 @@ class DataSourceConfigurationTest {
     }
 
     @Test
+    void datasourcePropertiesRejectMissingRequiredFields() {
+        contextRunner
+                .withPropertyValues(
+                        "app.datasource.primary=primaryDataSource",
+                        "app.datasource.datasources.primaryDataSource.username=sa",
+                        "app.datasource.datasources.primaryDataSource.password=",
+                        "app.datasource.datasources.primaryDataSource.driver-class-name=org.h2.Driver"
+                )
+                .run(context -> {
+                    assertNotNull(context.getStartupFailure());
+                    assertTrue(context.getStartupFailure().getMessage().contains("Could not bind properties to 'DataSourceProperties'"));
+                });
+    }
+
+    @Test
     void startupFailsWhenConfiguredPrimaryDatasourceIsUnavailable() {
         contextRunner
                 .withPropertyValues(

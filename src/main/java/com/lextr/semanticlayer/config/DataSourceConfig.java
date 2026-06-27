@@ -33,7 +33,7 @@ public class DataSourceConfig {
     public DataSourceConfig(DataSourceProperties properties,
                             @Value("${data_db_engine:JDBC}") String dataDbEngine) {
         this.primaryDataSourceName = properties.getPrimary();
-        boolean clickHouseEnabled = DB_ENGINE_CLICKHOUSE.equalsIgnoreCase(dataDbEngine.trim());
+        boolean clickHouseEnabled = isClickHouseEnabled(dataDbEngine);
 
         properties.getDataSources().forEach((name, config) -> {
             if (CLICKHOUSE_DATA_SOURCE.equals(name) && !clickHouseEnabled) {
@@ -76,6 +76,10 @@ public class DataSourceConfig {
 
         config.getAdditionalProperties().forEach((key, value) -> applyAdditionalProperty(hikariConfig, key, value));
         return new HikariDataSource(hikariConfig);
+    }
+
+    private static boolean isClickHouseEnabled(String dataDbEngine) {
+        return StringUtils.hasText(dataDbEngine) && DB_ENGINE_CLICKHOUSE.equalsIgnoreCase(dataDbEngine.trim());
     }
 
     private static void applyAdditionalProperty(HikariConfig hikariConfig, String key, String value) {
