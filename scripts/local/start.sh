@@ -2,4 +2,4 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/../.."
-docker compose up -d --build opa semantic-layer
+docker compose up -d --build opa

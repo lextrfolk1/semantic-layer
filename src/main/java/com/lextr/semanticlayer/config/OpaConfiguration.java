@@ -54,7 +54,7 @@ import java.util.Map;
 
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(OpaProperties.class)
-@ConditionalOnProperty(prefix = "app.opa", name = "enabled", havingValue = "true")
+@ConditionalOnProperty(prefix = "opa", name = "enabled", havingValue = "true")
 public class OpaConfiguration {
 
     private static final String OBJECT_EXPOSURE_ACCESS_PACKAGE = "lextr.semantic.object_exposure";

@@ -1,22 +1,8 @@
 services:
   opa:
+    container_name: semantic-layer-opa
     build:
       context: .
       dockerfile: Dockerfile.opa
     ports:
       - "8181:8181"
-
-  semantic-layer:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    environment:
-      SPRING_CLOUD_CONFIG_ENABLED: "false"
-      APP_OPA_ENABLED: "true"
-      APP_OPA_BASE_URL: "http://opa:8181"
-      APP_OPA_DECISION_PATH_PREFIX: "/v1/data"
-      APP_OPA_REQUEST_TIMEOUT: "2s"
-    ports:
-      - "8080:8080"
-    depends_on:
-      - opa
