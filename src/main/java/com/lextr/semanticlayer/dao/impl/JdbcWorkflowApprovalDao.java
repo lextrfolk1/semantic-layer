@@ -168,6 +168,17 @@ public class JdbcWorkflowApprovalDao implements WorkflowApprovalDao {
     }
 
     @Override
+    public void grantDefaultAttributeAccess(String clientId, String objectId, String approvedBy, OffsetDateTime approvedTs) {
+        checkJdbcTemplate();
+        MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("client_id", clientId)
+                .addValue("object_id", objectId)
+                .addValue("approved_by", approvedBy)
+                .addValue("approved_ts", approvedTs);
+        jdbcTemplate.update(sqlQueryLoaderUtil.getQuery("workflow_approval.grant_default_attribute_access"), params);
+    }
+
+    @Override
     public void approvePairing(String clientId, String pairingCd, String lifecycleStatus, OffsetDateTime updatedTs, String updatedBy) {
         checkJdbcTemplate();
         MapSqlParameterSource params = new MapSqlParameterSource()

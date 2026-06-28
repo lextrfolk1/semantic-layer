@@ -21,6 +21,8 @@ public interface WorkflowApprovalDao {
 
     void approveObject(String clientId, String objectId, String lifecycleStatus, OffsetDateTime updatedTs, String updatedBy);
 
+    void grantDefaultAttributeAccess(String clientId, String objectId, String approvedBy, OffsetDateTime approvedTs);
+
     void approvePairing(String clientId, String pairingCd, String lifecycleStatus, OffsetDateTime updatedTs, String updatedBy);
 
     void approveRelationship(String relationshipCd, String lifecycleStatus, OffsetDateTime updatedTs, String updatedBy);

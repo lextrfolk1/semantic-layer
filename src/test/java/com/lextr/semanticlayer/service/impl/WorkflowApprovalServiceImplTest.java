@@ -535,6 +535,11 @@ class WorkflowApprovalServiceImplTest {
         }
 
         @Override
+        public void grantDefaultAttributeAccess(String clientId, String objectId, String approvedBy, OffsetDateTime approvedTs) {
+            // no-op in test
+        }
+
+        @Override
         public void approvePairing(String clientId, String pairingCd, String lifecycleStatus, OffsetDateTime updatedTs, String updatedBy) {
             pairingStatus.put(pairingCd, lifecycleStatus);
             pairingGovStatus.put(pairingCd, "APPROVED");

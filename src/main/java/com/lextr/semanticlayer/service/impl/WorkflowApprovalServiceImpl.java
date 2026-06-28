@@ -204,6 +204,7 @@ public class WorkflowApprovalServiceImpl implements WorkflowApprovalService {
             }
         } else if ("OBJECT_REGISTRATION".equalsIgnoreCase(type)) {
             workflowApprovalDao.approveObject(task.client_id(), task.entity_ref(), "APPROVED", now, approvedBy);
+            workflowApprovalDao.grantDefaultAttributeAccess(task.client_id(), task.entity_ref(), approvedBy, now);
         } else if ("ATTRIBUTE_PAIRING_REGISTRATION".equalsIgnoreCase(type)) {
             workflowApprovalDao.approvePairing(task.client_id(), task.entity_ref(), "APPROVED", now, approvedBy);
         } else if ("RELATIONSHIP_REGISTRATION".equalsIgnoreCase(type)) {
