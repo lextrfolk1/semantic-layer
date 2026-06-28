@@ -106,6 +106,7 @@ public class WorkflowApprovalWireThroughTest {
         jdbcTemplate.setResponses(List.of(
                 List.of(taskRow),
                 List.of(approvedTaskRow),
+                List.of(Map.of("id", 999L, "lookup_cd", "LEDGER_SCOPE", "governance_status_cd", "APPROVED")),
                 List.of(auditRow)
         ));
 
@@ -125,15 +126,15 @@ public class WorkflowApprovalWireThroughTest {
                 .andExpect(jsonPath("$.approved_by").value("approver"));
 
         // Verify JDBC operations
-        assertEquals(3, jdbcTemplate.recordedSqls().size());
+        assertEquals(4, jdbcTemplate.recordedSqls().size());
         assertTrue(jdbcTemplate.recordedSqls().get(0).contains("FROM wkfl.workflow_task"));
         assertTrue(jdbcTemplate.recordedSqls().get(1).contains("UPDATE wkfl.workflow_task"));
-        assertTrue(jdbcTemplate.recordedSqls().get(2).contains("INSERT INTO meta.metadata_change_history"));
+        assertTrue(jdbcTemplate.recordedSqls().get(2).contains("UPDATE meta.semantic_filter_lookup"));
+        assertTrue(jdbcTemplate.recordedSqls().get(3).contains("INSERT INTO meta.metadata_change_history"));
 
-        // Verify update SQL (approveLookup) was executed
-        assertEquals(1, jdbcTemplate.recordedUpdates().size());
-        assertTrue(jdbcTemplate.recordedUpdates().get(0).contains("UPDATE meta.semantic_filter_lookup"));
-        assertEquals("client-a", jdbcTemplate.recordedUpdateParameters().get(0).get("client_id"));
+        // Verify approveLookup ran as a returning query
+        assertEquals(0, jdbcTemplate.recordedUpdates().size());
+        assertEquals("client-a", jdbcTemplate.recordedParameters().get(2).get("client_id"));
         
         // Verify policy requests
         assertEquals(1, workflowPolicyClient.recordedRequests().size());

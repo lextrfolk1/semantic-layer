@@ -9,6 +9,7 @@ import com.lextr.semanticlayer.dto.WorkflowPolicyRequestDto;
 import com.lextr.semanticlayer.exception.PolicyViolationException;
 import com.lextr.semanticlayer.exception.RegistryResourceNotFoundException;
 import com.lextr.semanticlayer.exception.WorkflowApprovalServiceException;
+import com.lextr.semanticlayer.exception.WorkflowTaskNotPendingException;
 import com.lextr.semanticlayer.exception.WorkflowTaskAlreadyApprovedException;
 import com.lextr.semanticlayer.model.FilterLookupWorkflowTaskRecord;
 import com.lextr.semanticlayer.model.FilterLookupMetadataChangeHistoryRecord;
@@ -272,6 +273,50 @@ class WorkflowApprovalServiceImplTest {
         assertThrows(WorkflowTaskAlreadyApprovedException.class, () ->
                 service.approveTask(301L, new WorkflowApprovalRequestDto("client-a", "approver2", "re-approve"))
         );
+    }
+
+    @Test
+    void rejectsApprovalForNonPendingRejectedTaskWithoutHittingSideEffects() {
+        TransactionHarness harness = new TransactionHarness();
+        RecordingWorkflowApprovalDao dao = new RecordingWorkflowApprovalDao();
+        dao.tasks.put(302L, new FilterLookupWorkflowTaskRecord(
+                302L,
+                "FILTER_LOOKUP_REGISTRATION",
+                "FILTER_LOOKUP",
+                "LEDGER_SCOPE",
+                "REJECTED",
+                "producer",
+                OffsetDateTime.now(),
+                null,
+                null,
+                "Review",
+                "client-a",
+                null,
+                null,
+                null
+        ));
+
+        RecordingFilterLookupRegistrationWriteDao writeDao = new RecordingFilterLookupRegistrationWriteDao();
+        RecordingWorkflowPolicyClient policyClient = new RecordingWorkflowPolicyClient(
+                new WorkflowPolicyDecisionDto(true, null, null)
+        );
+        WorkflowApprovalServiceImpl service = new WorkflowApprovalServiceImpl(
+                dao,
+                writeDao,
+                policyClient,
+                new RecordingTransactionOperations(harness)
+        );
+
+        WorkflowTaskNotPendingException exception = assertThrows(WorkflowTaskNotPendingException.class, () ->
+                service.approveTask(302L, new WorkflowApprovalRequestDto("client-a", "approver", "approved"))
+        );
+
+        assertEquals("Workflow task 302 is REJECTED and cannot be approved", exception.getMessage());
+        assertFalse(harness.committed);
+        assertFalse(harness.rolledBack);
+        assertEquals(0, writeDao.metadataChanges.size());
+        assertEquals(0, policyClient.requests.size());
+        assertNull(dao.lookupStatus.get("LEDGER_SCOPE"));
     }
 
     @Test

@@ -97,8 +97,10 @@ class JdbcWorkflowApprovalDaoTest {
     @Test
     void approveLookupSuccess() {
         when(sqlQueryLoaderUtil.getQuery("workflow_approval.approve_lookup")).thenReturn("UPDATE lookup");
+        when(jdbcTemplate.query(anyString(), any(SqlParameterSource.class), any(RowMapper.class)))
+                .thenReturn(Collections.singletonList(1));
         dao.approveLookup("GLOBAL", "LK-1", "APPROVED", OffsetDateTime.now(), "admin");
-        verify(jdbcTemplate).update(anyString(), any(SqlParameterSource.class));
+        verify(jdbcTemplate).query(anyString(), any(SqlParameterSource.class), any(RowMapper.class));
     }
 
     @Test

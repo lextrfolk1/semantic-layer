@@ -9,6 +9,7 @@ import com.lextr.semanticlayer.dto.WorkflowPolicyDecisionDto;
 import com.lextr.semanticlayer.exception.PolicyViolationException;
 import com.lextr.semanticlayer.exception.RegistryResourceNotFoundException;
 import com.lextr.semanticlayer.exception.WorkflowApprovalServiceException;
+import com.lextr.semanticlayer.exception.WorkflowTaskNotPendingException;
 import com.lextr.semanticlayer.exception.WorkflowTaskAlreadyApprovedException;
 import com.lextr.semanticlayer.model.FilterLookupWorkflowTaskRecord;
 import com.lextr.semanticlayer.model.FilterLookupMetadataChangeHistoryWriteRequest;
@@ -73,6 +74,9 @@ public class WorkflowApprovalServiceImpl implements WorkflowApprovalService {
 
         if ("APPROVED".equalsIgnoreCase(task.task_status_cd())) {
             throw new WorkflowTaskAlreadyApprovedException(id);
+        }
+        if (!isPendingTask(task.task_status_cd())) {
+            throw new WorkflowTaskNotPendingException(id, task.task_status_cd(), "approved");
         }
 
         // OPA authorization policy validation
@@ -139,8 +143,8 @@ public class WorkflowApprovalServiceImpl implements WorkflowApprovalService {
         if ("APPROVED".equalsIgnoreCase(task.task_status_cd())) {
             throw new WorkflowTaskAlreadyApprovedException(id);
         }
-        if ("REJECTED".equalsIgnoreCase(task.task_status_cd())) {
-            throw new WorkflowApprovalServiceException("Task is already rejected: " + id);
+        if (!isPendingTask(task.task_status_cd())) {
+            throw new WorkflowTaskNotPendingException(id, task.task_status_cd(), "rejected");
         }
 
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
@@ -253,6 +257,10 @@ public class WorkflowApprovalServiceImpl implements WorkflowApprovalService {
                 record.approved_ts(),
                 record.approval_note_txt()
         );
+    }
+
+    private static boolean isPendingTask(String taskStatusCd) {
+        return "PENDING".equalsIgnoreCase(taskStatusCd) || "PENDING_APPROVAL".equalsIgnoreCase(taskStatusCd);
     }
 
     private static final class NoOpTransactionOperations implements TransactionOperations {

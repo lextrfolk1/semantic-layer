@@ -2,6 +2,7 @@ package com.lextr.semanticlayer.dao.impl;
 
 import com.lextr.semanticlayer.dao.WorkflowApprovalDao;
 import com.lextr.semanticlayer.exception.SemanticLayerException;
+import com.lextr.semanticlayer.exception.RegistryResourceNotFoundException;
 import com.lextr.semanticlayer.model.FilterLookupWorkflowTaskRecord;
 import com.lextr.semanticlayer.util.SQLQueryLoaderUtil;
 import org.springframework.beans.factory.ObjectProvider;
@@ -100,7 +101,13 @@ public class JdbcWorkflowApprovalDao implements WorkflowApprovalDao {
                 .addValue("governance_status_cd", governanceStatus)
                 .addValue("updated_ts", updatedTs)
                 .addValue("updated_by", updatedBy);
-        jdbcTemplate.update(sqlQueryLoaderUtil.getQuery(APPROVE_LOOKUP), params);
+        jdbcTemplate.query(
+                sqlQueryLoaderUtil.getQuery(APPROVE_LOOKUP),
+                params,
+                (resultSet, rowNum) -> {
+                    return rowNum;
+                }
+        ).stream().findFirst().orElseThrow(() -> new RegistryResourceNotFoundException("filter lookup", lookupCd));
     }
 
     @Override
