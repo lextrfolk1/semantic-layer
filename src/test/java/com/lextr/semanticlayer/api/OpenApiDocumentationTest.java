@@ -174,6 +174,9 @@ class OpenApiDocumentationTest {
         JsonNode workspacesPost = paths.path("/api/workspaces").path("post");
         assertJsonRequestBody(workspacesPost);
 
+        JsonNode workspaceObjectsPost = paths.path("/api/workspaces/{workspace_cd}/objects").path("post");
+        assertJsonRequestBody(workspaceObjectsPost);
+
         JsonNode profilingMetricsGet = paths.path("/api/profiling/metrics").path("get");
         assertQueryParameter(profilingMetricsGet, "client_id");
         assertQueryParameter(profilingMetricsGet, "object_id");
@@ -498,6 +501,11 @@ class OpenApiDocumentationTest {
 
                     @Override
                     public com.lextr.semanticlayer.dto.TenantWorkspaceDto createWorkspace(String workspaceCd, String tenantCd, String workspaceNm, String workspaceDesc, String workspaceStatusCd, String createdBy) {
+                        return null;
+                    }
+
+                    @Override
+                    public com.lextr.semanticlayer.dto.TenantWorkspaceDto.WorkspaceObjectDto addObjectToWorkspace(String workspaceCd, com.lextr.semanticlayer.dto.WorkspaceObjectRequestDto request) {
                         return null;
                     }
                 };

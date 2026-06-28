@@ -2,6 +2,7 @@ package com.lextr.semanticlayer.api;
 
 import com.lextr.semanticlayer.dto.TenantWorkspaceDto;
 import com.lextr.semanticlayer.dto.TenantWorkspaceRequestDto;
+import com.lextr.semanticlayer.dto.WorkspaceObjectRequestDto;
 import com.lextr.semanticlayer.service.WorkspaceService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -9,8 +10,10 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import jakarta.validation.Valid;
@@ -47,5 +50,14 @@ public class WorkspaceController {
                 request.workspace_status_cd() == null ? "ACTIVE" : request.workspace_status_cd(),
                 request.created_by() == null ? "system" : request.created_by()
         );
+    }
+
+    @PostMapping("/{workspace_cd}/objects")
+    @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Add workspace object", description = "Adds an object to an existing workspace.")
+    public TenantWorkspaceDto.WorkspaceObjectDto addObjectToWorkspace(
+            @Parameter(description = "Workspace code.") @PathVariable("workspace_cd") String workspaceCd,
+            @Valid @RequestBody WorkspaceObjectRequestDto request) {
+        return workspaceService.addObjectToWorkspace(workspaceCd, request);
     }
 }

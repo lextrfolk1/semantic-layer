@@ -3,6 +3,7 @@ package com.lextr.semanticlayer.api;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lextr.semanticlayer.dao.WorkspaceDao;
 import com.lextr.semanticlayer.dto.TenantWorkspaceRequestDto;
+import com.lextr.semanticlayer.dto.WorkspaceObjectRequestDto;
 import com.lextr.semanticlayer.model.TenantWorkspaceRecord;
 import com.lextr.semanticlayer.model.WorkspaceObjectRecord;
 import com.lextr.semanticlayer.service.WorkspaceService;
@@ -81,6 +82,44 @@ class WorkspaceControllerTest {
                 .andExpect(jsonPath("$.message").value("tenant_cd: tenant_cd is required"));
     }
 
+    @Test
+    void addsObjectToWorkspaceSuccessfully() throws Exception {
+        RecordingWorkspaceDao dao = new RecordingWorkspaceDao();
+        MockMvc mockMvc = mockMvc(dao);
+
+        mockMvc.perform(post("/api/workspaces/WS-NEW/objects")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(new ObjectMapper().writeValueAsString(new WorkspaceObjectRequestDto(
+                                "meta", "gl_balance", "tester"
+                        ))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.schema_cd").value("meta"))
+                .andExpect(jsonPath("$.object_cd").value("gl_balance"))
+                .andExpect(jsonPath("$.added_by").value("tester"));
+
+        assertEquals("WS-NEW", dao.lastWorkspaceCdAdded);
+        assertEquals("meta", dao.lastSchemaCdAdded);
+        assertEquals("gl_balance", dao.lastObjectCdAdded);
+        assertEquals("tester", dao.lastAddedByAdded);
+    }
+
+    @Test
+    void rejectsWorkspaceObjectMissingCodes() throws Exception {
+        RecordingWorkspaceDao dao = new RecordingWorkspaceDao();
+        MockMvc mockMvc = mockMvc(dao);
+
+        mockMvc.perform(post("/api/workspaces/WS-NEW/objects")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "schema_cd": "",
+                                  "object_cd": ""
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
     private static MockMvc mockMvc(WorkspaceDao dao) {
         WorkspaceService service = new WorkspaceServiceImpl(dao);
         WorkspaceController controller = new WorkspaceController(service);
@@ -99,6 +138,10 @@ class WorkspaceControllerTest {
         private String lastTenantCdQuery;
         private String lastWorkspaceCdInserted;
         private String lastTenantCdInserted;
+        private String lastWorkspaceCdAdded;
+        private String lastSchemaCdAdded;
+        private String lastObjectCdAdded;
+        private String lastAddedByAdded;
 
         @Override
         public List<TenantWorkspaceRecord> findAll(String tenantCd) {
@@ -124,7 +167,11 @@ class WorkspaceControllerTest {
 
         @Override
         public WorkspaceObjectRecord insertObject(String workspaceCd, String schemaCd, String objectCd, String addedBy) {
-            return null;
+            lastWorkspaceCdAdded = workspaceCd;
+            lastSchemaCdAdded = schemaCd;
+            lastObjectCdAdded = objectCd;
+            lastAddedByAdded = addedBy;
+            return new WorkspaceObjectRecord(3L, workspaceCd, schemaCd, objectCd, addedBy, OffsetDateTime.now());
         }
 
         @Override

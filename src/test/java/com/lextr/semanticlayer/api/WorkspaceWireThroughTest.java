@@ -3,6 +3,7 @@ package com.lextr.semanticlayer.api;
 import com.lextr.semanticlayer.dao.WorkspaceDao;
 import com.lextr.semanticlayer.model.TenantWorkspaceRecord;
 import com.lextr.semanticlayer.model.WorkspaceObjectRecord;
+import com.lextr.semanticlayer.dto.WorkspaceObjectRequestDto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -138,6 +139,30 @@ class WorkspaceWireThroughTest {
         assertEquals(List.of("WS-BHC-A"), workspaceDao.workspaceLookups);
     }
 
+    @Test
+    void routesWorkspaceObjectAdditionThroughSpring() throws Exception {
+        OffsetDateTime timestamp = OffsetDateTime.parse("2026-06-24T10:15:30Z");
+
+        mockMvc.perform(post("/api/workspaces/WS-ALL/objects")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "schema_cd": "meta",
+                                  "object_cd": "gl_balance",
+                                  "added_by": "platform"
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.schema_cd").value("meta"))
+                .andExpect(jsonPath("$.object_cd").value("gl_balance"))
+                .andExpect(jsonPath("$.added_by").value("platform"));
+
+        assertEquals("WS-ALL", workspaceDao.lastWorkspaceCdAdded);
+        assertEquals("meta", workspaceDao.lastSchemaCdAdded);
+        assertEquals("gl_balance", workspaceDao.lastObjectCdAdded);
+        assertEquals("platform", workspaceDao.lastAddedByAdded);
+    }
+
     @TestConfiguration
     static class WorkspaceWireThroughTestConfiguration {
 
@@ -160,6 +185,10 @@ class WorkspaceWireThroughTest {
         private String lastWorkspaceDescInserted;
         private String lastWorkspaceStatusCdInserted;
         private String lastCreatedByInserted;
+        private String lastWorkspaceCdAdded;
+        private String lastSchemaCdAdded;
+        private String lastObjectCdAdded;
+        private String lastAddedByAdded;
         private TenantWorkspaceRecord insertedWorkspace;
 
         void reset() {
@@ -202,7 +231,11 @@ class WorkspaceWireThroughTest {
 
         @Override
         public WorkspaceObjectRecord insertObject(String workspaceCd, String schemaCd, String objectCd, String addedBy) {
-            throw new UnsupportedOperationException("Not used");
+            lastWorkspaceCdAdded = workspaceCd;
+            lastSchemaCdAdded = schemaCd;
+            lastObjectCdAdded = objectCd;
+            lastAddedByAdded = addedBy;
+            return new WorkspaceObjectRecord(301L, workspaceCd, schemaCd, objectCd, addedBy, OffsetDateTime.parse("2026-06-24T10:15:30Z"));
         }
 
         @Override

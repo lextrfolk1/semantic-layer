@@ -2,6 +2,7 @@ package com.lextr.semanticlayer.service.impl;
 
 import com.lextr.semanticlayer.dao.WorkspaceDao;
 import com.lextr.semanticlayer.dto.TenantWorkspaceDto;
+import com.lextr.semanticlayer.dto.WorkspaceObjectRequestDto;
 import com.lextr.semanticlayer.model.TenantWorkspaceRecord;
 import com.lextr.semanticlayer.model.WorkspaceObjectRecord;
 import com.lextr.semanticlayer.service.WorkspaceService;
@@ -30,6 +31,22 @@ public class WorkspaceServiceImpl implements WorkspaceService {
         TenantWorkspaceRecord record = workspaceDao.insert(workspaceCd, tenantCd, workspaceNm,
                 workspaceDesc, workspaceStatusCd, createdBy);
         return toDto(record);
+    }
+
+    @Override
+    public TenantWorkspaceDto.WorkspaceObjectDto addObjectToWorkspace(String workspaceCd, WorkspaceObjectRequestDto request) {
+        WorkspaceObjectRecord record = workspaceDao.insertObject(
+                workspaceCd,
+                request.schema_cd(),
+                request.object_cd(),
+                request.added_by() == null || request.added_by().isBlank() ? "system" : request.added_by()
+        );
+        return new TenantWorkspaceDto.WorkspaceObjectDto(
+                record.schema_cd(),
+                record.object_cd(),
+                record.added_by(),
+                record.added_ts()
+        );
     }
 
     private TenantWorkspaceDto toDto(TenantWorkspaceRecord record) {
