@@ -3,6 +3,7 @@ package com.lextr.semanticlayer.config;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lextr.semanticlayer.service.opa.OpaDecisionGateway;
 import com.lextr.semanticlayer.service.WorkflowPolicyClient;
+import org.springframework.boot.ApplicationRunner;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
@@ -28,6 +29,7 @@ class OpaConfigurationTest {
                 .run(context -> {
                     assertNotNull(context.getBean(OpaDecisionGateway.class));
                     assertNotNull(context.getBean(WorkflowPolicyClient.class));
+                    assertNotNull(context.getBean(ApplicationRunner.class));
                 });
     }
 
@@ -38,6 +40,7 @@ class OpaConfigurationTest {
                 .run(context -> {
                     assertFalse(context.containsBean("opaDecisionGateway"));
                     assertFalse(context.containsBean("workflowPolicyClient"));
+                    assertFalse(context.containsBean("opaPolicyBootstrapRunner"));
                     assertNull(context.getBeanProvider(OpaDecisionGateway.class).getIfAvailable());
                     assertNull(context.getBeanProvider(WorkflowPolicyClient.class).getIfAvailable());
                 });

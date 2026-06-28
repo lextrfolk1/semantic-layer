@@ -1,7 +1,9 @@
 package com.lextr.semanticlayer.api;
 
 import com.lextr.semanticlayer.dto.ApiErrorResponseDto;
+import com.lextr.semanticlayer.exception.OpaPolicyClientException;
 import com.lextr.semanticlayer.exception.PolicyViolationException;
+import com.lextr.semanticlayer.exception.RelationshipAlreadyExistsException;
 import com.lextr.semanticlayer.exception.RegistryResourceNotFoundException;
 import com.lextr.semanticlayer.exception.WorkflowApprovalServiceException;
 import com.lextr.semanticlayer.exception.WorkflowTaskAlreadyApprovedException;
@@ -33,6 +35,15 @@ class ApiExceptionHandlerTest {
 
         assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, response.getStatusCode());
         assertEquals(new ApiErrorResponseDto("POL-001", "policy rejected"), response.getBody());
+    }
+
+    @Test
+    void mapsOpaPolicyFailuresToServiceUnavailable() {
+        ResponseEntity<ApiErrorResponseDto> response =
+                handler.handleOpaPolicyClientException(new OpaPolicyClientException("OPA evaluation failed for lextr.semantic.relationship"));
+
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, response.getStatusCode());
+        assertEquals(new ApiErrorResponseDto("SERVICE_UNAVAILABLE", "OPA evaluation failed for lextr.semantic.relationship"), response.getBody());
     }
 
     @Test
@@ -104,6 +115,8 @@ class ApiExceptionHandlerTest {
                 handler.handleSemanticLayerException(new RegistryResourceNotFoundException("object", "GL_BALANCE"));
         ResponseEntity<ApiErrorResponseDto> unprocessable =
                 handler.handleSemanticLayerException(new WorkflowTaskAlreadyApprovedException(301L));
+        ResponseEntity<ApiErrorResponseDto> conflict =
+                handler.handleSemanticLayerException(new RelationshipAlreadyExistsException("SELF_RELATIONSHIP"));
         ResponseEntity<ApiErrorResponseDto> internalError =
                 handler.handleSemanticLayerException(new WorkflowApprovalServiceException("approval failed"));
 
@@ -112,6 +125,8 @@ class ApiExceptionHandlerTest {
         assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, unprocessable.getStatusCode());
         assertEquals(new ApiErrorResponseDto("UNPROCESSABLE_ENTITY",
                 "Workflow task 301 is already approved and cannot be re-approved"), unprocessable.getBody());
+        assertEquals(HttpStatus.CONFLICT, conflict.getStatusCode());
+        assertEquals(new ApiErrorResponseDto("CONFLICT", "Relationship already exists: SELF_RELATIONSHIP"), conflict.getBody());
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, internalError.getStatusCode());
         assertEquals(new ApiErrorResponseDto("INTERNAL_SERVER_ERROR", "approval failed"), internalError.getBody());
     }

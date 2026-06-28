@@ -39,11 +39,14 @@ import com.lextr.semanticlayer.service.RuleResultPolicyClient;
 import com.lextr.semanticlayer.service.SemanticResolvePolicyClient;
 import com.lextr.semanticlayer.service.TaxonomyPolicyClient;
 import com.lextr.semanticlayer.service.WorkflowPolicyClient;
+import com.lextr.semanticlayer.service.opa.OpaPolicyBootstrapRunner;
 import com.lextr.semanticlayer.service.opa.OpaDecisionGateway;
+import com.lextr.semanticlayer.service.opa.OpaPolicyReloadService;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -76,6 +79,18 @@ public class OpaConfiguration {
     @ConditionalOnMissingBean
     OpaDecisionGateway opaDecisionGateway(OpaProperties properties, ObjectMapper objectMapper) {
         return new OpaDecisionGateway(properties, objectMapper);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    ApplicationRunner opaPolicyBootstrapRunner(org.springframework.beans.factory.ObjectProvider<OpaPolicyReloadService> reloadServiceProvider) {
+        return args -> {
+            OpaPolicyReloadService reloadService = reloadServiceProvider.getIfAvailable();
+            if (reloadService == null) {
+                return;
+            }
+            new OpaPolicyBootstrapRunner(reloadService).run(args);
+        };
     }
 
     @Bean

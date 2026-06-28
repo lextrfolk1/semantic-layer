@@ -10,6 +10,7 @@ import com.lextr.semanticlayer.dto.RelationshipRegistrationRequestDto;
 import com.lextr.semanticlayer.dto.RelationshipRegistrationResponseDto;
 import com.lextr.semanticlayer.exception.SemanticLayerException;
 import com.lextr.semanticlayer.exception.PolicyViolationException;
+import com.lextr.semanticlayer.exception.RelationshipAlreadyExistsException;
 import com.lextr.semanticlayer.exception.RelationshipRegistrationServiceException;
 import com.lextr.semanticlayer.model.DataConnectionRecord;
 import com.lextr.semanticlayer.model.MetadataChangeHistoryWriteRequest;
@@ -26,6 +27,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionOperations;
@@ -118,6 +120,8 @@ public class RelationshipRegistrationServiceImpl implements RelationshipRegistra
             ));
         } catch (PolicyViolationException exception) {
             throw exception;
+        } catch (DuplicateKeyException exception) {
+            throw new RelationshipAlreadyExistsException(request.relationship_cd());
         } catch (RuntimeException exception) {
             throw new RelationshipRegistrationServiceException("Unable to register relationship", exception);
         }
