@@ -11,6 +11,8 @@ import com.lextr.semanticlayer.model.DqRuleRequestWorkflowTaskWriteRequest;
 import com.lextr.semanticlayer.model.DqRuleResultRecord;
 import com.lextr.semanticlayer.model.DqRuleResultWriteRequest;
 import com.lextr.semanticlayer.util.SQLQueryLoaderUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -24,6 +26,8 @@ import java.util.Optional;
 @Repository
 public class JdbcDqRuleDao implements DqRuleDao {
 
+    private static final Logger logger = LoggerFactory.getLogger(JdbcDqRuleDao.class);
+
     private final ObjectProvider<NamedParameterJdbcTemplate> jdbcTemplateProvider;
     private final SQLQueryLoaderUtil sqlQueryLoaderUtil;
 
@@ -35,7 +39,9 @@ public class JdbcDqRuleDao implements DqRuleDao {
 
     @Override
     public List<DqRuleCatalogRecord> findRules(String clientId, String ruleDimensionCode, String lifecycleStatusCode) {
-        return jdbcTemplate().query(
+        logger.debug("Executing DQ rule catalog lookup. clientId={}, ruleDimensionCode={}, lifecycleStatusCode={}",
+                clientId, ruleDimensionCode, lifecycleStatusCode);
+        List<DqRuleCatalogRecord> records = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery("dq_rule_catalog.find_all"),
                 new MapSqlParameterSource()
                         .addValue("client_id", clientId)
@@ -43,44 +49,59 @@ public class JdbcDqRuleDao implements DqRuleDao {
                         .addValue("lifecycle_status_cd", lifecycleStatusCode),
                 JdbcDqRuleDao::mapCatalogRow
         );
+        logger.debug("DQ rule catalog lookup completed. clientId={}, resultCount={}", clientId, records.size());
+        return records;
     }
 
     @Override
     public Optional<DqRuleCatalogRecord> findRule(String clientId, String ruleCode) {
-        return jdbcTemplate().query(
+        logger.debug("Executing DQ rule lookup. clientId={}, ruleCode={}", clientId, ruleCode);
+        Optional<DqRuleCatalogRecord> record = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery("dq_rule_catalog.find_by_code"),
                 new MapSqlParameterSource()
                         .addValue("client_id", clientId)
                         .addValue("rule_cd", ruleCode),
                 JdbcDqRuleDao::mapCatalogRow
         ).stream().findFirst();
+        logger.debug("DQ rule lookup completed. clientId={}, ruleCode={}, found={}", clientId, ruleCode, record.isPresent());
+        return record;
     }
 
     @Override
     public List<DqRuleAttributeRecord> findRuleAttributes(String clientId, String ruleCode) {
-        return jdbcTemplate().query(
+        logger.debug("Executing DQ rule attribute lookup. clientId={}, ruleCode={}", clientId, ruleCode);
+        List<DqRuleAttributeRecord> records = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery("dq_rule_attribute.find_by_rule_code"),
                 new MapSqlParameterSource()
                         .addValue("client_id", clientId)
                         .addValue("rule_cd", ruleCode),
                 JdbcDqRuleDao::mapAttributeRow
         );
+        logger.debug("DQ rule attribute lookup completed. clientId={}, ruleCode={}, resultCount={}",
+                clientId, ruleCode, records.size());
+        return records;
     }
 
     @Override
     public List<DqRuleResultRecord> findResultsByLogicalAttribute(String clientId, String logicalAttributeCode) {
-        return jdbcTemplate().query(
+        logger.debug("Executing DQ result lookup. clientId={}, logicalAttributeCode={}", clientId, logicalAttributeCode);
+        List<DqRuleResultRecord> records = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery("dq_result.find_by_attribute"),
                 new MapSqlParameterSource()
                         .addValue("client_id", clientId)
                         .addValue("logical_attribute_cd", logicalAttributeCode),
                 JdbcDqRuleDao::mapResultRow
         );
+        logger.debug("DQ result lookup completed. clientId={}, logicalAttributeCode={}, resultCount={}",
+                clientId, logicalAttributeCode, records.size());
+        return records;
     }
 
     @Override
     public DqRuleRequestWorkflowTaskRecord insertWorkflowTask(DqRuleRequestWorkflowTaskWriteRequest request) {
-        return jdbcTemplate().query(
+        logger.debug("Executing DQ workflow task insert. clientId={}, ruleCode={}, workflowTypeCode={}",
+                request.client_id(), request.rule_cd(), request.workflow_type_cd());
+        DqRuleRequestWorkflowTaskRecord record = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery("dq_rule_request.insert_workflow_task"),
                 new MapSqlParameterSource()
                         .addValue("workflow_type_cd", request.workflow_type_cd())
@@ -110,11 +131,15 @@ public class JdbcDqRuleDao implements DqRuleDao {
                         null
                 )
         ).stream().findFirst().orElseThrow(() -> new SemanticLayerException("Insert DQ workflow task returned no rows"));
+        logger.debug("DQ workflow task insert completed. clientId={}, ruleCode={}, taskId={}",
+                request.client_id(), request.rule_cd(), record.id());
+        return record;
     }
 
     @Override
     public Optional<DqRuleRequestWorkflowTaskRecord> findRequest(String clientId, java.util.UUID workflowTaskId) {
-        return jdbcTemplate().query(
+        logger.debug("Executing DQ workflow task lookup. clientId={}, workflowTaskId={}", clientId, workflowTaskId);
+        Optional<DqRuleRequestWorkflowTaskRecord> record = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery("dq_rule_request.find_by_id"),
                 new MapSqlParameterSource()
                         .addValue("client_id", clientId)
@@ -136,11 +161,16 @@ public class JdbcDqRuleDao implements DqRuleDao {
                         resultSet.getString("approval_note_txt")
                 )
         ).stream().findFirst();
+        logger.debug("DQ workflow task lookup completed. clientId={}, workflowTaskId={}, found={}",
+                clientId, workflowTaskId, record.isPresent());
+        return record;
     }
 
     @Override
     public DqRuleResultRecord insertResult(DqRuleResultWriteRequest request) {
-        return jdbcTemplate().query(
+        logger.debug("Executing DQ result insert. clientId={}, ruleCode={}, logicalAttributeCode={}, resultStatusCode={}",
+                request.client_id(), request.rule_cd(), request.logical_attribute_cd(), request.result_status_cd());
+        DqRuleResultRecord record = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery("dq_result.insert_result"),
                 new MapSqlParameterSource()
                         .addValue("rule_cd", request.rule_cd())
@@ -157,11 +187,16 @@ public class JdbcDqRuleDao implements DqRuleDao {
                         .addValue("updated_by", request.updated_by()),
                 JdbcDqRuleDao::mapResultRow
         ).stream().findFirst().orElseThrow(() -> new SemanticLayerException("Insert DQ result returned no rows"));
+        logger.debug("DQ result insert completed. clientId={}, ruleCode={}, resultId={}",
+                request.client_id(), request.rule_cd(), record.id());
+        return record;
     }
 
     @Override
     public DqRuleMetadataChangeHistoryRecord insertMetadataChangeHistory(DqRuleMetadataChangeHistoryWriteRequest request) {
-        return jdbcTemplate().query(
+        logger.debug("Executing DQ metadata change insert. clientId={}, entityRef={}, changeTypeCode={}",
+                request.client_id(), request.entity_ref(), request.change_type_cd());
+        DqRuleMetadataChangeHistoryRecord record = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery("dq_rule_request.insert_metadata_change_history"),
                 new MapSqlParameterSource()
                         .addValue("entity_type_cd", request.entity_type_cd())
@@ -182,11 +217,15 @@ public class JdbcDqRuleDao implements DqRuleDao {
                         resultSet.getString("created_by")
                 )
         ).stream().findFirst().orElseThrow(() -> new SemanticLayerException("Insert DQ metadata change history returned no rows"));
+        logger.debug("DQ metadata change insert completed. clientId={}, entityRef={}, changeHistoryId={}",
+                request.client_id(), request.entity_ref(), record.change_history_id());
+        return record;
     }
 
     private NamedParameterJdbcTemplate jdbcTemplate() {
         NamedParameterJdbcTemplate jdbcTemplate = jdbcTemplateProvider.getIfAvailable();
         if (jdbcTemplate == null) {
+            logger.error("NamedParameterJdbcTemplate is not configured for DQ rule DAO.");
             throw new SemanticLayerException("NamedParameterJdbcTemplate is not configured");
         }
         return jdbcTemplate;

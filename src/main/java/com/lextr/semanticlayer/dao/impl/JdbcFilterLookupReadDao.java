@@ -5,6 +5,8 @@ import com.lextr.semanticlayer.exception.SemanticLayerException;
 import com.lextr.semanticlayer.model.FilterLookupPreviewValueRecord;
 import com.lextr.semanticlayer.model.SemanticFilterLookupRecord;
 import com.lextr.semanticlayer.util.SQLQueryLoaderUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -21,6 +23,8 @@ import java.util.regex.Pattern;
 
 @Repository
 public class JdbcFilterLookupReadDao implements FilterLookupReadDao {
+
+    private static final Logger logger = LoggerFactory.getLogger(JdbcFilterLookupReadDao.class);
 
     static final String FIND_ALL = "filter_lookup_effective_review.find_all";
     static final String FIND_BY_CODE = "filter_lookup_effective_review.find_lookup_by_code";
@@ -45,77 +49,102 @@ public class JdbcFilterLookupReadDao implements FilterLookupReadDao {
                                                         String governanceStatusCode,
                                                         String healthStatusCode,
                                                         String lifecycleStatusCode) {
+        logger.debug("Executing filter lookup list query. clientId={}, governanceStatusCode={}, healthStatusCode={}, lifecycleStatusCode={}",
+                clientId, governanceStatusCode, healthStatusCode, lifecycleStatusCode);
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("client_id", clientId)
                 .addValue("governance_status_cd", governanceStatusCode)
                 .addValue("health_status_cd", healthStatusCode)
                 .addValue("lifecycle_status_cd", lifecycleStatusCode);
-        return jdbcTemplate().query(
+        List<SemanticFilterLookupRecord> records = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(FIND_ALL),
                 parameters,
                 filterLookupRowMapper()
         );
+        logger.debug("Filter lookup list query completed. clientId={}, resultCount={}", clientId, records.size());
+        return records;
     }
 
     @Override
     public Optional<SemanticFilterLookupRecord> findLookup(String clientId, String lookupCode) {
+        logger.debug("Executing filter lookup query by code. clientId={}, lookupCode={}", clientId, lookupCode);
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("client_id", clientId)
                 .addValue("lookup_cd", lookupCode);
-        return jdbcTemplate().query(
+        Optional<SemanticFilterLookupRecord> record = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(FIND_BY_CODE),
                 parameters,
                 filterLookupRowMapper()
         ).stream().findFirst();
+        logger.debug("Filter lookup query by code completed. clientId={}, lookupCode={}, found={}",
+                clientId, lookupCode, record.isPresent());
+        return record;
     }
 
     @Override
     public List<FilterLookupPreviewValueRecord> findManualValues(String clientId, String lookupCode) {
+        logger.debug("Executing manual filter lookup value query. clientId={}, lookupCode={}", clientId, lookupCode);
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("client_id", clientId)
                 .addValue("lookup_cd", lookupCode);
-        return jdbcTemplate().query(
+        List<FilterLookupPreviewValueRecord> records = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(FIND_MANUAL_VALUES_BY_LOOKUP),
                 parameters,
                 previewValueRowMapper()
         );
+        logger.debug("Manual filter lookup value query completed. clientId={}, lookupCode={}, resultCount={}",
+                clientId, lookupCode, records.size());
+        return records;
     }
 
     @Override
     public List<FilterLookupPreviewValueRecord> findSqlValues(String clientId, SemanticFilterLookupRecord lookup) {
+        logger.debug("Executing SQL filter lookup value query. clientId={}, lookupCode={}, maxOutputRows={}",
+                clientId, lookup.lookup_cd(), lookup.max_output_rows() == null ? DEFAULT_MAX_OUTPUT_ROWS : lookup.max_output_rows());
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("lookup_cd", lookup.lookup_cd())
                 .addValue("client_id", clientId)
                 .addValue("max_output_rows", lookup.max_output_rows() == null ? DEFAULT_MAX_OUTPUT_ROWS : lookup.max_output_rows());
-        return jdbcTemplate().query(
+        List<FilterLookupPreviewValueRecord> records = jdbcTemplate().query(
                 sqlPreviewQuery(lookup),
                 parameters,
                 previewValueRowMapper()
         );
+        logger.debug("SQL filter lookup value query completed. clientId={}, lookupCode={}, resultCount={}",
+                clientId, lookup.lookup_cd(), records.size());
+        return records;
     }
 
     @Override
     public long countValues(String clientId, String lookupCode) {
+        logger.debug("Executing filter lookup value count query. clientId={}, lookupCode={}", clientId, lookupCode);
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("client_id", clientId)
                 .addValue("lookup_cd", lookupCode);
-        return jdbcTemplate().query(
+        long count = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(COUNT_VALUES_BY_LOOKUP),
                 parameters,
                 (resultSet, rowNum) -> getLong(resultSet, "value_count")
         ).stream().findFirst().orElse(0L);
+        logger.debug("Filter lookup value count query completed. clientId={}, lookupCode={}, valueCount={}",
+                clientId, lookupCode, count);
+        return count;
     }
 
     @Override
     public long countStaleValues(String clientId, String lookupCode) {
+        logger.debug("Executing stale filter lookup value count query. clientId={}, lookupCode={}", clientId, lookupCode);
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("client_id", clientId)
                 .addValue("lookup_cd", lookupCode);
-        return jdbcTemplate().query(
+        long count = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(COUNT_STALE_VALUES_BY_LOOKUP),
                 parameters,
                 (resultSet, rowNum) -> getLong(resultSet, "stale_value_count")
         ).stream().findFirst().orElse(0L);
+        logger.debug("Stale filter lookup value count query completed. clientId={}, lookupCode={}, staleValueCount={}",
+                clientId, lookupCode, count);
+        return count;
     }
 
     private String sqlPreviewQuery(SemanticFilterLookupRecord lookup) {
@@ -131,6 +160,7 @@ public class JdbcFilterLookupReadDao implements FilterLookupReadDao {
     private NamedParameterJdbcTemplate jdbcTemplate() {
         NamedParameterJdbcTemplate jdbcTemplate = jdbcTemplateProvider.getIfAvailable();
         if (jdbcTemplate == null) {
+            logger.error("NamedParameterJdbcTemplate is not configured for filter lookup read DAO.");
             throw new SemanticLayerException("NamedParameterJdbcTemplate is not configured");
         }
         return jdbcTemplate;
@@ -138,6 +168,7 @@ public class JdbcFilterLookupReadDao implements FilterLookupReadDao {
 
     private String requiredIdentifier(String candidate, String fieldName) {
         if (candidate == null || candidate.isBlank() || !SQL_IDENTIFIER.matcher(candidate).matches()) {
+            logger.warn("Invalid SQL identifier detected for filter lookup query. fieldName={}", fieldName);
             throw new SemanticLayerException("Invalid SQL identifier for " + fieldName);
         }
         return candidate;
@@ -145,14 +176,17 @@ public class JdbcFilterLookupReadDao implements FilterLookupReadDao {
 
     private String requiredQualifiedName(String candidate, String fieldName) {
         if (candidate == null || candidate.isBlank()) {
+            logger.warn("Invalid qualified SQL name detected for filter lookup query. fieldName={}", fieldName);
             throw new SemanticLayerException("Invalid qualified SQL name for " + fieldName);
         }
         String[] parts = candidate.split("\\.");
         if (parts.length == 0 || parts.length > 2) {
+            logger.warn("Invalid qualified SQL name segment count detected for filter lookup query. fieldName={}", fieldName);
             throw new SemanticLayerException("Invalid qualified SQL name for " + fieldName);
         }
         for (String part : parts) {
             if (!SQL_IDENTIFIER.matcher(part).matches()) {
+                logger.warn("Invalid qualified SQL name token detected for filter lookup query. fieldName={}", fieldName);
                 throw new SemanticLayerException("Invalid qualified SQL name for " + fieldName);
             }
         }
@@ -164,6 +198,7 @@ public class JdbcFilterLookupReadDao implements FilterLookupReadDao {
             return "TRUE";
         }
         if (condition.contains(";") || condition.contains("--") || condition.contains("/*") || condition.contains("*/")) {
+            logger.warn("Unsafe SQL filter condition detected for filter lookup query.");
             throw new SemanticLayerException("Unsafe SQL filter condition");
         }
         return condition;

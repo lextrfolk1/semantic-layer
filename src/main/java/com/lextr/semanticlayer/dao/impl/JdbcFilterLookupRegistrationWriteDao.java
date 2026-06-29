@@ -12,6 +12,8 @@ import com.lextr.semanticlayer.model.FilterLookupWorkflowTaskWriteRequest;
 import com.lextr.semanticlayer.model.SemanticFilterLookupRecord;
 import com.lextr.semanticlayer.model.SemanticFilterLookupWriteRequest;
 import com.lextr.semanticlayer.util.SQLQueryLoaderUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -24,6 +26,8 @@ import java.time.OffsetDateTime;
 
 @Repository
 public class JdbcFilterLookupRegistrationWriteDao implements FilterLookupRegistrationWriteDao {
+
+    private static final Logger logger = LoggerFactory.getLogger(JdbcFilterLookupRegistrationWriteDao.class);
 
     static final String INSERT_LOOKUP = "filter_lookup_registration.insert_lookup";
     static final String CERTIFY_LOOKUP = "filter_lookup_registration.certify_lookup";
@@ -42,6 +46,8 @@ public class JdbcFilterLookupRegistrationWriteDao implements FilterLookupRegistr
 
     @Override
     public SemanticFilterLookupRecord insertLookup(SemanticFilterLookupWriteRequest request) {
+        logger.debug("Executing filter lookup insert. clientId={}, lookupCode={}, constructionTypeCode={}",
+                request.client_id(), request.lookup_cd(), request.construction_type_cd());
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("lookup_cd", request.lookup_cd())
                 .addValue("construction_type_cd", request.construction_type_cd())
@@ -71,15 +77,20 @@ public class JdbcFilterLookupRegistrationWriteDao implements FilterLookupRegistr
                 .addValue("created_by", request.created_by())
                 .addValue("updated_ts", request.updated_ts())
                 .addValue("updated_by", request.updated_by());
-        return jdbcTemplate().query(
+        SemanticFilterLookupRecord record = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(INSERT_LOOKUP),
                 parameters,
                 JdbcFilterLookupRegistrationWriteDao::mapFilterLookupRow
         ).stream().findFirst().orElseThrow(() -> new SemanticLayerException("Insert filter lookup returned no rows"));
+        logger.debug("Filter lookup insert completed. clientId={}, lookupCode={}, id={}",
+                request.client_id(), record.lookup_cd(), record.id());
+        return record;
     }
 
     @Override
     public SemanticFilterLookupRecord certifyLookup(FilterLookupCertificationWriteRequest request) {
+        logger.debug("Executing filter lookup certify update. clientId={}, lookupCode={}, healthStatusCode={}",
+                request.client_id(), request.lookup_cd(), request.health_status_cd());
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("client_id", request.client_id())
                 .addValue("lookup_cd", request.lookup_cd())
@@ -89,15 +100,20 @@ public class JdbcFilterLookupRegistrationWriteDao implements FilterLookupRegistr
                 .addValue("next_review_due_dt", request.next_review_due_dt())
                 .addValue("updated_ts", request.updated_ts())
                 .addValue("updated_by", request.updated_by());
-        return jdbcTemplate().query(
+        SemanticFilterLookupRecord record = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(CERTIFY_LOOKUP),
                 parameters,
                 JdbcFilterLookupRegistrationWriteDao::mapFilterLookupRow
         ).stream().findFirst().orElseThrow(() -> new SemanticLayerException("Certify filter lookup returned no rows"));
+        logger.debug("Filter lookup certify update completed. clientId={}, lookupCode={}, nextReviewDueDate={}",
+                request.client_id(), record.lookup_cd(), record.next_review_due_dt());
+        return record;
     }
 
     @Override
     public FilterLookupBindingRecord insertBinding(FilterLookupBindingWriteRequest request) {
+        logger.debug("Executing filter lookup binding insert. lookupCode={}, boundObject={}, bindingContextCode={}",
+                request.lookup_cd(), request.bound_obj(), request.binding_context_cd());
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("lookup_cd", request.lookup_cd())
                 .addValue("bound_obj", request.bound_obj())
@@ -107,11 +123,13 @@ public class JdbcFilterLookupRegistrationWriteDao implements FilterLookupRegistr
                 .addValue("bound_by", request.bound_by())
                 .addValue("bound_ts", request.bound_ts())
                 .addValue("is_active_flg", request.is_active_flg());
-        return jdbcTemplate().query(
+        FilterLookupBindingRecord record = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(INSERT_BINDING),
                 parameters,
                 JdbcFilterLookupRegistrationWriteDao::mapFilterLookupBindingRow
         ).stream().findFirst().orElseThrow(() -> new SemanticLayerException("Insert filter lookup binding returned no rows"));
+        logger.debug("Filter lookup binding insert completed. lookupCode={}, bindingId={}", record.lookup_cd(), record.id());
+        return record;
     }
 
     private static FilterLookupBindingRecord mapFilterLookupBindingRow(ResultSet resultSet, int rowNum) throws SQLException {
@@ -130,6 +148,8 @@ public class JdbcFilterLookupRegistrationWriteDao implements FilterLookupRegistr
 
     @Override
     public FilterLookupWorkflowTaskRecord insertWorkflowTask(FilterLookupWorkflowTaskWriteRequest request) {
+        logger.debug("Executing filter lookup workflow task insert. entityRef={}, clientId={}, taskTypeCode={}",
+                request.entity_ref(), request.client_id(), request.task_type_cd());
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("task_type_cd", request.task_type_cd())
                 .addValue("entity_type_cd", request.entity_type_cd())
@@ -144,7 +164,7 @@ public class JdbcFilterLookupRegistrationWriteDao implements FilterLookupRegistr
                 .addValue("approved_by", request.approved_by())
                 .addValue("approved_ts", request.approved_ts())
                 .addValue("approval_note_txt", request.approval_note_txt());
-        return jdbcTemplate().query(
+        FilterLookupWorkflowTaskRecord record = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(INSERT_WORKFLOW_TASK),
                 parameters,
                 (resultSet, rowNum) -> new FilterLookupWorkflowTaskRecord(
@@ -164,12 +184,16 @@ public class JdbcFilterLookupRegistrationWriteDao implements FilterLookupRegistr
                         resultSet.getString("approval_note_txt")
                 )
         ).stream().findFirst().orElseThrow(() -> new SemanticLayerException("Insert filter lookup workflow task returned no rows"));
+        logger.debug("Filter lookup workflow task insert completed. entityRef={}, taskId={}", record.entity_ref(), record.id());
+        return record;
     }
 
     @Override
     public FilterLookupMetadataChangeHistoryRecord insertMetadataChangeHistory(
             FilterLookupMetadataChangeHistoryWriteRequest request
     ) {
+        logger.debug("Executing filter lookup metadata change insert. entityRef={}, changeTypeCode={}",
+                request.entity_ref(), request.change_type_cd());
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("entity_type_cd", request.entity_type_cd())
                 .addValue("entity_ref", request.entity_ref())
@@ -179,7 +203,7 @@ public class JdbcFilterLookupRegistrationWriteDao implements FilterLookupRegistr
                 .addValue("old_value_json", request.old_value_json())
                 .addValue("new_value_json", request.new_value_json())
                 .addValue("change_reason_txt", request.change_reason_txt());
-        return jdbcTemplate().query(
+        FilterLookupMetadataChangeHistoryRecord record = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(INSERT_METADATA_CHANGE_HISTORY),
                 parameters,
                 (resultSet, rowNum) -> new FilterLookupMetadataChangeHistoryRecord(
@@ -194,11 +218,15 @@ public class JdbcFilterLookupRegistrationWriteDao implements FilterLookupRegistr
                         resultSet.getString("change_reason_txt")
                 )
         ).stream().findFirst().orElseThrow(() -> new SemanticLayerException("Insert filter lookup metadata change history returned no rows"));
+        logger.debug("Filter lookup metadata change insert completed. entityRef={}, changeHistoryId={}",
+                record.entity_ref(), record.id());
+        return record;
     }
 
     private NamedParameterJdbcTemplate jdbcTemplate() {
         NamedParameterJdbcTemplate jdbcTemplate = jdbcTemplateProvider.getIfAvailable();
         if (jdbcTemplate == null) {
+            logger.error("NamedParameterJdbcTemplate is not configured for filter lookup registration DAO.");
             throw new SemanticLayerException("NamedParameterJdbcTemplate is not configured");
         }
         return jdbcTemplate;

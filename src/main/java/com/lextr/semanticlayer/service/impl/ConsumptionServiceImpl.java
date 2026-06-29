@@ -26,6 +26,8 @@ import com.lextr.semanticlayer.model.ObjectExposureRecord;
 import com.lextr.semanticlayer.service.ConsumptionPolicyClient;
 import com.lextr.semanticlayer.service.ConsumptionService;
 import com.lextr.semanticlayer.service.WorkflowApprovalService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -41,6 +43,8 @@ import java.util.UUID;
 
 @Service
 public class ConsumptionServiceImpl implements ConsumptionService {
+
+    private static final Logger logger = LoggerFactory.getLogger(ConsumptionServiceImpl.class);
 
     private static final String CONSUMPTION_LAYER_ENTITY_TYPE_CD = "CONSUMPTION_LAYER";
     private static final String CONSUMPTION_EXPOSURE_ENTITY_TYPE_CD = "CONSUMPTION_EXPOSURE";
@@ -102,46 +106,109 @@ public class ConsumptionServiceImpl implements ConsumptionService {
 
     @Override
     public List<ConsumptionLayerDto> findLayers(String clientId, String lifecycleStatusCode) {
-        return consumptionDao.findLayers(clientId, lifecycleStatusCode).stream()
+        logger.debug("Finding consumption layers. clientId={}, lifecycleStatusCode={}", clientId, lifecycleStatusCode);
+        List<ConsumptionLayerDto> layers = consumptionDao.findLayers(clientId, lifecycleStatusCode).stream()
                 .map(this::toLayerDto)
                 .toList();
+        logger.debug("Consumption layers resolved in service. clientId={}, resultCount={}", clientId, layers.size());
+        return layers;
     }
 
     @Override
     public ConsumptionLayerDto findLayer(String clientId, String layerCode) {
+        logger.debug("Finding consumption layer. clientId={}, layerCode={}", clientId, layerCode);
         ConsumptionLayerRecord record = consumptionDao.findLayer(clientId, layerCode)
-                .orElseThrow(() -> new RegistryResourceNotFoundException("consumption layer", layerCode));
+                .orElseThrow(() -> {
+                    logger.warn("Consumption layer not found. clientId={}, layerCode={}", clientId, layerCode);
+                    return new RegistryResourceNotFoundException("consumption layer", layerCode);
+                });
         return toLayerDto(record);
     }
 
     @Override
     public List<ConsumptionExposureDto> findExposures(String clientId, UUID objectId, String structureTypeCode) {
+        logger.debug("Finding consumption exposures. clientId={}, objectId={}, structureTypeCode={}", clientId, objectId, structureTypeCode);
         ObjectExposureRecord object = objectExposureReadDao.findObject(clientId, objectId)
-                .orElseThrow(() -> new RegistryResourceNotFoundException("object", objectId.toString()));
-        return consumptionDao.findExposures(clientId, object.object_id(), structureTypeCode).stream()
+                .orElseThrow(() -> {
+                    logger.warn("Consumption exposures cannot be resolved because object was not found. clientId={}, objectId={}", clientId, objectId);
+                    return new RegistryResourceNotFoundException("object", objectId.toString());
+                });
+        List<ConsumptionExposureDto> exposures = consumptionDao.findExposures(clientId, object.object_id(), structureTypeCode).stream()
                 .map(this::toExposureDto)
                 .toList();
+        logger.debug("Consumption exposures resolved in service. clientId={}, objectId={}, resultCount={}", clientId, objectId, exposures.size());
+        return exposures;
     }
 
     @Override
     public ConsumptionLayerDto registerConsumptionLayer(ConsumptionLayerRegistrationRequestDto request) {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        logger.debug(
+                "Registering consumption layer. clientId={}, layerCode={}, outboundCount={}",
+                request.client_id(),
+                request.layer_cd(),
+                request.outbounds().size()
+        );
         try {
-            return transactionOperations.execute(status -> persistLayerRegistration(request, now));
+            ConsumptionLayerDto layer = transactionOperations.execute(status -> persistLayerRegistration(request, now));
+            logger.info("Consumption layer registered. clientId={}, layerCode={}", request.client_id(), request.layer_cd());
+            return layer;
         } catch (IllegalArgumentException exception) {
+            logger.warn(
+                    "Consumption layer registration validation failed. clientId={}, layerCode={}, errorMessage={}",
+                    request.client_id(),
+                    request.layer_cd(),
+                    exception.getMessage(),
+                    exception
+            );
             throw exception;
         } catch (RuntimeException exception) {
+            logger.error(
+                    "Consumption layer registration failed. clientId={}, layerCode={}, errorMessage={}",
+                    request.client_id(),
+                    request.layer_cd(),
+                    exception.getMessage(),
+                    exception
+            );
             throw new SemanticLayerException("Unable to register consumption layer", exception);
         }
     }
 
     @Override
     public ConsumptionExposureDto promoteExposure(String clientId, Long exposureId, ConsumptionPromotionRequestDto request) {
+        logger.debug(
+                "Promoting consumption exposure in service. clientId={}, exposureId={}, targetSdlcStatusCode={}",
+                clientId,
+                exposureId,
+                request.target_sdlc_status_cd()
+        );
         try {
-            return transactionOperations.execute(status -> promoteExposureWithinTransaction(clientId, exposureId, request));
+            ConsumptionExposureDto exposure =
+                    transactionOperations.execute(status -> promoteExposureWithinTransaction(clientId, exposureId, request));
+            logger.info(
+                    "Consumption exposure promoted in service. clientId={}, exposureId={}, targetSdlcStatusCode={}",
+                    clientId,
+                    exposureId,
+                    request.target_sdlc_status_cd()
+            );
+            return exposure;
         } catch (PolicyViolationException | IllegalArgumentException exception) {
+            logger.warn(
+                    "Consumption exposure promotion blocked. clientId={}, exposureId={}, errorMessage={}",
+                    clientId,
+                    exposureId,
+                    exception.getMessage(),
+                    exception
+            );
             throw exception;
         } catch (RuntimeException exception) {
+            logger.error(
+                    "Consumption exposure promotion failed. clientId={}, exposureId={}, errorMessage={}",
+                    clientId,
+                    exposureId,
+                    exception.getMessage(),
+                    exception
+            );
             throw new SemanticLayerException("Unable to promote consumption exposure", exception);
         }
     }
@@ -160,6 +227,7 @@ public class ConsumptionServiceImpl implements ConsumptionService {
                 request.registered_by()
         ));
 
+        logger.debug("Persisting consumption outbounds. clientId={}, layerCode={}, outboundCount={}", request.client_id(), layer.layer_cd(), request.outbounds().size());
         request.outbounds().forEach(outbound -> persistOutboundRegistration(request, layer, outbound, now));
 
         consumptionDao.insertMetadataChangeHistory(
@@ -212,7 +280,10 @@ public class ConsumptionServiceImpl implements ConsumptionService {
                                                                      Long exposureId,
                                                                      ConsumptionPromotionRequestDto request) {
         ConsumptionOutboundRecord exposure = consumptionDao.findExposure(clientId, exposureId)
-                .orElseThrow(() -> new RegistryResourceNotFoundException("consumption exposure", exposureId.toString()));
+                .orElseThrow(() -> {
+                    logger.warn("Consumption exposure not found for promotion. clientId={}, exposureId={}", clientId, exposureId);
+                    return new RegistryResourceNotFoundException("consumption exposure", exposureId.toString());
+                });
 
         validateTransition(exposure.sdlc_status_cd(), request.target_sdlc_status_cd());
 
@@ -226,13 +297,22 @@ public class ConsumptionServiceImpl implements ConsumptionService {
                         request.promotion_reason_txt()
                 )
         );
+        logger.info(
+                "Consumption promotion policy decision resolved. clientId={}, exposureId={}, decisionAllowed={}, decisionCode={}",
+                clientId,
+                exposureId,
+                decision.allowed(),
+                decision.code()
+        );
         if (!decision.allowed()) {
+            logger.warn("Consumption promotion denied by policy. clientId={}, exposureId={}, decisionCode={}", clientId, exposureId, decision.code());
             throw new PolicyViolationException(decision.code(), decision.message());
         }
 
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         ConsumptionPromotionRecord latestPromotion = consumptionDao.findLatestPromotion(clientId, exposureId).orElse(null);
         Integer versionNumber = latestPromotion == null ? 1 : latestPromotion.version_nbr();
+        logger.debug("Resolved promotion version. clientId={}, exposureId={}, versionNumber={}", clientId, exposureId, versionNumber);
 
         FilterLookupWorkflowTaskRecord workflowTask = consumptionDao.insertWorkflowTask(
                 clientId,
@@ -279,6 +359,13 @@ public class ConsumptionServiceImpl implements ConsumptionService {
                 now,
                 request.promoted_by()
         );
+        logger.info(
+                "Consumption promotion applied. clientId={}, exposureId={}, targetSdlcStatusCode={}, versionNumber={}",
+                clientId,
+                exposureId,
+                appliedPromotion.target_sdlc_status_cd(),
+                appliedPromotion.version_nbr()
+        );
 
         consumptionDao.insertMetadataChangeHistory(
                 clientId,
@@ -297,9 +384,11 @@ public class ConsumptionServiceImpl implements ConsumptionService {
         int currentIndex = SDLC_SEQUENCE.indexOf(currentStatus == null ? "" : currentStatus.toUpperCase());
         int targetIndex = SDLC_SEQUENCE.indexOf(targetStatus == null ? "" : targetStatus.toUpperCase());
         if (currentIndex < 0 || targetIndex < 0) {
+            logger.warn("Invalid consumption SDLC transition requested. currentStatus={}, targetStatus={}", currentStatus, targetStatus);
             throw new IllegalArgumentException("target_sdlc_status_cd is not a valid SDLC transition");
         }
         if (targetIndex != currentIndex + 1) {
+            logger.warn("Rejected non-sequential consumption SDLC transition. currentStatus={}, targetStatus={}", currentStatus, targetStatus);
             throw new IllegalArgumentException(
                     "target_sdlc_status_cd must be the next SDLC gate after " + currentStatus
             );

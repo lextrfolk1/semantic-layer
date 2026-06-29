@@ -4,6 +4,8 @@ import com.lextr.semanticlayer.dao.LogicalPhysicalResolutionDao;
 import com.lextr.semanticlayer.exception.SemanticLayerException;
 import com.lextr.semanticlayer.model.LogicalPhysicalResolutionRecord;
 import com.lextr.semanticlayer.util.SQLQueryLoaderUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -15,6 +17,8 @@ import java.util.List;
 
 @Repository
 public class JdbcLogicalPhysicalResolutionDao implements LogicalPhysicalResolutionDao {
+
+    private static final Logger logger = LoggerFactory.getLogger(JdbcLogicalPhysicalResolutionDao.class);
 
     static final String FIND_BY_ATTRIBUTES = "logical_physical_resolution.find_by_attributes";
     static final String FIND_BY_OUTBOUND_GRAIN = "logical_physical_resolution.find_by_outbound_grain";
@@ -34,9 +38,18 @@ public class JdbcLogicalPhysicalResolutionDao implements LogicalPhysicalResoluti
                                                                   String objectCode,
                                                                   List<String> logicalAttributeCodes) {
         if (logicalAttributeCodes == null || logicalAttributeCodes.isEmpty()) {
+            logger.warn("Skipping logical physical resolution query because no attribute codes were supplied. clientId={}, schemaCode={}, objectCode={}", clientId, schemaCode, objectCode);
             return List.of();
         }
-        return jdbcTemplate().query(
+        logger.debug(
+                "Executing logical physical resolution attribute query. clientId={}, schemaCode={}, objectCode={}, logicalAttributeCount={}, queryKey={}",
+                clientId,
+                schemaCode,
+                objectCode,
+                logicalAttributeCodes.size(),
+                FIND_BY_ATTRIBUTES
+        );
+        List<LogicalPhysicalResolutionRecord> records = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(FIND_BY_ATTRIBUTES),
                 new MapSqlParameterSource()
                         .addValue("client_id", clientId)
@@ -45,17 +58,22 @@ public class JdbcLogicalPhysicalResolutionDao implements LogicalPhysicalResoluti
                         .addValue("logical_attribute_cds", logicalAttributeCodes),
                 JdbcLogicalPhysicalResolutionDao::mapRow
         );
+        logger.debug("Logical physical resolution attribute query completed. clientId={}, schemaCode={}, objectCode={}, resultCount={}", clientId, schemaCode, objectCode, records.size());
+        return records;
     }
 
     @Override
     public List<LogicalPhysicalResolutionRecord> findByOutboundGrain(String clientId, Long outboundId) {
-        return jdbcTemplate().query(
+        logger.debug("Executing logical physical resolution outbound query. clientId={}, outboundId={}, queryKey={}", clientId, outboundId, FIND_BY_OUTBOUND_GRAIN);
+        List<LogicalPhysicalResolutionRecord> records = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(FIND_BY_OUTBOUND_GRAIN),
                 new MapSqlParameterSource()
                         .addValue("client_id", clientId)
                         .addValue("outbound_id", outboundId),
                 JdbcLogicalPhysicalResolutionDao::mapRow
         );
+        logger.debug("Logical physical resolution outbound query completed. clientId={}, outboundId={}, resultCount={}", clientId, outboundId, records.size());
+        return records;
     }
 
     private NamedParameterJdbcTemplate jdbcTemplate() {

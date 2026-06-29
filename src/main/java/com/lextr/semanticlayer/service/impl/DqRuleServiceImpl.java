@@ -22,6 +22,8 @@ import com.lextr.semanticlayer.model.DqRuleResultRecord;
 import com.lextr.semanticlayer.model.DqRuleResultWriteRequest;
 import com.lextr.semanticlayer.service.DqRulePolicyClient;
 import com.lextr.semanticlayer.service.DqRuleService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -41,6 +43,8 @@ import java.util.UUID;
 
 @Service
 public class DqRuleServiceImpl implements DqRuleService {
+
+    private static final Logger logger = LoggerFactory.getLogger(DqRuleServiceImpl.class);
 
     private static final String WORKFLOW_TYPE_CD = "DQ_RULE_REQUEST";
     private static final String ENTITY_TYPE_CD = "DQ_RULE_REQUEST";
@@ -76,43 +80,62 @@ public class DqRuleServiceImpl implements DqRuleService {
 
     @Override
     public List<DqRuleCatalogDto> findRules(String clientId, String ruleDimensionCode, String lifecycleStatusCode) {
-        return dqRuleDao.findRules(clientId, ruleDimensionCode, lifecycleStatusCode).stream()
+        logger.debug("Finding DQ rules. clientId={}, ruleDimensionCode={}, lifecycleStatusCode={}",
+                clientId, ruleDimensionCode, lifecycleStatusCode);
+        List<DqRuleCatalogDto> rules = dqRuleDao.findRules(clientId, ruleDimensionCode, lifecycleStatusCode).stream()
                 .map(this::toCatalogDto)
                 .toList();
+        logger.debug("DQ rules resolved. clientId={}, resultCount={}", clientId, rules.size());
+        return rules;
     }
 
     @Override
     public DqRuleCatalogDto findRule(String clientId, String ruleCode) {
-        return dqRuleDao.findRule(clientId, ruleCode)
+        logger.debug("Finding DQ rule. clientId={}, ruleCode={}", clientId, ruleCode);
+        DqRuleCatalogDto rule = dqRuleDao.findRule(clientId, ruleCode)
                 .map(this::toCatalogDto)
                 .orElseThrow(() -> new RegistryResourceNotFoundException("dq rule", ruleCode));
+        logger.debug("DQ rule resolved. clientId={}, ruleCode={}", clientId, ruleCode);
+        return rule;
     }
 
     @Override
     public List<DqRuleAttributeDto> findRuleAttributes(String clientId, String ruleCode) {
-        return dqRuleDao.findRuleAttributes(clientId, ruleCode).stream()
+        logger.debug("Finding DQ rule attributes. clientId={}, ruleCode={}", clientId, ruleCode);
+        List<DqRuleAttributeDto> attributes = dqRuleDao.findRuleAttributes(clientId, ruleCode).stream()
                 .map(this::toAttributeDto)
                 .toList();
+        logger.debug("DQ rule attributes resolved. clientId={}, ruleCode={}, resultCount={}", clientId, ruleCode, attributes.size());
+        return attributes;
     }
 
     @Override
     public List<DqRuleResultDto> findRuleResults(String clientId, String logicalAttributeCode) {
-        return dqRuleDao.findResultsByLogicalAttribute(clientId, logicalAttributeCode).stream()
+        logger.debug("Finding DQ rule results. clientId={}, logicalAttributeCode={}", clientId, logicalAttributeCode);
+        List<DqRuleResultDto> results = dqRuleDao.findResultsByLogicalAttribute(clientId, logicalAttributeCode).stream()
                 .map(this::toResultDto)
                 .toList();
+        logger.debug("DQ rule results resolved. clientId={}, logicalAttributeCode={}, resultCount={}",
+                clientId, logicalAttributeCode, results.size());
+        return results;
     }
 
     @Override
     public WorkflowTaskResponseDto findRequest(String clientId, UUID workflowTaskId) {
-        return dqRuleDao.findRequest(clientId, workflowTaskId)
+        logger.debug("Finding DQ rule request. clientId={}, workflowTaskId={}", clientId, workflowTaskId);
+        WorkflowTaskResponseDto task = dqRuleDao.findRequest(clientId, workflowTaskId)
                 .map(this::toWorkflowTaskDto)
                 .orElseThrow(() -> new RegistryResourceNotFoundException("dq rule request", workflowTaskId.toString()));
+        logger.debug("DQ rule request resolved. clientId={}, workflowTaskId={}", clientId, workflowTaskId);
+        return task;
     }
 
     @Override
     public List<WorkflowTaskResponseDto> requestRules(DqRuleRequestDto request) {
+        logger.debug("Requesting DQ rules. clientId={}, requestedRuleCount={}", request.client_id(), request.rule_names().size());
         DqRulePolicyDecisionDto decision = dqRulePolicyClient.validateRequest(request);
         if (!decision.allowed()) {
+            logger.warn("DQ rule request denied. clientId={}, policyCode={}", request.client_id(), decision.code());
             throw new PolicyViolationException(decision.code(), decision.message());
         }
 
@@ -120,24 +143,30 @@ public class DqRuleServiceImpl implements DqRuleService {
         List<String> requestedRules = new LinkedHashSet<>(request.rule_names()).stream().toList();
 
         try {
-            return transactionOperations.execute(status -> requestedRules.stream()
+            List<WorkflowTaskResponseDto> tasks = transactionOperations.execute(status -> requestedRules.stream()
                     .map(ruleCode -> persistRequest(request, now, ruleCode))
                     .toList());
+            logger.info("DQ rules requested. clientId={}, requestedRuleCount={}, workflowTaskCount={}",
+                    request.client_id(), requestedRules.size(), tasks.size());
+            return tasks;
         } catch (PolicyViolationException exception) {
             throw exception;
         } catch (RuntimeException exception) {
+            logger.error("DQ rule request failed. clientId={}, errorMessage={}", request.client_id(), exception.getMessage(), exception);
             throw new com.lextr.semanticlayer.exception.DqRuleServiceException("Unable to request DQ rule", exception);
         }
     }
 
     public DqRuleResultDto ingestResult(DqRuleResultIngestRequestDto request, String principalCd) {
+        logger.debug("Ingesting DQ rule result. clientId={}, ruleCode={}, logicalAttributeCode={}, resultStatusCode={}",
+                request.client_id(), request.rule_cd(), request.logical_attribute_cd(), request.result_status_cd());
         validateEnginePrincipal(request, principalCd);
         DqRuleCatalogDto rule = findRule(request.client_id(), request.rule_cd());
 
         OffsetDateTime now = effectiveNow(request.observed_ts());
         try {
-            return transactionOperations.execute(status -> {
-                DqRuleResultRecord result = dqRuleDao.insertResult(new DqRuleResultWriteRequest(
+            DqRuleResultDto result = transactionOperations.execute(status -> {
+                DqRuleResultRecord record = dqRuleDao.insertResult(new DqRuleResultWriteRequest(
                         request.rule_cd(),
                         request.logical_attribute_cd(),
                         request.client_id(),
@@ -163,11 +192,16 @@ public class DqRuleServiceImpl implements DqRuleService {
                         now,
                         request.ingested_by()
                 ));
-                return toResultDto(result);
+                return toResultDto(record);
             });
+            logger.info("DQ rule result ingested. clientId={}, ruleCode={}, logicalAttributeCode={}",
+                    request.client_id(), request.rule_cd(), rule.logical_attribute_cd());
+            return result;
         } catch (PolicyViolationException exception) {
             throw exception;
         } catch (RuntimeException exception) {
+            logger.error("DQ rule result ingest failed. clientId={}, ruleCode={}, errorMessage={}",
+                    request.client_id(), request.rule_cd(), exception.getMessage(), exception);
             throw new com.lextr.semanticlayer.exception.DqRuleServiceException("Unable to ingest DQ result", exception);
         }
     }
@@ -180,7 +214,11 @@ public class DqRuleServiceImpl implements DqRuleService {
         int attributeCount = attributes.size();
         int resultCount = results.size();
         int coveragePct = attributeCount == 0 ? 0 : Math.min(100, (int) Math.round(resultCount * 100.0 / attributeCount));
-        return new DqRuleMatrixCoverageDto(ruleCode, rule.logical_attribute_cd(), attributeCount, resultCount, coveragePct, coveragePct >= 100);
+        DqRuleMatrixCoverageDto coverage =
+                new DqRuleMatrixCoverageDto(ruleCode, rule.logical_attribute_cd(), attributeCount, resultCount, coveragePct, coveragePct >= 100);
+        logger.debug("Computed DQ rule coverage. clientId={}, ruleCode={}, attributeCount={}, resultCount={}, coveragePct={}",
+                clientId, ruleCode, attributeCount, resultCount, coveragePct);
+        return coverage;
     }
 
     private WorkflowTaskResponseDto persistRequest(DqRuleRequestDto request, OffsetDateTime now, String ruleCode) {
@@ -216,6 +254,8 @@ public class DqRuleServiceImpl implements DqRuleService {
     private void validateEnginePrincipal(DqRuleResultIngestRequestDto request, String principalCd) {
         DqRulePolicyDecisionDto decision = dqRulePolicyClient.validateResultIngest(request, principalCd);
         if (!decision.allowed()) {
+            logger.warn("DQ rule result ingest denied. clientId={}, ruleCode={}, policyCode={}",
+                    request.client_id(), request.rule_cd(), decision.code());
             throw new PolicyViolationException(decision.code(), decision.message());
         }
     }

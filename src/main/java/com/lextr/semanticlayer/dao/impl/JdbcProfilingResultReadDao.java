@@ -4,6 +4,8 @@ import com.lextr.semanticlayer.dao.ProfilingResultReadDao;
 import com.lextr.semanticlayer.exception.SemanticLayerException;
 import com.lextr.semanticlayer.model.ProfilingResultRecord;
 import com.lextr.semanticlayer.util.SQLQueryLoaderUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -16,6 +18,8 @@ import java.util.List;
 
 @Repository
 public class JdbcProfilingResultReadDao implements ProfilingResultReadDao {
+
+    private static final Logger logger = LoggerFactory.getLogger(JdbcProfilingResultReadDao.class);
 
     static final String FIND_ALL = "profiling_result.find_all";
 
@@ -30,7 +34,9 @@ public class JdbcProfilingResultReadDao implements ProfilingResultReadDao {
 
     @Override
     public List<ProfilingResultRecord> findMetrics(String clientId, String schemaCode, String objectCode, String profilingStatusCode) {
-        return jdbcTemplate().query(
+        logger.debug("Executing profiling metric query. clientId={}, schemaCode={}, objectCode={}, profilingStatusCode={}",
+                clientId, schemaCode, objectCode, profilingStatusCode);
+        List<ProfilingResultRecord> records = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(FIND_ALL),
                 new MapSqlParameterSource()
                         .addValue("client_id", clientId)
@@ -39,11 +45,15 @@ public class JdbcProfilingResultReadDao implements ProfilingResultReadDao {
                         .addValue("profiling_status_cd", profilingStatusCode),
                 JdbcProfilingResultReadDao::mapRow
         );
+        logger.debug("Profiling metric query completed. clientId={}, schemaCode={}, objectCode={}, resultCount={}",
+                clientId, schemaCode, objectCode, records.size());
+        return records;
     }
 
     private NamedParameterJdbcTemplate jdbcTemplate() {
         NamedParameterJdbcTemplate jdbcTemplate = jdbcTemplateProvider.getIfAvailable();
         if (jdbcTemplate == null) {
+            logger.error("NamedParameterJdbcTemplate is not configured for profiling result DAO.");
             throw new SemanticLayerException("NamedParameterJdbcTemplate is not configured");
         }
         return jdbcTemplate;

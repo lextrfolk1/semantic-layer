@@ -6,6 +6,8 @@ import com.lextr.semanticlayer.service.SemanticResolveService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,6 +23,8 @@ import java.util.List;
 @RequestMapping("/api/consumption")
 @Tag(name = "Consumption Resolve", description = "Governed logical-to-physical resolution for consumption outbounds.")
 public class ConsumptionResolveController {
+
+    private static final Logger logger = LoggerFactory.getLogger(ConsumptionResolveController.class);
 
     private final SemanticResolveService semanticResolveService;
 
@@ -44,7 +48,18 @@ public class ConsumptionResolveController {
             @Parameter(description = "Optional purpose code propagated by the gateway.")
             @RequestHeader(value = "X-Purpose-Cd", required = false) String purposeCode,
             @Parameter(description = "Outbound identifier.") @PathVariable("outbound_id") Long outboundId) {
-        return semanticResolveService.resolveOutboundGrain(clientId, actorId, roleCode, purposeCode, outboundId);
+        logger.debug(
+                "Resolving consumption outbound. clientId={}, outboundId={}, actorSupplied={}, roleCode={}, purposeCode={}",
+                clientId,
+                outboundId,
+                actorId != null && !actorId.isBlank(),
+                roleCode,
+                purposeCode
+        );
+        List<LogicalPhysicalResolutionDto> resolutions =
+                semanticResolveService.resolveOutboundGrain(clientId, actorId, roleCode, purposeCode, outboundId);
+        logger.debug("Consumption outbound resolved. clientId={}, outboundId={}, resultCount={}", clientId, outboundId, resolutions.size());
+        return resolutions;
     }
 
     private static final class MissingSemanticResolveService implements SemanticResolveService {

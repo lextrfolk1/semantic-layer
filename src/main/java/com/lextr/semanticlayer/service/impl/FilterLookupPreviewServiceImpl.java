@@ -17,6 +17,8 @@ import com.lextr.semanticlayer.model.SemanticFilterLookupRecord;
 import com.lextr.semanticlayer.service.FilterLookupPolicyClient;
 import com.lextr.semanticlayer.service.FilterLookupPreviewService;
 import com.lextr.semanticlayer.service.FilterLookupSqlPreviewClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -31,6 +33,8 @@ import java.util.List;
 
 @Service
 public class FilterLookupPreviewServiceImpl implements FilterLookupPreviewService {
+
+    private static final Logger logger = LoggerFactory.getLogger(FilterLookupPreviewServiceImpl.class);
 
     private static final String MANUAL_LIST = "MANUAL_LIST";
     private static final String SQL_QUERY = "SQL_QUERY";
@@ -75,6 +79,8 @@ public class FilterLookupPreviewServiceImpl implements FilterLookupPreviewServic
 
     @Override
     public List<FilterLookupPreviewResponseDto> previewLookups(FilterLookupPreviewRequestDto request) {
+        logger.debug("Previewing filter lookups. clientId={}, executedBy={}, lookupCodeCount={}",
+                request.client_id(), request.executed_by(), request.lookup_codes().size());
         try {
             List<SemanticFilterLookupRecord> lookups = request.lookup_codes().stream()
                     .map(lookupCode -> findRequiredLookup(request.client_id(), lookupCode))
@@ -82,12 +88,16 @@ public class FilterLookupPreviewServiceImpl implements FilterLookupPreviewServic
 
             validatePreviewPolicies(request, lookups);
 
-            return transactionOperations.execute(status -> lookups.stream()
+            List<FilterLookupPreviewResponseDto> responses = transactionOperations.execute(status -> lookups.stream()
                     .map(lookup -> previewLookup(request, lookup))
                     .toList());
+            logger.debug("Filter lookup preview completed. clientId={}, resultCount={}", request.client_id(), responses.size());
+            return responses;
         } catch (PolicyViolationException exception) {
+            logger.warn("Filter lookup preview denied. clientId={}, errorMessage={}", request.client_id(), exception.getMessage(), exception);
             throw exception;
         } catch (RuntimeException exception) {
+            logger.error("Filter lookup preview failed. clientId={}, errorMessage={}", request.client_id(), exception.getMessage(), exception);
             throw new FilterLookupPreviewServiceException("Unable to preview filter lookups", exception);
         }
     }
@@ -109,6 +119,8 @@ public class FilterLookupPreviewServiceImpl implements FilterLookupPreviewServic
                     )
             );
             if (!decision.allowed()) {
+                logger.warn("Filter lookup preview policy denied. clientId={}, lookupCode={}, constructionTypeCode={}, executionStrategyCode={}, policyCode={}",
+                        request.client_id(), lookup.lookup_cd(), lookup.construction_type_cd(), lookup.execution_strategy_cd(), decision.code());
                 recordBlockedExecution(request.executed_by(), lookup, decision.code());
                 throw new PolicyViolationException(decision.code(), decision.message());
             }
@@ -136,6 +148,8 @@ public class FilterLookupPreviewServiceImpl implements FilterLookupPreviewServic
     private FilterLookupPreviewResponseDto previewLookup(FilterLookupPreviewRequestDto request,
                                                          SemanticFilterLookupRecord lookup) {
         long startedNanos = System.nanoTime();
+        logger.debug("Resolving filter lookup preview. clientId={}, lookupCode={}, constructionTypeCode={}",
+                request.client_id(), lookup.lookup_cd(), lookup.construction_type_cd());
         PreviewResolution resolution = resolvePreview(request.client_id(), lookup);
         int durationMillis = elapsedMillis(startedNanos);
 
@@ -153,7 +167,7 @@ public class FilterLookupPreviewServiceImpl implements FilterLookupPreviewServic
                 null
         ));
 
-        return new FilterLookupPreviewResponseDto(
+        FilterLookupPreviewResponseDto response = new FilterLookupPreviewResponseDto(
                 lookup.lookup_cd(),
                 lookup.construction_type_cd(),
                 resolution.executionStrategyUsedCode(),
@@ -162,6 +176,9 @@ public class FilterLookupPreviewServiceImpl implements FilterLookupPreviewServic
                 SUCCESS,
                 resolution.values()
         );
+        logger.debug("Filter lookup preview resolved. clientId={}, lookupCode={}, rowCount={}, durationMillis={}",
+                request.client_id(), lookup.lookup_cd(), response.phase1_row_count(), durationMillis);
+        return response;
     }
 
     private PreviewResolution resolvePreview(String clientId, SemanticFilterLookupRecord lookup) {
@@ -178,11 +195,15 @@ public class FilterLookupPreviewServiceImpl implements FilterLookupPreviewServic
         List<FilterLookupPreviewValueDto> values = filterLookupReadDao.findManualValues(clientId, lookup.lookup_cd()).stream()
                 .map(this::toPreviewValueDto)
                 .toList();
+        logger.debug("Manual filter lookup preview resolved. clientId={}, lookupCode={}, rowCount={}",
+                clientId, lookup.lookup_cd(), values.size());
         return new PreviewResolution(values, values.size(), false, lookup.execution_strategy_cd());
     }
 
     private PreviewResolution sqlPreview(String clientId, SemanticFilterLookupRecord lookup) {
         List<FilterLookupPreviewValueDto> values = filterLookupSqlPreviewClient.previewDistinctValues(clientId, lookup);
+        logger.debug("SQL filter lookup preview resolved. clientId={}, lookupCode={}, rowCount={}",
+                clientId, lookup.lookup_cd(), values.size());
         return new PreviewResolution(values, values.size(), false, lookup.execution_strategy_cd());
     }
 

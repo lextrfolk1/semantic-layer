@@ -8,6 +8,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -22,6 +24,8 @@ import java.util.List;
 @RequestMapping("/api/semantic")
 @Tag(name = "Semantic Resolve", description = "Governed logical-to-physical resolution for downstream engines.")
 public class SemanticResolveController {
+
+    private static final Logger logger = LoggerFactory.getLogger(SemanticResolveController.class);
 
     private final SemanticResolveService semanticResolveService;
 
@@ -44,7 +48,26 @@ public class SemanticResolveController {
             @Parameter(description = "Optional purpose code propagated by the gateway.")
             @RequestHeader(value = "X-Purpose-Cd", required = false) String purposeCode,
             @Valid @RequestBody SemanticResolveRequestDto request) {
-        return semanticResolveService.resolveAttributes(request, actorId, roleCode, purposeCode);
+        logger.debug(
+                "Resolving semantic attributes. clientId={}, schemaCode={}, objectCode={}, logicalAttributeCount={}, actorSupplied={}, roleCode={}, purposeCode={}",
+                request.client_id(),
+                request.schema_cd(),
+                request.object_cd(),
+                request.logical_attribute_cd() == null ? 0 : request.logical_attribute_cd().size(),
+                actorId != null && !actorId.isBlank(),
+                roleCode,
+                purposeCode
+        );
+        List<LogicalPhysicalResolutionDto> resolutions =
+                semanticResolveService.resolveAttributes(request, actorId, roleCode, purposeCode);
+        logger.debug(
+                "Semantic attributes resolved. clientId={}, schemaCode={}, objectCode={}, resultCount={}",
+                request.client_id(),
+                request.schema_cd(),
+                request.object_cd(),
+                resolutions.size()
+        );
+        return resolutions;
     }
 
     private static final class MissingSemanticResolveService implements SemanticResolveService {

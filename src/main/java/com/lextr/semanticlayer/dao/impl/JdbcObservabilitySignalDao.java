@@ -6,6 +6,8 @@ import com.lextr.semanticlayer.model.ObservabilitySignalCorrelationWriteRequest;
 import com.lextr.semanticlayer.model.ObservabilitySignalRecord;
 import com.lextr.semanticlayer.model.ObservabilitySignalWriteRequest;
 import com.lextr.semanticlayer.util.SQLQueryLoaderUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -20,6 +22,8 @@ import java.util.Optional;
 
 @Repository
 public class JdbcObservabilitySignalDao implements ObservabilitySignalDao {
+
+    private static final Logger logger = LoggerFactory.getLogger(JdbcObservabilitySignalDao.class);
 
     static final String INSERT_SIGNAL = "observability_signal.insert";
     static final String FIND_ALL = "observability_signal.find_all";
@@ -38,6 +42,8 @@ public class JdbcObservabilitySignalDao implements ObservabilitySignalDao {
 
     @Override
     public ObservabilitySignalRecord insertSignal(ObservabilitySignalWriteRequest request) {
+        logger.debug("Executing observability signal insert. clientId={}, signalTypeCode={}, severityCode={}, signalStatusCode={}",
+                request.client_id(), request.signal_type_cd(), request.severity_cd(), request.signal_status_cd());
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("client_id", request.client_id())
                 .addValue("signal_type_cd", request.signal_type_cd())
@@ -56,10 +62,12 @@ public class JdbcObservabilitySignalDao implements ObservabilitySignalDao {
                 .addValue("created_by", request.created_by())
                 .addValue("updated_ts", request.updated_ts())
                 .addValue("updated_by", request.updated_by());
-        return jdbcTemplate().query(sqlQueryLoaderUtil.getQuery(INSERT_SIGNAL), parameters, ROW_MAPPER)
+        ObservabilitySignalRecord record = jdbcTemplate().query(sqlQueryLoaderUtil.getQuery(INSERT_SIGNAL), parameters, ROW_MAPPER)
                 .stream()
                 .findFirst()
                 .orElseThrow(() -> new SemanticLayerException("Insert observability signal returned no rows"));
+        logger.debug("Observability signal insert completed. clientId={}, signalId={}", request.client_id(), record.id());
+        return record;
     }
 
     @Override
@@ -68,17 +76,23 @@ public class JdbcObservabilitySignalDao implements ObservabilitySignalDao {
                                                       String severityCode,
                                                       String signalStatusCode,
                                                       String correlationKeyText) {
+        logger.debug("Executing observability signal query. clientId={}, signalTypeCode={}, severityCode={}, signalStatusCode={}, correlationKeyProvided={}",
+                clientId, signalTypeCode, severityCode, signalStatusCode, correlationKeyText != null && !correlationKeyText.isBlank());
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("client_id", clientId)
                 .addValue("signal_type_cd", signalTypeCode)
                 .addValue("severity_cd", severityCode)
                 .addValue("signal_status_cd", signalStatusCode)
                 .addValue("correlation_key_txt", correlationKeyText);
-        return jdbcTemplate().query(sqlQueryLoaderUtil.getQuery(FIND_ALL), parameters, ROW_MAPPER);
+        List<ObservabilitySignalRecord> records = jdbcTemplate().query(sqlQueryLoaderUtil.getQuery(FIND_ALL), parameters, ROW_MAPPER);
+        logger.debug("Observability signal query completed. clientId={}, resultCount={}", clientId, records.size());
+        return records;
     }
 
     @Override
     public Optional<ObservabilitySignalRecord> correlateSignal(ObservabilitySignalCorrelationWriteRequest request) {
+        logger.debug("Executing observability signal correlation update. clientId={}, signalId={}, signalStatusCode={}, workflowTaskId={}",
+                request.client_id(), request.id(), request.signal_status_cd(), request.workflow_task_id());
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("id", request.id())
                 .addValue("client_id", request.client_id())
@@ -90,14 +104,18 @@ public class JdbcObservabilitySignalDao implements ObservabilitySignalDao {
                 .addValue("resolved_ts", request.resolved_ts())
                 .addValue("updated_ts", request.updated_ts())
                 .addValue("updated_by", request.updated_by());
-        return jdbcTemplate().query(sqlQueryLoaderUtil.getQuery(CORRELATE_SIGNAL), parameters, ROW_MAPPER)
+        Optional<ObservabilitySignalRecord> record = jdbcTemplate().query(sqlQueryLoaderUtil.getQuery(CORRELATE_SIGNAL), parameters, ROW_MAPPER)
                 .stream()
                 .findFirst();
+        logger.debug("Observability signal correlation update completed. clientId={}, signalId={}, found={}",
+                request.client_id(), request.id(), record.isPresent());
+        return record;
     }
 
     private NamedParameterJdbcTemplate jdbcTemplate() {
         NamedParameterJdbcTemplate jdbcTemplate = jdbcTemplateProvider.getIfAvailable();
         if (jdbcTemplate == null) {
+            logger.error("NamedParameterJdbcTemplate is not configured for observability signal DAO.");
             throw new SemanticLayerException("NamedParameterJdbcTemplate is not configured");
         }
         return jdbcTemplate;

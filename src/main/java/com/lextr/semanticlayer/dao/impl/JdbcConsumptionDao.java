@@ -12,6 +12,8 @@ import com.lextr.semanticlayer.model.ConsumptionOutboundWriteRequest;
 import com.lextr.semanticlayer.model.ConsumptionPromotionRecord;
 import com.lextr.semanticlayer.model.FilterLookupWorkflowTaskRecord;
 import com.lextr.semanticlayer.util.SQLQueryLoaderUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -26,6 +28,8 @@ import java.util.UUID;
 
 @Repository
 public class JdbcConsumptionDao implements ConsumptionDao {
+
+    private static final Logger logger = LoggerFactory.getLogger(JdbcConsumptionDao.class);
 
     static final String INSERT_LAYER = "consumption_layer.insert_request";
     static final String INSERT_OUTBOUND = "consumption_outbound.insert_request";
@@ -55,7 +59,8 @@ public class JdbcConsumptionDao implements ConsumptionDao {
 
     @Override
     public ConsumptionLayerRecord insertLayer(ConsumptionLayerWriteRequest request) {
-        return jdbcTemplate().query(
+        logger.debug("Executing consumption layer insert. clientId={}, layerCode={}, queryKey={}", request.client_id(), request.layer_cd(), INSERT_LAYER);
+        ConsumptionLayerRecord record = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(INSERT_LAYER),
                 new MapSqlParameterSource()
                         .addValue("client_id", request.client_id())
@@ -70,6 +75,8 @@ public class JdbcConsumptionDao implements ConsumptionDao {
                         .addValue("updated_by", request.updated_by()),
                 (rs, rowNum) -> toLayerRecord(rs)
         ).stream().findFirst().orElseThrow(() -> new SemanticLayerException("Insert consumption layer returned no rows"));
+        logger.debug("Consumption layer insert completed. clientId={}, layerCode={}", request.client_id(), request.layer_cd());
+        return record;
     }
 
     @Override
@@ -113,29 +120,36 @@ public class JdbcConsumptionDao implements ConsumptionDao {
 
     @Override
     public List<ConsumptionLayerRecord> findLayers(String clientId, String lifecycleStatusCode) {
-        return jdbcTemplate().query(
+        logger.debug("Executing consumption layer lookup. clientId={}, lifecycleStatusCode={}, queryKey={}", clientId, lifecycleStatusCode, FIND_LAYERS);
+        List<ConsumptionLayerRecord> layers = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(FIND_LAYERS),
                 new MapSqlParameterSource()
                         .addValue("client_id", clientId)
                         .addValue("lifecycle_status_cd", lifecycleStatusCode),
                 (rs, rowNum) -> toLayerRecord(rs)
         );
+        logger.debug("Consumption layer lookup completed. clientId={}, resultCount={}", clientId, layers.size());
+        return layers;
     }
 
     @Override
     public Optional<ConsumptionLayerRecord> findLayer(String clientId, String layerCode) {
-        return jdbcTemplate().query(
+        logger.debug("Executing consumption layer lookup by code. clientId={}, layerCode={}, queryKey={}", clientId, layerCode, FIND_LAYER);
+        List<ConsumptionLayerRecord> layers = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(FIND_LAYER),
                 new MapSqlParameterSource()
                         .addValue("client_id", clientId)
                         .addValue("layer_cd", layerCode),
                 (rs, rowNum) -> toLayerRecord(rs)
-        ).stream().findFirst();
+        );
+        logger.debug("Consumption layer lookup by code completed. clientId={}, layerCode={}, resultCount={}", clientId, layerCode, layers.size());
+        return layers.stream().findFirst();
     }
 
     @Override
     public List<ConsumptionOutboundRecord> findExposures(String clientId, UUID objectId, String structureTypeCode) {
-        return jdbcTemplate().query(
+        logger.debug("Executing consumption exposure lookup. clientId={}, objectId={}, structureTypeCode={}, queryKey={}", clientId, objectId, structureTypeCode, FIND_EXPOSURES);
+        List<ConsumptionOutboundRecord> exposures = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(FIND_EXPOSURES),
                 new MapSqlParameterSource()
                         .addValue("client_id", clientId)
@@ -143,17 +157,22 @@ public class JdbcConsumptionDao implements ConsumptionDao {
                         .addValue("structure_type_cd", structureTypeCode),
                 (rs, rowNum) -> toExposureRecord(rs)
         );
+        logger.debug("Consumption exposure lookup completed. clientId={}, objectId={}, resultCount={}", clientId, objectId, exposures.size());
+        return exposures;
     }
 
     @Override
     public Optional<ConsumptionOutboundRecord> findExposure(String clientId, Long exposureId) {
-        return jdbcTemplate().query(
+        logger.debug("Executing scoped consumption exposure lookup. clientId={}, exposureId={}, queryKey={}", clientId, exposureId, FIND_EXPOSURE);
+        List<ConsumptionOutboundRecord> exposures = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(FIND_EXPOSURE),
                 new MapSqlParameterSource()
                         .addValue("client_id", clientId)
                         .addValue("outbound_id", exposureId),
                 (rs, rowNum) -> toExposureRecord(rs)
-        ).stream().findFirst();
+        );
+        logger.debug("Scoped consumption exposure lookup completed. clientId={}, exposureId={}, resultCount={}", clientId, exposureId, exposures.size());
+        return exposures.stream().findFirst();
     }
 
     @Override
@@ -168,13 +187,16 @@ public class JdbcConsumptionDao implements ConsumptionDao {
 
     @Override
     public Optional<ConsumptionPromotionRecord> findLatestPromotion(String clientId, Long exposureId) {
-        return jdbcTemplate().query(
+        logger.debug("Executing latest promotion lookup. clientId={}, exposureId={}, queryKey={}", clientId, exposureId, FIND_LATEST_PROMOTION);
+        List<ConsumptionPromotionRecord> promotions = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(FIND_LATEST_PROMOTION),
                 new MapSqlParameterSource()
                         .addValue("client_id", clientId)
                         .addValue("outbound_id", exposureId),
                 (rs, rowNum) -> toPromotionRecord(rs)
-        ).stream().findFirst();
+        );
+        logger.debug("Latest promotion lookup completed. clientId={}, exposureId={}, resultCount={}", clientId, exposureId, promotions.size());
+        return promotions.stream().findFirst();
     }
 
     @Override
@@ -290,7 +312,8 @@ public class JdbcConsumptionDao implements ConsumptionDao {
                                             String changeReasonTxt,
                                             String changedBy,
                                             OffsetDateTime changedTs) {
-        jdbcTemplate().update(
+        logger.debug("Executing consumption metadata history insert. clientId={}, entityTypeCode={}, entityRef={}, changeTypeCode={}, queryKey={}", clientId, entityTypeCode, entityRef, changeTypeCode, INSERT_METADATA_CHANGE_HISTORY);
+        int affectedRows = jdbcTemplate().update(
                 sqlQueryLoaderUtil.getQuery(INSERT_METADATA_CHANGE_HISTORY),
                 new MapSqlParameterSource()
                         .addValue("client_id", clientId)
@@ -301,6 +324,7 @@ public class JdbcConsumptionDao implements ConsumptionDao {
                         .addValue("changed_by", changedBy)
                         .addValue("changed_ts", changedTs)
         );
+        logger.debug("Consumption metadata history insert completed. clientId={}, entityTypeCode={}, entityRef={}, affectedRows={}", clientId, entityTypeCode, entityRef, affectedRows);
     }
 
     private NamedParameterJdbcTemplate jdbcTemplate() {
@@ -381,6 +405,7 @@ public class JdbcConsumptionDao implements ConsumptionDao {
         try {
             return objectMapper.readValue(rawValue.toString(), new TypeReference<List<String>>() { });
         } catch (Exception exception) {
+            logger.error("Failed to parse consumption attributes JSON. errorMessage={}", exception.getMessage(), exception);
             throw new SemanticLayerException("Unable to parse consumption attributes JSON", exception);
         }
     }

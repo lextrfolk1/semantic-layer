@@ -23,6 +23,8 @@ import com.lextr.semanticlayer.service.DqRuleService;
 import com.lextr.semanticlayer.service.GovernancePolicyPresetReadService;
 import com.lextr.semanticlayer.service.ObservabilitySignalService;
 import com.lextr.semanticlayer.service.ObservabilitySignalPolicyClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -38,6 +40,8 @@ import java.util.List;
 
 @Service
 public class ObservabilitySignalServiceImpl implements ObservabilitySignalService {
+
+    private static final Logger logger = LoggerFactory.getLogger(ObservabilitySignalServiceImpl.class);
 
     private static final String OBSERVABILITY_POLICY_SCOPE_CD = "OBSERVABILITY_SIGNAL";
     private static final String WORKFLOW_ROUTE_POLICY_CD = "GOV-OS-001";
@@ -129,7 +133,12 @@ public class ObservabilitySignalServiceImpl implements ObservabilitySignalServic
 
     @Override
     public ObservabilitySignalResponseDto ingestSignal(ObservabilitySignalIngestRequestDto request) {
-        return transactionOperations.execute(status -> ingestSignalWithinTransaction(request));
+        logger.debug("Ingesting observability signal. clientId={}, signalTypeCode={}, severityCode={}, sourceSystemCode={}, rerunRequested={}",
+                request.client_id(), request.signal_type_cd(), request.severity_cd(), request.source_system_cd(), request.dq_rerun_requested_flg());
+        ObservabilitySignalResponseDto response = transactionOperations.execute(status -> ingestSignalWithinTransaction(request));
+        logger.info("Observability signal ingested. clientId={}, signalId={}, signalStatusCode={}",
+                request.client_id(), response.id(), response.signal_status_cd());
+        return response;
     }
 
     @Override
@@ -138,15 +147,24 @@ public class ObservabilitySignalServiceImpl implements ObservabilitySignalServic
                                                             String severityCode,
                                                             String signalStatusCode,
                                                             String correlationKeyText) {
-        return observabilitySignalDao.findSignals(clientId, signalTypeCode, severityCode, signalStatusCode, correlationKeyText)
+        logger.debug("Finding observability signals. clientId={}, signalTypeCode={}, severityCode={}, signalStatusCode={}, correlationKeyProvided={}",
+                clientId, signalTypeCode, severityCode, signalStatusCode, correlationKeyText != null && !correlationKeyText.isBlank());
+        List<ObservabilitySignalResponseDto> signals = observabilitySignalDao.findSignals(clientId, signalTypeCode, severityCode, signalStatusCode, correlationKeyText)
                 .stream()
                 .map(this::toDto)
                 .toList();
+        logger.debug("Observability signals resolved. clientId={}, resultCount={}", clientId, signals.size());
+        return signals;
     }
 
     @Override
     public ObservabilitySignalResponseDto correlateSignal(Long signalId, ObservabilitySignalCorrelationRequestDto request) {
-        return transactionOperations.execute(status -> correlateSignalWithinTransaction(signalId, request));
+        logger.debug("Correlating observability signal. clientId={}, signalId={}, signalStatusCode={}, workflowTaskId={}, rerunRequested={}",
+                request.client_id(), signalId, request.signal_status_cd(), request.workflow_task_id(), request.dq_rerun_requested_flg());
+        ObservabilitySignalResponseDto response = transactionOperations.execute(status -> correlateSignalWithinTransaction(signalId, request));
+        logger.info("Observability signal correlated. clientId={}, signalId={}, signalStatusCode={}",
+                request.client_id(), signalId, response.signal_status_cd());
+        return response;
     }
 
     private ObservabilitySignalResponseDto ingestSignalWithinTransaction(ObservabilitySignalIngestRequestDto request) {
@@ -214,6 +232,8 @@ public class ObservabilitySignalServiceImpl implements ObservabilitySignalServic
             );
         }
 
+        logger.info("Observability automation applied after ingest. clientId={}, signalId={}, workflowTaskCreated={}, dqRerunTriggered={}",
+                record.client_id(), record.id(), workflowTask != null, dqRerunTriggered);
         return toDto(effectiveRecord);
     }
 
@@ -283,6 +303,8 @@ public class ObservabilitySignalServiceImpl implements ObservabilitySignalServic
             );
         }
 
+        logger.info("Observability automation applied after correlation. clientId={}, signalId={}, workflowTaskId={}, dqRerunTriggered={}",
+                currentRecord.client_id(), signalId, effectiveRecord.workflow_task_id(), dqRerunTriggered);
         return toDto(effectiveRecord);
     }
 

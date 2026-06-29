@@ -18,6 +18,8 @@ import com.lextr.semanticlayer.model.ObjectCatalogWriteRequest;
 import com.lextr.semanticlayer.model.WorkflowTaskRecord;
 import com.lextr.semanticlayer.model.WorkflowTaskWriteRequest;
 import com.lextr.semanticlayer.util.SQLQueryLoaderUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -30,6 +32,8 @@ import java.util.UUID;
 
 @Repository
 public class JdbcObjectRegistrationWriteDao implements ObjectRegistrationWriteDao {
+
+    private static final Logger logger = LoggerFactory.getLogger(JdbcObjectRegistrationWriteDao.class);
 
     static final String INSERT_DRAFT_OBJECT = "object_registration.insert_draft_object";
     static final String INSERT_ATTRIBUTE = "object_registration.insert_attribute";
@@ -51,6 +55,8 @@ public class JdbcObjectRegistrationWriteDao implements ObjectRegistrationWriteDa
 
     @Override
     public ObjectCatalogRecord insertDraftObject(ObjectCatalogWriteRequest request) {
+        logger.debug("Executing object draft insert. clientId={}, objectCode={}, schemaCode={}",
+                request.client_id(), request.object_cd(), request.schema_cd());
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("object_id", request.object_id())
                 .addValue("client_id", request.client_id())
@@ -63,7 +69,7 @@ public class JdbcObjectRegistrationWriteDao implements ObjectRegistrationWriteDa
                 .addValue("created_by", request.created_by())
                 .addValue("updated_ts", request.updated_ts())
                 .addValue("updated_by", request.updated_by());
-        return jdbcTemplate().query(
+        ObjectCatalogRecord record = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(INSERT_DRAFT_OBJECT),
                 parameters,
                 (resultSet, rowNum) -> new ObjectCatalogRecord(
@@ -81,10 +87,14 @@ public class JdbcObjectRegistrationWriteDao implements ObjectRegistrationWriteDa
                         resultSet.getString("updated_by")
                 )
         ).stream().findFirst().orElseThrow(() -> new SemanticLayerException("Insert object returned no rows"));
+        logger.debug("Object draft insert completed. clientId={}, objectId={}", request.client_id(), record.object_id());
+        return record;
     }
 
     @Override
     public AttributeCatalogRecord insertAttribute(AttributeCatalogWriteRequest request) {
+        logger.debug("Executing object attribute insert. clientId={}, objectId={}, attributeCode={}",
+                request.client_id(), request.object_id(), request.attribute_cd());
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("attribute_id", request.attribute_id())
                 .addValue("object_id", request.object_id())
@@ -102,7 +112,7 @@ public class JdbcObjectRegistrationWriteDao implements ObjectRegistrationWriteDa
                 .addValue("created_by", request.created_by())
                 .addValue("updated_ts", request.updated_ts())
                 .addValue("updated_by", request.updated_by());
-        return jdbcTemplate().query(
+        AttributeCatalogRecord record = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(INSERT_ATTRIBUTE),
                 parameters,
                 (resultSet, rowNum) -> new AttributeCatalogRecord(
@@ -124,10 +134,14 @@ public class JdbcObjectRegistrationWriteDao implements ObjectRegistrationWriteDa
                         resultSet.getString("updated_by")
                 )
         ).stream().findFirst().orElseThrow(() -> new SemanticLayerException("Insert attribute returned no rows"));
+        logger.debug("Object attribute insert completed. clientId={}, attributeId={}", request.client_id(), record.attribute_id());
+        return record;
     }
 
     @Override
     public ObjectClassificationRecord updateObjectClassification(ObjectClassificationWriteRequest request) {
+        logger.debug("Executing object classification update. clientId={}, objectId={}, dataClassificationCode={}",
+                request.client_id(), request.object_id(), request.data_classification_cd());
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("object_id", request.object_id())
                 .addValue("client_id", request.client_id())
@@ -136,7 +150,7 @@ public class JdbcObjectRegistrationWriteDao implements ObjectRegistrationWriteDa
                 .addValue("confidential_flg", request.confidential_flg())
                 .addValue("updated_ts", request.updated_ts())
                 .addValue("updated_by", request.updated_by());
-        return jdbcTemplate().query(
+        ObjectClassificationRecord record = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(UPDATE_OBJECT_CLASSIFICATION),
                 parameters,
                 (resultSet, rowNum) -> new ObjectClassificationRecord(
@@ -157,10 +171,14 @@ public class JdbcObjectRegistrationWriteDao implements ObjectRegistrationWriteDa
                         resultSet.getString("updated_by")
                 )
         ).stream().findFirst().orElseThrow(() -> new SemanticLayerException("Update object classification returned no rows"));
+        logger.debug("Object classification update completed. clientId={}, objectId={}", request.client_id(), request.object_id());
+        return record;
     }
 
     @Override
     public AttributeClassificationRecord updateAttributeClassification(AttributeClassificationWriteRequest request) {
+        logger.debug("Executing attribute classification update. clientId={}, objectId={}, attributeCode={}, dataClassificationCode={}",
+                request.client_id(), request.object_id(), request.attribute_cd(), request.data_classification_cd());
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("object_id", request.object_id())
                 .addValue("client_id", request.client_id())
@@ -174,7 +192,7 @@ public class JdbcObjectRegistrationWriteDao implements ObjectRegistrationWriteDa
                 .addValue("ai_exposure_cd", request.ai_exposure_cd())
                 .addValue("updated_ts", request.updated_ts())
                 .addValue("updated_by", request.updated_by());
-        return jdbcTemplate().query(
+        AttributeClassificationRecord record = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(UPDATE_ATTRIBUTE_CLASSIFICATION),
                 parameters,
                 (resultSet, rowNum) -> new AttributeClassificationRecord(
@@ -203,10 +221,15 @@ public class JdbcObjectRegistrationWriteDao implements ObjectRegistrationWriteDa
                         resultSet.getString("updated_by")
                 )
         ).stream().findFirst().orElseThrow(() -> new SemanticLayerException("Update attribute classification returned no rows"));
+        logger.debug("Attribute classification update completed. clientId={}, objectId={}, attributeCode={}",
+                request.client_id(), request.object_id(), request.attribute_cd());
+        return record;
     }
 
     @Override
     public AttributeAccessGrantRecord insertAttributeAccessGrant(AttributeAccessGrantWriteRequest request) {
+        logger.debug("Executing attribute access grant insert. clientId={}, objectCode={}, attributeCode={}, roleCode={}, purposeCode={}",
+                request.client_id(), request.object_cd(), request.attribute_cd(), request.role_cd(), request.purpose_cd());
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("client_id", request.client_id())
                 .addValue("schema_cd", request.schema_cd())
@@ -222,15 +245,19 @@ public class JdbcObjectRegistrationWriteDao implements ObjectRegistrationWriteDa
                 .addValue("created_by", request.created_by())
                 .addValue("updated_ts", request.updated_ts())
                 .addValue("updated_by", request.updated_by());
-        return jdbcTemplate().query(
+        AttributeAccessGrantRecord record = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(INSERT_ATTRIBUTE_ACCESS_GRANT),
                 parameters,
                 JdbcObjectRegistrationWriteDao::mapAttributeAccessGrantRow
         ).stream().findFirst().orElseThrow(() -> new SemanticLayerException("Insert attribute access grant returned no rows"));
+        logger.debug("Attribute access grant insert completed. clientId={}, grantId={}", request.client_id(), record.id());
+        return record;
     }
 
     @Override
     public AttributeAccessGrantRecord updateAttributeAccessGrantStatus(AttributeAccessGrantStatusUpdateRequest request) {
+        logger.debug("Executing attribute access grant status update. clientId={}, grantId={}, grantStatusCode={}",
+                request.client_id(), request.id(), request.grant_status_cd());
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("id", request.id())
                 .addValue("client_id", request.client_id())
@@ -239,15 +266,19 @@ public class JdbcObjectRegistrationWriteDao implements ObjectRegistrationWriteDa
                 .addValue("approved_ts", request.approved_ts())
                 .addValue("updated_ts", request.updated_ts())
                 .addValue("updated_by", request.updated_by());
-        return jdbcTemplate().query(
+        AttributeAccessGrantRecord record = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(UPDATE_ATTRIBUTE_ACCESS_GRANT_STATUS),
                 parameters,
                 JdbcObjectRegistrationWriteDao::mapAttributeAccessGrantRow
         ).stream().findFirst().orElseThrow(() -> new SemanticLayerException("Update attribute access grant status returned no rows"));
+        logger.debug("Attribute access grant status update completed. clientId={}, grantId={}", request.client_id(), request.id());
+        return record;
     }
 
     @Override
     public WorkflowTaskRecord insertWorkflowTask(WorkflowTaskWriteRequest request) {
+        logger.debug("Executing object workflow task insert. clientId={}, workflowTaskId={}, entityTypeCode={}",
+                request.client_id(), request.workflow_task_id(), request.entity_type_cd());
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("workflow_task_id", request.workflow_task_id())
                 .addValue("client_id", request.client_id())
@@ -259,7 +290,7 @@ public class JdbcObjectRegistrationWriteDao implements ObjectRegistrationWriteDa
                 .addValue("created_by", request.created_by())
                 .addValue("updated_ts", request.updated_ts())
                 .addValue("updated_by", request.updated_by());
-        return jdbcTemplate().query(
+        WorkflowTaskRecord record = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(INSERT_WORKFLOW_TASK),
                 parameters,
                 (resultSet, rowNum) -> new WorkflowTaskRecord(
@@ -275,10 +306,14 @@ public class JdbcObjectRegistrationWriteDao implements ObjectRegistrationWriteDa
                         resultSet.getString("updated_by")
                 )
         ).stream().findFirst().orElseThrow(() -> new SemanticLayerException("Insert workflow task returned no rows"));
+        logger.debug("Object workflow task insert completed. clientId={}, workflowTaskId={}", request.client_id(), record.workflow_task_id());
+        return record;
     }
 
     @Override
     public MetadataChangeHistoryRecord insertMetadataChangeHistory(MetadataChangeHistoryWriteRequest request) {
+        logger.debug("Executing object metadata change insert. clientId={}, entityTypeCode={}, changeTypeCode={}",
+                request.client_id(), request.entity_type_cd(), request.change_type_cd());
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("change_history_id", request.change_history_id())
                 .addValue("client_id", request.client_id())
@@ -288,7 +323,7 @@ public class JdbcObjectRegistrationWriteDao implements ObjectRegistrationWriteDa
                 .addValue("change_summary_txt", request.change_summary_txt())
                 .addValue("created_ts", request.created_ts())
                 .addValue("created_by", request.created_by());
-        return jdbcTemplate().query(
+        MetadataChangeHistoryRecord record = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(INSERT_METADATA_CHANGE_HISTORY),
                 parameters,
                 (resultSet, rowNum) -> new MetadataChangeHistoryRecord(
@@ -302,11 +337,15 @@ public class JdbcObjectRegistrationWriteDao implements ObjectRegistrationWriteDa
                         resultSet.getString("created_by")
                 )
         ).stream().findFirst().orElseThrow(() -> new SemanticLayerException("Insert metadata change history returned no rows"));
+        logger.debug("Object metadata change insert completed. clientId={}, changeHistoryId={}",
+                request.client_id(), record.change_history_id());
+        return record;
     }
 
     private NamedParameterJdbcTemplate jdbcTemplate() {
         NamedParameterJdbcTemplate jdbcTemplate = jdbcTemplateProvider.getIfAvailable();
         if (jdbcTemplate == null) {
+            logger.error("NamedParameterJdbcTemplate is not configured for object registration DAO.");
             throw new SemanticLayerException("NamedParameterJdbcTemplate is not configured");
         }
         return jdbcTemplate;

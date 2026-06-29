@@ -23,6 +23,8 @@ import com.lextr.semanticlayer.model.WorkflowTaskWriteRequest;
 import com.lextr.semanticlayer.service.RelationshipGraphProjectionClient;
 import com.lextr.semanticlayer.service.RelationshipPolicyClient;
 import com.lextr.semanticlayer.service.RelationshipRegistrationService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.ObjectProvider;
@@ -39,6 +41,8 @@ import java.util.UUID;
 
 @Service
 public class RelationshipRegistrationServiceImpl implements RelationshipRegistrationService {
+
+    private static final Logger logger = LoggerFactory.getLogger(RelationshipRegistrationServiceImpl.class);
 
     private static final String ACTIVE_LIFECYCLE_STATUS_CD = "DRAFT";
     private static final String WORKFLOW_TYPE_CD = "RELATIONSHIP_REGISTRATION";
@@ -92,12 +96,17 @@ public class RelationshipRegistrationServiceImpl implements RelationshipRegistra
 
     @Override
     public RelationshipRegistrationResponseDto registerRelationship(RelationshipRegistrationRequestDto request) {
+        logger.debug("Registering relationship. relationshipCode={}, parentSchemaCode={}, parentObjectCode={}, childSchemaCode={}, childObjectCode={}, relationshipTypeCode={}",
+                request.relationship_cd(), request.parent_schema_cd(), request.parent_object_cd(),
+                request.child_schema_cd(), request.child_object_cd(), request.relationship_type_cd());
         ObjectExposureRecord parentObject = findRequiredObject(request.parent_schema_cd(), request.parent_object_cd(), "parent");
         ObjectExposureRecord childObject = findRequiredObject(request.child_schema_cd(), request.child_object_cd(), "child");
         String clientId = resolveClientId(parentObject, childObject);
         DataConnectionRecord parentConnection = findRequiredConnection(clientId, parentObject.connection_id(), "parent");
         DataConnectionRecord childConnection = findRequiredConnection(clientId, childObject.connection_id(), "child");
         boolean crossEngine = isCrossEngine(parentConnection, childConnection);
+        logger.debug("Relationship engines resolved. relationshipCode={}, clientId={}, parentEngineCode={}, childEngineCode={}, crossEngine={}",
+                request.relationship_cd(), clientId, parentConnection.engine_cd(), childConnection.engine_cd(), crossEngine);
 
         validateRelationshipPolicy(request, clientId, parentConnection.engine_cd(), childConnection.engine_cd(), crossEngine);
 
@@ -107,7 +116,7 @@ public class RelationshipRegistrationServiceImpl implements RelationshipRegistra
         UUID changeHistoryId = UUID.randomUUID();
 
         try {
-            return transactionOperations.execute(status -> persistRegistration(
+            RelationshipRegistrationResponseDto response = transactionOperations.execute(status -> persistRegistration(
                     request,
                     clientId,
                     crossEngine,
@@ -118,11 +127,19 @@ public class RelationshipRegistrationServiceImpl implements RelationshipRegistra
                     workflowTaskId,
                     changeHistoryId
             ));
+            logger.info("Relationship registered. relationshipCode={}, clientId={}, lifecycleStatusCode={}",
+                    response.relationship_cd(), clientId, response.lifecycle_status_cd());
+            return response;
         } catch (PolicyViolationException exception) {
+            logger.warn("Relationship registration denied. relationshipCode={}, errorMessage={}",
+                    request.relationship_cd(), exception.getMessage(), exception);
             throw exception;
         } catch (DuplicateKeyException exception) {
+            logger.warn("Relationship registration duplicate detected. relationshipCode={}", request.relationship_cd(), exception);
             throw new RelationshipAlreadyExistsException(request.relationship_cd());
         } catch (RuntimeException exception) {
+            logger.error("Relationship registration failed. relationshipCode={}, errorMessage={}",
+                    request.relationship_cd(), exception.getMessage(), exception);
             throw new RelationshipRegistrationServiceException("Unable to register relationship", exception);
         }
     }
@@ -142,6 +159,8 @@ public class RelationshipRegistrationServiceImpl implements RelationshipRegistra
                 )
         );
         if (!decision.allowed()) {
+            logger.warn("Relationship cross-engine policy denied. relationshipCode={}, clientId={}, policyCode={}",
+                    request.relationship_cd(), clientId, decision.code());
             throw new PolicyViolationException(decision.code(), decision.message());
         }
     }
@@ -310,8 +329,10 @@ public class RelationshipRegistrationServiceImpl implements RelationshipRegistra
                 request.registered_by()
         ));
         if (!projected) {
+            logger.warn("Relationship graph projection skipped. relationshipCode={}", record.relationship_cd());
             return record;
         }
+        logger.info("Relationship graph projected. relationshipCode={}", record.relationship_cd());
         return relationshipRegistrationWriteDao.updateNeo4jProjectionSync(new SemanticRelationshipProjectionSyncWriteRequest(
                 record.relationship_cd(),
                 projectedAt,

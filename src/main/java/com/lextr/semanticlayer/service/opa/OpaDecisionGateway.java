@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lextr.semanticlayer.config.OpaProperties;
 import com.lextr.semanticlayer.exception.OpaPolicyClientException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.URI;
@@ -15,6 +17,8 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 public class OpaDecisionGateway {
+
+    private static final Logger logger = LoggerFactory.getLogger(OpaDecisionGateway.class);
 
     private final OpaProperties properties;
     private final ObjectMapper objectMapper;
@@ -32,6 +36,7 @@ public class OpaDecisionGateway {
 
     public <T> T evaluate(String policyPackage, Object input, Class<T> decisionType) {
         try {
+            logger.debug("Evaluating OPA policy. policyPackage={}, decisionType={}", policyPackage, decisionType.getSimpleName());
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(buildUri(policyPackage))
                     .timeout(resolveTimeout())
@@ -41,19 +46,24 @@ public class OpaDecisionGateway {
 
             HttpResponse<String> response = transport.send(request);
             if (response.statusCode() / 100 != 2) {
+                logger.error("OPA policy evaluation failed with non-2xx status. policyPackage={}, statusCode={}", policyPackage, response.statusCode());
                 throw new OpaPolicyClientException(buildFailureMessage(policyPackage, response.statusCode(), response.body()));
             }
 
             JsonNode root = objectMapper.readTree(response.body());
             JsonNode result = root.path("result");
             if (result.isMissingNode() || result.isNull()) {
+                logger.error("OPA policy evaluation returned no result. policyPackage={}", policyPackage);
                 throw new OpaPolicyClientException("OPA response for " + policyPackage + " did not contain result");
             }
+            logger.debug("OPA policy evaluation completed. policyPackage={}, statusCode={}", policyPackage, response.statusCode());
             return objectMapper.convertValue(result, decisionType);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
+            logger.error("OPA policy evaluation interrupted. policyPackage={}, errorMessage={}", policyPackage, exception.getMessage(), exception);
             throw new OpaPolicyClientException("OPA evaluation interrupted for " + policyPackage, exception);
         } catch (IOException exception) {
+            logger.error("OPA policy evaluation failed. policyPackage={}, errorMessage={}", policyPackage, exception.getMessage(), exception);
             throw new OpaPolicyClientException("OPA evaluation failed for " + policyPackage, exception);
         }
     }
@@ -82,6 +92,7 @@ public class OpaDecisionGateway {
 
     public void publishPolicy(String policyId, String regoContent) {
         try {
+            logger.debug("Publishing OPA policy. policyId={}", policyId);
             String baseUrl = trimTrailingSlash(properties.getBaseUrl());
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(baseUrl + "/v1/policies/" + policyId))
@@ -92,12 +103,16 @@ public class OpaDecisionGateway {
 
             HttpResponse<String> response = transport.send(request);
             if (response.statusCode() / 100 != 2) {
+                logger.error("OPA policy publish failed with non-2xx status. policyId={}, statusCode={}", policyId, response.statusCode());
                 throw new OpaPolicyClientException("Failed to publish OPA policy " + policyId + ": HTTP " + response.statusCode() + " - " + response.body());
             }
+            logger.debug("OPA policy published. policyId={}, statusCode={}", policyId, response.statusCode());
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
+            logger.error("OPA policy publish interrupted. policyId={}, errorMessage={}", policyId, exception.getMessage(), exception);
             throw new OpaPolicyClientException("OPA policy publish interrupted for " + policyId, exception);
         } catch (IOException exception) {
+            logger.error("OPA policy publish failed. policyId={}, errorMessage={}", policyId, exception.getMessage(), exception);
             throw new OpaPolicyClientException("OPA policy publish failed for " + policyId, exception);
         }
     }

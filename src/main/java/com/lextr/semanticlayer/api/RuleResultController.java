@@ -7,6 +7,8 @@ import com.lextr.semanticlayer.service.RuleResultService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -21,6 +23,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/rule-results")
 @Tag(name = "Rule Results", description = "External rule result ingest operations.")
 public class RuleResultController {
+
+    private static final Logger logger = LoggerFactory.getLogger(RuleResultController.class);
 
     private final RuleResultService ruleResultService;
 
@@ -38,7 +42,23 @@ public class RuleResultController {
     @Operation(summary = "Ingest rule result", description = "Stores external rule results and routes editcheck outputs to LP-24.")
     public RuleResultIngestResponseDto ingestRuleResult(@Valid @RequestBody ExternalRuleResultIngestRequestDto request,
                                                         @RequestHeader(value = "X-Principal-Cd", required = false) String principalCd) {
-        return ruleResultService.ingestRuleResult(request, principalCd);
+        logger.debug(
+                "Ingesting rule result. clientId={}, outboundId={}, ruleRefCode={}, outputKindCode={}, principalSupplied={}",
+                request.client_id(),
+                request.outbound_id(),
+                request.rule_ref_cd(),
+                request.output_kind_cd(),
+                principalCd != null && !principalCd.isBlank()
+        );
+        RuleResultIngestResponseDto response = ruleResultService.ingestRuleResult(request, principalCd);
+        logger.debug(
+                "Rule result ingested. clientId={}, outboundId={}, ruleRefCode={}, routeTargetCode={}",
+                response.client_id(),
+                response.outbound_id(),
+                response.rule_ref_cd(),
+                response.route_target_cd()
+        );
+        return response;
     }
 
     private static final class MissingRuleResultService implements RuleResultService {

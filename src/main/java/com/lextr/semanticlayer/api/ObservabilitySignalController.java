@@ -9,6 +9,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -28,6 +30,8 @@ import java.util.List;
 @Tag(name = "Observability Signals", description = "Data observability signal ingest, correlation, and screen operations.")
 public class ObservabilitySignalController {
 
+    private static final Logger logger = LoggerFactory.getLogger(ObservabilitySignalController.class);
+
     private final ObservabilitySignalService observabilitySignalService;
 
     @Autowired
@@ -43,7 +47,17 @@ public class ObservabilitySignalController {
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Ingest observability signal", description = "Registers an observability signal for later correlation.")
     public ObservabilitySignalResponseDto ingestSignal(@Valid @RequestBody ObservabilitySignalIngestRequestDto request) {
-        return observabilitySignalService.ingestSignal(request);
+        logger.debug(
+                "Ingesting observability signal. clientId={}, signalTypeCode={}, severityCode={}, sourceSystemCode={}, rerunRequested={}",
+                request.client_id(),
+                request.signal_type_cd(),
+                request.severity_cd(),
+                request.source_system_cd(),
+                request.dq_rerun_requested_flg()
+        );
+        ObservabilitySignalResponseDto response = observabilitySignalService.ingestSignal(request);
+        logger.debug("Observability signal ingested. clientId={}, signalId={}", request.client_id(), response.id());
+        return response;
     }
 
     @GetMapping
@@ -54,7 +68,18 @@ public class ObservabilitySignalController {
             @Parameter(description = "Optional severity filter.") @RequestParam(value = "severity_cd", required = false) String severityCode,
             @Parameter(description = "Optional signal status filter.") @RequestParam(value = "signal_status_cd", required = false) String signalStatusCode,
             @Parameter(description = "Optional correlation key filter.") @RequestParam(value = "correlation_key_txt", required = false) String correlationKeyText) {
-        return observabilitySignalService.findSignals(clientId, signalTypeCode, severityCode, signalStatusCode, correlationKeyText);
+        logger.debug(
+                "Listing observability signals. clientId={}, signalTypeCode={}, severityCode={}, signalStatusCode={}, correlationKeyProvided={}",
+                clientId,
+                signalTypeCode,
+                severityCode,
+                signalStatusCode,
+                correlationKeyText != null && !correlationKeyText.isBlank()
+        );
+        List<ObservabilitySignalResponseDto> signals =
+                observabilitySignalService.findSignals(clientId, signalTypeCode, severityCode, signalStatusCode, correlationKeyText);
+        logger.debug("Observability signals resolved. clientId={}, resultCount={}", clientId, signals.size());
+        return signals;
     }
 
     @PostMapping("/{signal_id}/correlate")
@@ -62,7 +87,18 @@ public class ObservabilitySignalController {
     public ObservabilitySignalResponseDto correlateSignal(
             @Parameter(description = "Signal identifier.") @PathVariable("signal_id") Long signalId,
             @Valid @RequestBody ObservabilitySignalCorrelationRequestDto request) {
-        return observabilitySignalService.correlateSignal(signalId, request);
+        logger.debug(
+                "Correlating observability signal. clientId={}, signalId={}, signalStatusCode={}, workflowTaskId={}, rerunRequested={}",
+                request.client_id(),
+                signalId,
+                request.signal_status_cd(),
+                request.workflow_task_id(),
+                request.dq_rerun_requested_flg()
+        );
+        ObservabilitySignalResponseDto response = observabilitySignalService.correlateSignal(signalId, request);
+        logger.debug("Observability signal correlated. clientId={}, signalId={}, signalStatusCode={}",
+                request.client_id(), signalId, response.signal_status_cd());
+        return response;
     }
 
     private static final class MissingObservabilitySignalService implements ObservabilitySignalService {

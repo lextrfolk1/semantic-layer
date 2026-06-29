@@ -6,12 +6,16 @@ import com.lextr.semanticlayer.exception.PolicyViolationException;
 import com.lextr.semanticlayer.exception.RegistryResourceNotFoundException;
 import com.lextr.semanticlayer.model.GovernanceHistoryEventRecord;
 import com.lextr.semanticlayer.service.GovernanceHistoryReadService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 
 @Service
 public class GovernanceHistoryReadServiceImpl implements GovernanceHistoryReadService {
+
+    private static final Logger logger = LoggerFactory.getLogger(GovernanceHistoryReadServiceImpl.class);
 
     private final GovernanceHistoryReadDao governanceHistoryReadDao;
 
@@ -24,6 +28,8 @@ public class GovernanceHistoryReadServiceImpl implements GovernanceHistoryReadSe
                                                        String entityTypeCode,
                                                        String entityRef,
                                                        String changeTypeCode) {
+        logger.debug("Finding governance history. clientId={}, entityTypeCode={}, entityRef={}, changeTypeCode={}",
+                clientId, entityTypeCode, entityRef, changeTypeCode);
         validateRequired("client_id", clientId);
         validateRequired("entity_type_cd", entityTypeCode);
         validateRequired("entity_ref", entityRef);
@@ -31,17 +37,23 @@ public class GovernanceHistoryReadServiceImpl implements GovernanceHistoryReadSe
         List<GovernanceHistoryEventRecord> allEvents =
                 governanceHistoryReadDao.findEvents(clientId, entityTypeCode, entityRef, null);
         if (allEvents.isEmpty()) {
+            logger.warn("Governance history not found. clientId={}, entityTypeCode={}, entityRef={}",
+                    clientId, entityTypeCode, entityRef);
             throw new RegistryResourceNotFoundException("governance history", entityTypeCode + "/" + entityRef);
         }
 
         List<GovernanceHistoryEventRecord> filteredEvents = changeTypeCode == null || changeTypeCode.isBlank()
                 ? allEvents
                 : governanceHistoryReadDao.findEvents(clientId, entityTypeCode, entityRef, changeTypeCode);
-        return filteredEvents.stream().map(this::toDto).toList();
+        List<GovernanceHistoryEventDto> history = filteredEvents.stream().map(this::toDto).toList();
+        logger.debug("Governance history resolved. clientId={}, entityTypeCode={}, entityRef={}, resultCount={}",
+                clientId, entityTypeCode, entityRef, history.size());
+        return history;
     }
 
     private void validateRequired(String fieldName, String value) {
         if (value == null || value.isBlank()) {
+            logger.warn("Governance history validation failed. fieldName={}", fieldName);
             throw new PolicyViolationException(fieldName.toUpperCase() + "_REQUIRED", fieldName + " is required");
         }
     }

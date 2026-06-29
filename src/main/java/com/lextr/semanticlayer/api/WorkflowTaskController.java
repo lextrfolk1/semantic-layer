@@ -9,6 +9,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -33,6 +35,8 @@ import java.util.Map;
 @Tag(name = "Workflow", description = "Workflow approval operations.")
 public class WorkflowTaskController {
 
+    private static final Logger logger = LoggerFactory.getLogger(WorkflowTaskController.class);
+
     private final WorkflowApprovalService workflowApprovalService;
     private final NamedParameterJdbcTemplate jdbcTemplate;
     private final SQLQueryLoaderUtil sqlQueryLoaderUtil;
@@ -52,11 +56,13 @@ public class WorkflowTaskController {
     public List<WorkflowTaskResponseDto> listTasks(
             @Parameter(description = "Client ID filter.") @RequestParam(value = "client_id", required = false) String clientId) {
         if (jdbcTemplate == null) {
+            logger.error("Workflow task listing failed because NamedParameterJdbcTemplate is not configured");
             throw new SemanticLayerException("NamedParameterJdbcTemplate is not configured");
         }
+        logger.debug("Listing workflow tasks. clientId={}", clientId);
         MapSqlParameterSource params = new MapSqlParameterSource()
                 .addValue("client_id", clientId);
-        return jdbcTemplate.query(
+        List<WorkflowTaskResponseDto> tasks = jdbcTemplate.query(
                 sqlQueryLoaderUtil.getQuery("workflow_task.find_all"),
                 params,
                 (rs, rowNum) -> new WorkflowTaskResponseDto(
@@ -76,6 +82,8 @@ public class WorkflowTaskController {
                         rs.getString("approval_note_txt")
                 )
         );
+        logger.debug("Workflow tasks resolved. clientId={}, resultCount={}", clientId, tasks.size());
+        return tasks;
     }
 
     @PostMapping("/{id}/approve")
@@ -83,7 +91,10 @@ public class WorkflowTaskController {
     public WorkflowTaskResponseDto approveTask(
             @Parameter(description = "Workflow task identifier.") @PathVariable("id") Long id,
             @Valid @RequestBody WorkflowApprovalRequestDto request) {
-        return workflowApprovalService.approveTask(id, request);
+        logger.debug("Approving workflow task. id={}, clientId={}", id, request.client_id());
+        WorkflowTaskResponseDto task = workflowApprovalService.approveTask(id, request);
+        logger.debug("Workflow task approved. id={}, clientId={}, taskStatusCode={}", id, request.client_id(), task.task_status_cd());
+        return task;
     }
 
     @PostMapping("/{id}/reject")
@@ -91,7 +102,15 @@ public class WorkflowTaskController {
     public WorkflowTaskResponseDto rejectTask(
             @Parameter(description = "Workflow task identifier.") @PathVariable("id") Long id,
             @RequestBody Map<String, String> body) {
-        return workflowApprovalService.rejectTask(id, body);
+        logger.debug(
+                "Rejecting workflow task. id={}, clientId={}, rejectedByProvided={}",
+                id,
+                body.get("client_id"),
+                body.containsKey("rejected_by") || body.containsKey("approved_by")
+        );
+        WorkflowTaskResponseDto task = workflowApprovalService.rejectTask(id, body);
+        logger.debug("Workflow task rejected. id={}, clientId={}, taskStatusCode={}", id, task.client_id(), task.task_status_cd());
+        return task;
     }
 
     private static OffsetDateTime getOffsetDateTime(java.sql.ResultSet rs, String col) throws java.sql.SQLException {

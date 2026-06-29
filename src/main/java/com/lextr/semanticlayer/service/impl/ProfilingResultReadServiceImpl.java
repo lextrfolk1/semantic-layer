@@ -8,6 +8,8 @@ import com.lextr.semanticlayer.exception.RegistryResourceNotFoundException;
 import com.lextr.semanticlayer.model.ObjectExposureRecord;
 import com.lextr.semanticlayer.model.ProfilingResultRecord;
 import com.lextr.semanticlayer.service.ProfilingResultReadService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -17,6 +19,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class ProfilingResultReadServiceImpl implements ProfilingResultReadService {
+
+    private static final Logger logger = LoggerFactory.getLogger(ProfilingResultReadServiceImpl.class);
 
     private final ObjectExposureReadDao objectExposureReadDao;
     private final ProfilingResultReadDao profilingResultReadDao;
@@ -29,6 +33,8 @@ public class ProfilingResultReadServiceImpl implements ProfilingResultReadServic
 
     @Override
     public List<ProfilingResultDto> findMetrics(String clientId, UUID objectId, String profilingStatusCode) {
+        logger.debug("Finding profiling metrics. clientId={}, objectId={}, profilingStatusCode={}",
+                clientId, objectId, profilingStatusCode);
         ObjectExposureRecord object = objectExposureReadDao.findObject(clientId, objectId)
                 .orElseThrow(() -> new RegistryResourceNotFoundException("object", objectId.toString()));
         Map<String, String> effectiveAttributeNames = objectExposureReadDao.findAttributes(clientId, objectId).stream()
@@ -38,9 +44,12 @@ public class ProfilingResultReadServiceImpl implements ProfilingResultReadServic
                         (left, right) -> left
                 ));
 
-        return profilingResultReadDao.findMetrics(clientId, object.schema_cd(), object.object_cd(), profilingStatusCode).stream()
+        List<ProfilingResultDto> metrics =
+                profilingResultReadDao.findMetrics(clientId, object.schema_cd(), object.object_cd(), profilingStatusCode).stream()
                 .map(record -> toDto(record, effectiveAttributeNames))
                 .toList();
+        logger.debug("Profiling metrics resolved. clientId={}, objectId={}, resultCount={}", clientId, objectId, metrics.size());
+        return metrics;
     }
 
     private ProfilingResultDto toDto(ProfilingResultRecord record, Map<String, String> effectiveAttributeNames) {

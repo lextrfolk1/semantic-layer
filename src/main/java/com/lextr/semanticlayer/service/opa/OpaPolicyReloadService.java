@@ -17,7 +17,7 @@ import java.util.List;
 
 @Service
 public class OpaPolicyReloadService {
-    private static final Logger log = LoggerFactory.getLogger(OpaPolicyReloadService.class);
+    private static final Logger logger = LoggerFactory.getLogger(OpaPolicyReloadService.class);
 
     private final OpaProperties properties;
     private final ObjectProvider<OpaDecisionGateway> gatewayProvider;
@@ -32,7 +32,7 @@ public class OpaPolicyReloadService {
         OpaDecisionGateway gateway = gatewayProvider.getIfAvailable();
 
         if (gateway == null || !properties.isEnabled()) {
-            log.info("OPA is disabled, skipping policy reload.");
+            logger.debug("OPA is disabled, skipping policy reload.");
             return reloaded;
         }
 
@@ -45,14 +45,14 @@ public class OpaPolicyReloadService {
             pattern += "**/*.rego";
 
             Resource[] resources = resolver.getResources(pattern);
-            log.info("Found {} rego policies to reload from pattern: {}", resources.length, pattern);
+            logger.debug("Found {} rego policies to reload from pattern: {}", resources.length, pattern);
 
             for (Resource resource : resources) {
                 String policyId = getPolicyId(resource);
                 String content = StreamUtils.copyToString(resource.getInputStream(), StandardCharsets.UTF_8);
                 gateway.publishPolicy(policyId, content);
                 reloaded.add(policyId);
-                log.info("Successfully reloaded OPA policy: {}", policyId);
+                logger.debug("Successfully reloaded OPA policy: {}", policyId);
             }
         } catch (IOException e) {
             throw new RuntimeException("Failed to scan or load OPA policy files", e);

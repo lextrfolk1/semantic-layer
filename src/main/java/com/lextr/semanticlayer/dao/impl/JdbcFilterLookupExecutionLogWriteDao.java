@@ -5,6 +5,8 @@ import com.lextr.semanticlayer.exception.SemanticLayerException;
 import com.lextr.semanticlayer.model.FilterLookupExecutionLogRecord;
 import com.lextr.semanticlayer.model.FilterLookupExecutionLogWriteRequest;
 import com.lextr.semanticlayer.util.SQLQueryLoaderUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -16,6 +18,8 @@ import java.time.OffsetDateTime;
 
 @Repository
 public class JdbcFilterLookupExecutionLogWriteDao implements FilterLookupExecutionLogWriteDao {
+
+    private static final Logger logger = LoggerFactory.getLogger(JdbcFilterLookupExecutionLogWriteDao.class);
 
     static final String INSERT_EXECUTION = "filter_lookup_exec_log.insert_execution";
 
@@ -30,6 +34,8 @@ public class JdbcFilterLookupExecutionLogWriteDao implements FilterLookupExecuti
 
     @Override
     public FilterLookupExecutionLogRecord insertExecutionLog(FilterLookupExecutionLogWriteRequest request) {
+        logger.debug("Executing filter lookup execution log insert. lookupCode={}, executedBy={}, resultStatusCode={}",
+                request.lookup_cd(), request.executed_by(), request.result_status_cd());
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("lookup_cd", request.lookup_cd())
                 .addValue("executed_by", request.executed_by())
@@ -42,7 +48,7 @@ public class JdbcFilterLookupExecutionLogWriteDao implements FilterLookupExecuti
                 .addValue("result_status_cd", request.result_status_cd())
                 .addValue("error_txt", request.error_txt())
                 .addValue("blocked_by_policy_cd", request.blocked_by_policy_cd());
-        return jdbcTemplate().query(
+        FilterLookupExecutionLogRecord record = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(INSERT_EXECUTION),
                 parameters,
                 (resultSet, rowNum) -> new FilterLookupExecutionLogRecord(
@@ -60,11 +66,15 @@ public class JdbcFilterLookupExecutionLogWriteDao implements FilterLookupExecuti
                         resultSet.getString("blocked_by_policy_cd")
                 )
         ).stream().findFirst().orElseThrow(() -> new SemanticLayerException("Insert filter lookup execution log returned no rows"));
+        logger.debug("Filter lookup execution log insert completed. lookupCode={}, executionLogId={}",
+                record.lookup_cd(), record.id());
+        return record;
     }
 
     private NamedParameterJdbcTemplate jdbcTemplate() {
         NamedParameterJdbcTemplate jdbcTemplate = jdbcTemplateProvider.getIfAvailable();
         if (jdbcTemplate == null) {
+            logger.error("NamedParameterJdbcTemplate is not configured for filter lookup execution log DAO.");
             throw new SemanticLayerException("NamedParameterJdbcTemplate is not configured");
         }
         return jdbcTemplate;

@@ -12,6 +12,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -32,6 +34,8 @@ import java.util.UUID;
 @Tag(name = "DQ Rules", description = "Data quality rule catalog, request, and observe operations.")
 public class DqRuleController {
 
+    private static final Logger logger = LoggerFactory.getLogger(DqRuleController.class);
+
     private final DqRuleService dqRuleService;
 
     @Autowired
@@ -49,7 +53,10 @@ public class DqRuleController {
             @Parameter(description = "Tenant identifier.") @RequestParam("client_id") String clientId,
             @Parameter(description = "Optional rule dimension filter.") @RequestParam(value = "rule_dimension_cd", required = false) String ruleDimensionCode,
             @Parameter(description = "Optional lifecycle status filter.") @RequestParam(value = "lifecycle_status_cd", required = false) String lifecycleStatusCode) {
-        return dqRuleService.findRules(clientId, ruleDimensionCode, lifecycleStatusCode);
+        logger.debug("Listing DQ rules. clientId={}, ruleDimensionCode={}, lifecycleStatusCode={}", clientId, ruleDimensionCode, lifecycleStatusCode);
+        List<DqRuleCatalogDto> rules = dqRuleService.findRules(clientId, ruleDimensionCode, lifecycleStatusCode);
+        logger.debug("DQ rules resolved. clientId={}, resultCount={}", clientId, rules.size());
+        return rules;
     }
 
     @GetMapping("/{rule_cd}")
@@ -57,7 +64,10 @@ public class DqRuleController {
     public DqRuleCatalogDto findRule(
             @Parameter(description = "Tenant identifier.") @RequestParam("client_id") String clientId,
             @Parameter(description = "Rule code.") @PathVariable("rule_cd") String ruleCode) {
-        return dqRuleService.findRule(clientId, ruleCode);
+        logger.debug("Fetching DQ rule. clientId={}, ruleCode={}", clientId, ruleCode);
+        DqRuleCatalogDto rule = dqRuleService.findRule(clientId, ruleCode);
+        logger.debug("DQ rule resolved. clientId={}, ruleCode={}", clientId, ruleCode);
+        return rule;
     }
 
     @GetMapping("/{rule_cd}/attributes")
@@ -65,7 +75,10 @@ public class DqRuleController {
     public List<DqRuleAttributeDto> findRuleAttributes(
             @Parameter(description = "Tenant identifier.") @RequestParam("client_id") String clientId,
             @Parameter(description = "Rule code.") @PathVariable("rule_cd") String ruleCode) {
-        return dqRuleService.findRuleAttributes(clientId, ruleCode);
+        logger.debug("Listing DQ rule attributes. clientId={}, ruleCode={}", clientId, ruleCode);
+        List<DqRuleAttributeDto> attributes = dqRuleService.findRuleAttributes(clientId, ruleCode);
+        logger.debug("DQ rule attributes resolved. clientId={}, ruleCode={}, resultCount={}", clientId, ruleCode, attributes.size());
+        return attributes;
     }
 
     @GetMapping("/results")
@@ -73,14 +86,20 @@ public class DqRuleController {
     public List<DqRuleResultDto> findRuleResults(
             @Parameter(description = "Tenant identifier.") @RequestParam("client_id") String clientId,
             @Parameter(description = "Logical attribute code.") @RequestParam("logical_attribute_cd") String logicalAttributeCode) {
-        return dqRuleService.findRuleResults(clientId, logicalAttributeCode);
+        logger.debug("Listing DQ rule results. clientId={}, logicalAttributeCode={}", clientId, logicalAttributeCode);
+        List<DqRuleResultDto> results = dqRuleService.findRuleResults(clientId, logicalAttributeCode);
+        logger.debug("DQ rule results resolved. clientId={}, logicalAttributeCode={}, resultCount={}", clientId, logicalAttributeCode, results.size());
+        return results;
     }
 
     @PostMapping("/requests")
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Request DQ rules", description = "Creates workflow tasks for one or more requested DQ rules.")
     public List<WorkflowTaskResponseDto> requestRules(@Valid @RequestBody DqRuleRequestDto request) {
-        return dqRuleService.requestRules(request);
+        logger.debug("Requesting DQ rules. clientId={}, ruleCount={}", request.client_id(), request.rule_names().size());
+        List<WorkflowTaskResponseDto> tasks = dqRuleService.requestRules(request);
+        logger.debug("DQ rules requested. clientId={}, workflowTaskCount={}", request.client_id(), tasks.size());
+        return tasks;
     }
 
     @GetMapping("/requests/{workflow_task_id}")
@@ -88,7 +107,10 @@ public class DqRuleController {
     public WorkflowTaskResponseDto findRequest(
             @Parameter(description = "Tenant identifier.") @RequestParam("client_id") String clientId,
             @Parameter(description = "Workflow task identifier.") @PathVariable("workflow_task_id") UUID workflowTaskId) {
-        return dqRuleService.findRequest(clientId, workflowTaskId);
+        logger.debug("Fetching DQ rule request. clientId={}, workflowTaskId={}", clientId, workflowTaskId);
+        WorkflowTaskResponseDto task = dqRuleService.findRequest(clientId, workflowTaskId);
+        logger.debug("DQ rule request resolved. clientId={}, workflowTaskId={}", clientId, workflowTaskId);
+        return task;
     }
 
     private static final class MissingDqRuleService implements DqRuleService {

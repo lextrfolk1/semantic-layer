@@ -7,6 +7,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -22,6 +24,8 @@ import java.util.List;
 @Tag(name = "Hierarchies", description = "Logical hierarchy listing and creation operations.")
 public class HierarchyController {
 
+    private static final Logger logger = LoggerFactory.getLogger(HierarchyController.class);
+
     private final HierarchyService hierarchyService;
 
     public HierarchyController(HierarchyService hierarchyService) {
@@ -32,19 +36,30 @@ public class HierarchyController {
     @Operation(summary = "List hierarchies", description = "Returns all logical hierarchies, optionally filtered by tenant code.")
     public List<LogicalHierarchyDto> listHierarchies(
             @Parameter(description = "Tenant code filter. Pass null or omit for all.") @RequestParam(value = "tenant_cd", required = false) String tenantCd) {
-        return hierarchyService.findAll(tenantCd);
+        logger.debug("Listing hierarchies. tenantCd={}", tenantCd);
+        List<LogicalHierarchyDto> hierarchies = hierarchyService.findAll(tenantCd);
+        logger.debug("Hierarchies resolved. tenantCd={}, resultCount={}", tenantCd, hierarchies.size());
+        return hierarchies;
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Create hierarchy", description = "Creates a new logical hierarchy.")
     public LogicalHierarchyDto createHierarchy(@Valid @org.springframework.web.bind.annotation.RequestBody LogicalHierarchyRequestDto request) {
-        return hierarchyService.createHierarchy(
+        logger.debug(
+                "Creating hierarchy. hierarchyCode={}, tenantCd={}, hierarchyStatusCode={}",
+                request.hierarchy_cd(),
+                request.tenant_cd() == null ? "GLOBAL" : request.tenant_cd(),
+                request.hierarchy_status_cd() == null ? "ACTIVE" : request.hierarchy_status_cd()
+        );
+        LogicalHierarchyDto response = hierarchyService.createHierarchy(
                 request.hierarchy_cd(),
                 request.hierarchy_nm(),
                 request.tenant_cd() == null ? "GLOBAL" : request.tenant_cd(),
                 request.hierarchy_status_cd() == null ? "ACTIVE" : request.hierarchy_status_cd(),
                 request.created_by() == null ? "system" : request.created_by()
         );
+        logger.debug("Hierarchy created. hierarchyCode={}, tenantCd={}", request.hierarchy_cd(), request.tenant_cd() == null ? "GLOBAL" : request.tenant_cd());
+        return response;
     }
 }

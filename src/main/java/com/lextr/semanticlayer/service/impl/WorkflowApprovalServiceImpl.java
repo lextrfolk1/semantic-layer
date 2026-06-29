@@ -67,15 +67,19 @@ public class WorkflowApprovalServiceImpl implements WorkflowApprovalService {
 
     @Override
     public WorkflowTaskResponseDto approveTask(Long id, WorkflowApprovalRequestDto request) {
+        logger.debug("Approving workflow task in service. id={}, clientId={}", id, request.client_id());
         FilterLookupWorkflowTaskRecord task = workflowApprovalDao.findTaskById(request.client_id(), id);
         if (task == null) {
+            logger.warn("Workflow task not found for approval. id={}, clientId={}", id, request.client_id());
             throw new RegistryResourceNotFoundException("workflow task", String.valueOf(id));
         }
 
         if ("APPROVED".equalsIgnoreCase(task.task_status_cd())) {
+            logger.warn("Workflow task is already approved. id={}, clientId={}", id, request.client_id());
             throw new WorkflowTaskAlreadyApprovedException(id);
         }
         if (!isPendingTask(task.task_status_cd())) {
+            logger.warn("Workflow task is not pending for approval. id={}, clientId={}, taskStatusCode={}", id, request.client_id(), task.task_status_cd());
             throw new WorkflowTaskNotPendingException(id, task.task_status_cd(), "approved");
         }
 
@@ -91,15 +95,23 @@ public class WorkflowApprovalServiceImpl implements WorkflowApprovalService {
                         request.approved_by()
                 )
         );
+        logger.debug(
+                "Workflow approval policy decision resolved. id={}, clientId={}, decisionAllowed={}, decisionCode={}",
+                id,
+                request.client_id(),
+                decision.allowed(),
+                decision.code()
+        );
 
         if (!decision.allowed()) {
+            logger.warn("Workflow approval denied by policy. id={}, clientId={}, decisionCode={}", id, request.client_id(), decision.code());
             throw new PolicyViolationException(decision.code(), decision.message());
         }
 
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
 
         try {
-            return transactionOperations.execute(status -> {
+            WorkflowTaskResponseDto response = transactionOperations.execute(status -> {
                 // Update workflow task status
                 FilterLookupWorkflowTaskRecord approvedTask = workflowApprovalDao.approveTask(
                         request.client_id(),
@@ -126,24 +138,37 @@ public class WorkflowApprovalServiceImpl implements WorkflowApprovalService {
 
                 return toResponseDto(approvedTask);
             });
+            logger.info("Workflow task approved in service. id={}, clientId={}, taskStatusCode={}", id, request.client_id(), response.task_status_cd());
+            return response;
         } catch (PolicyViolationException | WorkflowTaskAlreadyApprovedException | RegistryResourceNotFoundException exception) {
             throw exception;
         } catch (RuntimeException exception) {
+            logger.error(
+                    "Workflow task approval failed. id={}, clientId={}, errorMessage={}",
+                    id,
+                    request.client_id(),
+                    exception.getMessage(),
+                    exception
+            );
             throw new WorkflowApprovalServiceException("Unable to approve workflow task " + id, exception);
         }
     }
 
     @Override
     public WorkflowTaskResponseDto rejectTask(Long id, java.util.Map<String, String> body) {
+        logger.debug("Rejecting workflow task in service. id={}, clientId={}", id, body.get("client_id"));
         FilterLookupWorkflowTaskRecord task = workflowApprovalDao.findTaskByIdOnly(id);
         if (task == null) {
+            logger.warn("Workflow task not found for rejection. id={}", id);
             throw new RegistryResourceNotFoundException("workflow task", String.valueOf(id));
         }
 
         if ("APPROVED".equalsIgnoreCase(task.task_status_cd())) {
+            logger.warn("Workflow task is already approved and cannot be rejected. id={}, clientId={}", id, task.client_id());
             throw new WorkflowTaskAlreadyApprovedException(id);
         }
         if (!isPendingTask(task.task_status_cd())) {
+            logger.warn("Workflow task is not pending for rejection. id={}, clientId={}, taskStatusCode={}", id, task.client_id(), task.task_status_cd());
             throw new WorkflowTaskNotPendingException(id, task.task_status_cd(), "rejected");
         }
 
@@ -152,7 +177,7 @@ public class WorkflowApprovalServiceImpl implements WorkflowApprovalService {
         String rejectionNote = body.get("rejection_note_txt");
 
         try {
-            return transactionOperations.execute(status -> {
+            WorkflowTaskResponseDto response = transactionOperations.execute(status -> {
                 // Update workflow task status to REJECTED
                 FilterLookupWorkflowTaskRecord rejectedTask = workflowApprovalDao.rejectTask(
                         task.client_id(),
@@ -179,9 +204,18 @@ public class WorkflowApprovalServiceImpl implements WorkflowApprovalService {
 
                 return toResponseDto(rejectedTask);
             });
+            logger.info("Workflow task rejected in service. id={}, clientId={}, taskStatusCode={}", id, task.client_id(), response.task_status_cd());
+            return response;
         } catch (PolicyViolationException | WorkflowTaskAlreadyApprovedException | RegistryResourceNotFoundException exception) {
             throw exception;
         } catch (RuntimeException exception) {
+            logger.error(
+                    "Workflow task rejection failed. id={}, clientId={}, errorMessage={}",
+                    id,
+                    task.client_id(),
+                    exception.getMessage(),
+                    exception
+            );
             throw new WorkflowApprovalServiceException("Unable to reject workflow task " + id, exception);
         }
     }

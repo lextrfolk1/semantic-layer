@@ -16,6 +16,8 @@ import com.lextr.semanticlayer.model.ObjectExposureAccessAuditWriteRequest;
 import com.lextr.semanticlayer.model.ObjectExposureRecord;
 import com.lextr.semanticlayer.service.ObjectExposurePolicyClient;
 import com.lextr.semanticlayer.service.ObjectExposureReadService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -28,6 +30,8 @@ import java.util.UUID;
 
 @Service
 public class ObjectExposureReadServiceImpl implements ObjectExposureReadService {
+
+    private static final Logger logger = LoggerFactory.getLogger(ObjectExposureReadServiceImpl.class);
 
     private static final String ACCESS_POLICY_CD = "POL-AC-001";
     private static final String CLASSIFICATION_POLICY_CD = "POL-DC-001";
@@ -87,6 +91,8 @@ public class ObjectExposureReadServiceImpl implements ObjectExposureReadService 
                                                       String purposeCode,
                                                       String schemaCode,
                                                       String lifecycleStatusCode) {
+        logger.debug("Finding object exposures. clientId={}, schemaCode={}, lifecycleStatusCode={}, actorPresent={}, roleCode={}, purposeCode={}",
+                clientId, schemaCode, lifecycleStatusCode, actorId != null && !actorId.isBlank(), roleCode, purposeCode);
         String effectiveActorId = (actorId == null || actorId.isBlank()) && shouldDefaultHeaders() ? "Lextr User" : actorId;
         String effectiveRoleCode = (roleCode == null || roleCode.isBlank()) && shouldDefaultHeaders() ? "ENGINE" : roleCode;
         String effectivePurposeCode = (purposeCode == null || purposeCode.isBlank()) && shouldDefaultHeaders() ? "RESOLUTION" : purposeCode;
@@ -123,6 +129,8 @@ public class ObjectExposureReadServiceImpl implements ObjectExposureReadService 
                         + " objects; masked=" + maskedCount
                         + "; withheld=" + withheldCount
         );
+        logger.debug("Object exposures resolved. clientId={}, resultCount={}, maskedCount={}, withheldCount={}",
+                clientId, visibleObjects.size(), maskedCount, withheldCount);
         return visibleObjects;
     }
 
@@ -132,6 +140,8 @@ public class ObjectExposureReadServiceImpl implements ObjectExposureReadService 
                                               String roleCode,
                                               String purposeCode,
                                               UUID objectId) {
+        logger.debug("Finding object exposure detail. clientId={}, objectId={}, actorPresent={}, roleCode={}, purposeCode={}",
+                clientId, objectId, actorId != null && !actorId.isBlank(), roleCode, purposeCode);
         String effectiveActorId = (actorId == null || actorId.isBlank()) && shouldDefaultHeaders() ? "Lextr User" : actorId;
         String effectiveRoleCode = (roleCode == null || roleCode.isBlank()) && shouldDefaultHeaders() ? "ENGINE" : roleCode;
         String effectivePurposeCode = (purposeCode == null || purposeCode.isBlank()) && shouldDefaultHeaders() ? "RESOLUTION" : purposeCode;
@@ -147,10 +157,14 @@ public class ObjectExposureReadServiceImpl implements ObjectExposureReadService 
         );
 
         if (!objectAccessDecision.allowed()) {
+            logger.warn("Object exposure access denied. clientId={}, objectId={}, policyCode={}",
+                    clientId, objectId, policyCode(objectAccessDecision, ACCESS_POLICY_CD));
             writeAudit(effectiveActorId, objectId.toString(), "Object exposure denied by " + policyCode(objectAccessDecision, ACCESS_POLICY_CD));
             throw new PolicyViolationException(policyCode(objectAccessDecision, ACCESS_POLICY_CD), policyMessage(objectAccessDecision, "Access denied"));
         }
         if (!objectClassificationDecision.allowed() || objectClassificationDecision.withheld()) {
+            logger.warn("Object exposure classification withheld. clientId={}, objectId={}, policyCode={}",
+                    clientId, objectId, policyCode(objectClassificationDecision, CLASSIFICATION_POLICY_CD));
             writeAudit(
                     effectiveActorId,
                     objectId.toString(),
@@ -200,6 +214,8 @@ public class ObjectExposureReadServiceImpl implements ObjectExposureReadService 
                         + " attributes; masked=" + maskedCount
                         + "; withheld=" + withheldCount
         );
+        logger.debug("Object exposure detail resolved. clientId={}, objectId={}, attributeCount={}, maskedCount={}, withheldCount={}",
+                clientId, objectId, visibleAttributes.size(), maskedCount, withheldCount);
         return detail;
     }
 

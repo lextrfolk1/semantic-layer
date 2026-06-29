@@ -42,6 +42,8 @@ import com.lextr.semanticlayer.service.WorkflowPolicyClient;
 import com.lextr.semanticlayer.service.opa.OpaPolicyBootstrapRunner;
 import com.lextr.semanticlayer.service.opa.OpaDecisionGateway;
 import com.lextr.semanticlayer.service.opa.OpaPolicyReloadService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -59,6 +61,8 @@ import java.util.Map;
 @EnableConfigurationProperties(OpaProperties.class)
 @ConditionalOnProperty(prefix = "opa", name = "enabled", havingValue = "true")
 public class OpaConfiguration {
+
+    private static final Logger logger = LoggerFactory.getLogger(OpaConfiguration.class);
 
     private static final String OBJECT_EXPOSURE_ACCESS_PACKAGE = "lextr.semantic.object_exposure";
     private static final String OBJECT_EXPOSURE_CLASSIFICATION_PACKAGE = "lextr.semantic.object_exposure.classification";
@@ -78,6 +82,7 @@ public class OpaConfiguration {
     @Bean
     @ConditionalOnMissingBean
     OpaDecisionGateway opaDecisionGateway(OpaProperties properties, ObjectMapper objectMapper) {
+        logger.info("Creating OPA decision gateway. baseUrl={}, decisionPathPrefix={}", properties.getBaseUrl(), properties.getDecisionPathPrefix());
         return new OpaDecisionGateway(properties, objectMapper);
     }
 
@@ -87,8 +92,10 @@ public class OpaConfiguration {
         return args -> {
             OpaPolicyReloadService reloadService = reloadServiceProvider.getIfAvailable();
             if (reloadService == null) {
+                logger.warn("Skipping OPA bootstrap runner because OpaPolicyReloadService is not available");
                 return;
             }
+            logger.info("Executing OPA bootstrap runner");
             new OpaPolicyBootstrapRunner(reloadService).run(args);
         };
     }
@@ -96,36 +103,42 @@ public class OpaConfiguration {
     @Bean
     @ConditionalOnMissingBean
     AttributePairingPolicyClient attributePairingPolicyClient(OpaDecisionGateway gateway) {
+        logger.debug("Creating AttributePairingPolicyClient backed by OPA");
         return request -> gateway.evaluate(ATTRIBUTE_PAIRING_PACKAGE, request, AttributePairingPolicyDecisionDto.class);
     }
 
     @Bean
     @ConditionalOnMissingBean
     RelationshipPolicyClient relationshipPolicyClient(OpaDecisionGateway gateway) {
+        logger.debug("Creating RelationshipPolicyClient backed by OPA");
         return request -> gateway.evaluate(RELATIONSHIP_PACKAGE, request, RelationshipPolicyDecisionDto.class);
     }
 
     @Bean
     @ConditionalOnMissingBean
     TaxonomyPolicyClient taxonomyPolicyClient(OpaDecisionGateway gateway) {
+        logger.debug("Creating TaxonomyPolicyClient backed by OPA");
         return request -> gateway.evaluate(TAXONOMY_PACKAGE, request, TaxonomyPolicyDecisionDto.class);
     }
 
     @Bean
     @ConditionalOnMissingBean
     ObservabilitySignalPolicyClient observabilitySignalPolicyClient(OpaDecisionGateway gateway) {
+        logger.debug("Creating ObservabilitySignalPolicyClient backed by OPA");
         return request -> gateway.evaluate(OBSERVABILITY_SIGNAL_PACKAGE, request, ObservabilitySignalPolicyDecisionDto.class);
     }
 
     @Bean
     @ConditionalOnMissingBean
     SemanticResolvePolicyClient semanticResolvePolicyClient(OpaDecisionGateway gateway) {
+        logger.debug("Creating SemanticResolvePolicyClient backed by OPA");
         return request -> gateway.evaluate(SEMANTIC_RESOLVE_PACKAGE, request, ObjectExposurePolicyDecisionDto.class);
     }
 
     @Bean
     @ConditionalOnMissingBean
     ObjectExposurePolicyClient objectExposurePolicyClient(OpaDecisionGateway gateway) {
+        logger.debug("Creating ObjectExposurePolicyClient backed by OPA");
         return new ObjectExposurePolicyClient() {
             @Override
             public ObjectExposurePolicyDecisionDto evaluateAccess(ObjectExposureAccessPolicyRequestDto request) {
@@ -144,6 +157,7 @@ public class OpaConfiguration {
     @Bean
     @ConditionalOnMissingBean
     FilterLookupPolicyClient filterLookupPolicyClient(OpaDecisionGateway gateway) {
+        logger.debug("Creating FilterLookupPolicyClient backed by OPA");
         return new FilterLookupPolicyClient() {
             @Override
             public FilterLookupPolicyDecisionDto validateReviewPeriodFloor(FilterLookupPolicyRequestDto request) {
@@ -170,6 +184,7 @@ public class OpaConfiguration {
     @Bean
     @ConditionalOnMissingBean
     DqRulePolicyClient dqRulePolicyClient(OpaDecisionGateway gateway) {
+        logger.debug("Creating DqRulePolicyClient backed by OPA");
         return new DqRulePolicyClient() {
             @Override
             public DqRulePolicyDecisionDto validateRequest(DqRuleRequestDto request) {
@@ -186,6 +201,7 @@ public class OpaConfiguration {
     @Bean
     @ConditionalOnMissingBean
     ConsumptionPolicyClient consumptionPolicyClient(OpaDecisionGateway gateway) {
+        logger.debug("Creating ConsumptionPolicyClient backed by OPA");
         return new ConsumptionPolicyClient() {
             @Override
             public ConsumptionPolicyDecisionDto validatePromotion(ConsumptionPolicyRequestDto request) {
@@ -197,6 +213,7 @@ public class OpaConfiguration {
     @Bean
     @ConditionalOnMissingBean
     RuleResultPolicyClient ruleResultPolicyClient(OpaDecisionGateway gateway) {
+        logger.debug("Creating RuleResultPolicyClient backed by OPA");
         return new RuleResultPolicyClient() {
             @Override
             public RuleResultPolicyDecisionDto validateIngest(ExternalRuleResultIngestRequestDto request, String principalCd) {
@@ -208,6 +225,7 @@ public class OpaConfiguration {
     @Bean
     @ConditionalOnMissingBean
     WorkflowPolicyClient workflowPolicyClient(OpaDecisionGateway gateway) {
+        logger.debug("Creating WorkflowPolicyClient backed by OPA");
         return request -> gateway.evaluate(WORKFLOW_APPROVAL_PACKAGE, request, WorkflowPolicyDecisionDto.class);
     }
 

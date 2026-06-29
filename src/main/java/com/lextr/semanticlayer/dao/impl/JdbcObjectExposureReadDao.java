@@ -7,6 +7,8 @@ import com.lextr.semanticlayer.model.AttributeExposureRecord;
 import com.lextr.semanticlayer.model.ObjectExposureAccessAuditWriteRequest;
 import com.lextr.semanticlayer.model.ObjectExposureRecord;
 import com.lextr.semanticlayer.util.SQLQueryLoaderUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -22,6 +24,8 @@ import java.util.UUID;
 
 @Repository
 public class JdbcObjectExposureReadDao implements ObjectExposureReadDao {
+
+    private static final Logger logger = LoggerFactory.getLogger(JdbcObjectExposureReadDao.class);
 
     static final String OBJECT_EXPOSURE_FIND_ALL = "object_exposure.find_all";
     static final String OBJECT_EXPOSURE_FIND_BY_ID = "object_exposure.find_by_id";
@@ -41,51 +45,67 @@ public class JdbcObjectExposureReadDao implements ObjectExposureReadDao {
 
     @Override
     public List<ObjectExposureRecord> findObjects(String clientId, String schemaCode, String lifecycleStatusCode) {
+        logger.debug("Executing object exposure list query. clientId={}, schemaCode={}, lifecycleStatusCode={}",
+                clientId, schemaCode, lifecycleStatusCode);
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("client_id", clientId)
                 .addValue("schema_cd", schemaCode)
                 .addValue("lifecycle_status_cd", lifecycleStatusCode);
-        return jdbcTemplate().query(
+        List<ObjectExposureRecord> records = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(OBJECT_EXPOSURE_FIND_ALL),
                 parameters,
                 objectExposureRowMapper()
         );
+        logger.debug("Object exposure list query completed. clientId={}, resultCount={}", clientId, records.size());
+        return records;
     }
 
     @Override
     public Optional<ObjectExposureRecord> findObject(String clientId, UUID objectId) {
+        logger.debug("Executing object exposure query by id. clientId={}, objectId={}", clientId, objectId);
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("client_id", clientId)
                 .addValue("object_id", objectId);
-        return jdbcTemplate().query(
+        Optional<ObjectExposureRecord> record = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(OBJECT_EXPOSURE_FIND_BY_ID),
                 parameters,
                 objectExposureRowMapper()
         ).stream().findFirst();
+        logger.debug("Object exposure query by id completed. clientId={}, objectId={}, found={}",
+                clientId, objectId, record.isPresent());
+        return record;
     }
 
     @Override
     public Optional<ObjectExposureRecord> findObject(String schemaCode, String objectCode) {
+        logger.debug("Executing object exposure query by schema and code. schemaCode={}, objectCode={}", schemaCode, objectCode);
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("schema_cd", schemaCode)
                 .addValue("object_cd", objectCode);
-        return jdbcTemplate().query(
+        Optional<ObjectExposureRecord> record = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(OBJECT_EXPOSURE_FIND_BY_SCHEMA_AND_CODE),
                 parameters,
                 objectExposureRowMapper()
         ).stream().findFirst();
+        logger.debug("Object exposure query by schema and code completed. schemaCode={}, objectCode={}, found={}",
+                schemaCode, objectCode, record.isPresent());
+        return record;
     }
 
     @Override
     public List<AttributeExposureRecord> findAttributes(String clientId, UUID objectId) {
+        logger.debug("Executing object exposure attribute query. clientId={}, objectId={}", clientId, objectId);
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("client_id", clientId)
                 .addValue("object_id", objectId);
-        return jdbcTemplate().query(
+        List<AttributeExposureRecord> records = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(OBJECT_EXPOSURE_FIND_ATTRIBUTES_BY_OBJECT_ID),
                 parameters,
                 attributeExposureRowMapper()
         );
+        logger.debug("Object exposure attribute query completed. clientId={}, objectId={}, resultCount={}",
+                clientId, objectId, records.size());
+        return records;
     }
 
     @Override
@@ -93,21 +113,28 @@ public class JdbcObjectExposureReadDao implements ObjectExposureReadDao {
                                                                       String schemaCode,
                                                                       String objectCode,
                                                                       String attributeCode) {
+        logger.debug("Executing attribute access grant query. clientId={}, schemaCode={}, objectCode={}, attributeCode={}",
+                clientId, schemaCode, objectCode, attributeCode);
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("client_id", clientId)
                 .addValue("schema_cd", schemaCode)
                 .addValue("object_cd", objectCode)
                 .addValue("attribute_cd", attributeCode)
                 .addValue("grant_status_cd", null);
-        return jdbcTemplate().query(
+        List<AttributeAccessGrantRecord> records = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(ATTRIBUTE_ACCESS_GRANT_FIND_BY_ATTRIBUTE),
                 parameters,
                 attributeAccessGrantRowMapper()
         );
+        logger.debug("Attribute access grant query completed. clientId={}, schemaCode={}, objectCode={}, attributeCode={}, resultCount={}",
+                clientId, schemaCode, objectCode, attributeCode, records.size());
+        return records;
     }
 
     @Override
     public void insertAccessAudit(ObjectExposureAccessAuditWriteRequest request) {
+        logger.debug("Executing object exposure access audit insert. entityTypeCode={}, entityRef={}, changeTypeCode={}",
+                request.entity_type_cd(), request.entity_ref(), request.change_type_cd());
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("entity_type_cd", request.entity_type_cd())
                 .addValue("entity_ref", request.entity_ref())
@@ -115,15 +142,18 @@ public class JdbcObjectExposureReadDao implements ObjectExposureReadDao {
                 .addValue("changed_by", request.changed_by())
                 .addValue("changed_ts", request.changed_ts())
                 .addValue("change_reason_txt", request.change_reason_txt());
-        jdbcTemplate().update(
+        int affectedRows = jdbcTemplate().update(
                 sqlQueryLoaderUtil.getQuery(OBJECT_EXPOSURE_INSERT_ACCESS_AUDIT),
                 parameters
         );
+        logger.debug("Object exposure access audit insert completed. entityTypeCode={}, entityRef={}, affectedRows={}",
+                request.entity_type_cd(), request.entity_ref(), affectedRows);
     }
 
     private NamedParameterJdbcTemplate jdbcTemplate() {
         NamedParameterJdbcTemplate jdbcTemplate = jdbcTemplateProvider.getIfAvailable();
         if (jdbcTemplate == null) {
+            logger.error("NamedParameterJdbcTemplate is not configured for object exposure DAO.");
             throw new SemanticLayerException("NamedParameterJdbcTemplate is not configured");
         }
         return jdbcTemplate;

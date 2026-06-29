@@ -9,6 +9,8 @@ import com.lextr.semanticlayer.model.FilterLookupMetadataChangeHistoryWriteReque
 import com.lextr.semanticlayer.model.FilterLookupWorkflowTaskRecord;
 import com.lextr.semanticlayer.model.FilterLookupWorkflowTaskWriteRequest;
 import com.lextr.semanticlayer.util.SQLQueryLoaderUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -21,6 +23,8 @@ import java.time.OffsetDateTime;
 
 @Repository
 public class JdbcAttributePairingRegistrationWriteDao implements AttributePairingRegistrationWriteDao {
+
+    private static final Logger logger = LoggerFactory.getLogger(JdbcAttributePairingRegistrationWriteDao.class);
 
     static final String INSERT_PAIRING = "attribute_pairing_registration.insert_pairing";
     static final String INSERT_WORKFLOW_TASK = "attribute_pairing_registration.insert_workflow_task";
@@ -37,6 +41,8 @@ public class JdbcAttributePairingRegistrationWriteDao implements AttributePairin
 
     @Override
     public AttributePairingCatalogRecord insertPairing(AttributePairingCatalogWriteRequest request) {
+        logger.debug("Executing attribute pairing insert. pairingCode={}, clientId={}, schemaCode={}, objectCode={}",
+                request.pairing_cd(), request.client_id(), request.schema_cd(), request.object_cd());
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("pairing_cd", request.pairing_cd())
                 .addValue("pairing_nm", request.pairing_nm())
@@ -65,15 +71,19 @@ public class JdbcAttributePairingRegistrationWriteDao implements AttributePairin
                 .addValue("created_by", request.created_by())
                 .addValue("updated_ts", request.updated_ts())
                 .addValue("updated_by", request.updated_by());
-        return jdbcTemplate().query(
+        AttributePairingCatalogRecord record = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(INSERT_PAIRING),
                 parameters,
                 JdbcAttributePairingRegistrationWriteDao::mapPairingRow
         ).stream().findFirst().orElseThrow(() -> new SemanticLayerException("Insert attribute pairing returned no rows"));
+        logger.debug("Attribute pairing insert completed. pairingCode={}, id={}", record.pairing_cd(), record.id());
+        return record;
     }
 
     @Override
     public FilterLookupWorkflowTaskRecord insertWorkflowTask(FilterLookupWorkflowTaskWriteRequest request) {
+        logger.debug("Executing attribute pairing workflow task insert. entityRef={}, clientId={}, taskTypeCode={}",
+                request.entity_ref(), request.client_id(), request.task_type_cd());
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("task_type_cd", request.task_type_cd())
                 .addValue("entity_type_cd", request.entity_type_cd())
@@ -88,17 +98,21 @@ public class JdbcAttributePairingRegistrationWriteDao implements AttributePairin
                 .addValue("approved_by", request.approved_by())
                 .addValue("approved_ts", request.approved_ts())
                 .addValue("approval_note_txt", request.approval_note_txt());
-        return jdbcTemplate().query(
+        FilterLookupWorkflowTaskRecord record = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(INSERT_WORKFLOW_TASK),
                 parameters,
                 JdbcAttributePairingRegistrationWriteDao::mapWorkflowTaskRow
         ).stream().findFirst().orElseThrow(() -> new SemanticLayerException("Insert attribute pairing workflow task returned no rows"));
+        logger.debug("Attribute pairing workflow task insert completed. entityRef={}, taskId={}", record.entity_ref(), record.id());
+        return record;
     }
 
     @Override
     public FilterLookupMetadataChangeHistoryRecord insertMetadataChangeHistory(
             FilterLookupMetadataChangeHistoryWriteRequest request
     ) {
+        logger.debug("Executing attribute pairing metadata change insert. entityRef={}, changeTypeCode={}",
+                request.entity_ref(), request.change_type_cd());
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("entity_type_cd", request.entity_type_cd())
                 .addValue("entity_ref", request.entity_ref())
@@ -108,16 +122,20 @@ public class JdbcAttributePairingRegistrationWriteDao implements AttributePairin
                 .addValue("old_value_json", request.old_value_json())
                 .addValue("new_value_json", request.new_value_json())
                 .addValue("change_reason_txt", request.change_reason_txt());
-        return jdbcTemplate().query(
+        FilterLookupMetadataChangeHistoryRecord record = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(INSERT_METADATA_CHANGE_HISTORY),
                 parameters,
                 JdbcAttributePairingRegistrationWriteDao::mapMetadataChangeRow
         ).stream().findFirst().orElseThrow(() -> new SemanticLayerException("Insert attribute pairing metadata change history returned no rows"));
+        logger.debug("Attribute pairing metadata change insert completed. entityRef={}, changeHistoryId={}",
+                record.entity_ref(), record.id());
+        return record;
     }
 
     private NamedParameterJdbcTemplate jdbcTemplate() {
         NamedParameterJdbcTemplate jdbcTemplate = jdbcTemplateProvider.getIfAvailable();
         if (jdbcTemplate == null) {
+            logger.error("NamedParameterJdbcTemplate is not configured for attribute pairing registration DAO.");
             throw new SemanticLayerException("NamedParameterJdbcTemplate is not configured");
         }
         return jdbcTemplate;

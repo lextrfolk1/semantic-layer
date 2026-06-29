@@ -6,6 +6,8 @@ import com.lextr.semanticlayer.model.ExternalRuleResultRecord;
 import com.lextr.semanticlayer.model.ExternalRuleResultWriteRequest;
 import com.lextr.semanticlayer.model.ObjectExposureAccessAuditWriteRequest;
 import com.lextr.semanticlayer.util.SQLQueryLoaderUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -16,6 +18,8 @@ import java.sql.SQLException;
 
 @Repository
 public class JdbcRuleResultDao implements RuleResultDao {
+
+    private static final Logger logger = LoggerFactory.getLogger(JdbcRuleResultDao.class);
 
     static final String INSERT_RESULT = "external_rule_result.insert_result";
     static final String INSERT_METADATA_CHANGE_HISTORY = "external_rule_result.insert_metadata_change_history";
@@ -31,7 +35,9 @@ public class JdbcRuleResultDao implements RuleResultDao {
 
     @Override
     public ExternalRuleResultRecord insertResult(ExternalRuleResultWriteRequest request) {
-        return jdbcTemplate().query(
+        logger.debug("Executing external rule result insert. clientId={}, outboundId={}, ruleRefCode={}, outputKindCode={}",
+                request.client_id(), request.outbound_id(), request.rule_ref_cd(), request.output_kind_cd());
+        ExternalRuleResultRecord record = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(INSERT_RESULT),
                 new MapSqlParameterSource()
                         .addValue("client_id", request.client_id())
@@ -46,11 +52,16 @@ public class JdbcRuleResultDao implements RuleResultDao {
                         .addValue("updated_by", request.updated_by()),
                 JdbcRuleResultDao::mapResultRow
         ).stream().findFirst().orElseThrow(() -> new RuleResultServiceException("Insert external rule result returned no rows"));
+        logger.debug("External rule result insert completed. clientId={}, outboundId={}, resultId={}",
+                request.client_id(), request.outbound_id(), record.id());
+        return record;
     }
 
     @Override
     public void insertMetadataChangeHistory(ObjectExposureAccessAuditWriteRequest request) {
-        jdbcTemplate().update(
+        logger.debug("Executing external rule result metadata change insert. entityTypeCode={}, entityRef={}, changeTypeCode={}",
+                request.entity_type_cd(), request.entity_ref(), request.change_type_cd());
+        int affectedRows = jdbcTemplate().update(
                 sqlQueryLoaderUtil.getQuery(INSERT_METADATA_CHANGE_HISTORY),
                 new MapSqlParameterSource()
                         .addValue("entity_type_cd", request.entity_type_cd())
@@ -60,11 +71,14 @@ public class JdbcRuleResultDao implements RuleResultDao {
                         .addValue("changed_ts", request.changed_ts())
                         .addValue("change_reason_txt", request.change_reason_txt())
         );
+        logger.debug("External rule result metadata change insert completed. entityTypeCode={}, entityRef={}, affectedRows={}",
+                request.entity_type_cd(), request.entity_ref(), affectedRows);
     }
 
     private NamedParameterJdbcTemplate jdbcTemplate() {
         NamedParameterJdbcTemplate jdbcTemplate = jdbcTemplateProvider.getIfAvailable();
         if (jdbcTemplate == null) {
+            logger.error("NamedParameterJdbcTemplate is not configured for rule result DAO.");
             throw new RuleResultServiceException("NamedParameterJdbcTemplate is not configured");
         }
         return jdbcTemplate;

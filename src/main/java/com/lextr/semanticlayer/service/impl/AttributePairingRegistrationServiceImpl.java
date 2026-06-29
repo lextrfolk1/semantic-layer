@@ -19,6 +19,8 @@ import com.lextr.semanticlayer.model.FilterLookupWorkflowTaskWriteRequest;
 import com.lextr.semanticlayer.model.ObjectExposureRecord;
 import com.lextr.semanticlayer.service.AttributePairingPolicyClient;
 import com.lextr.semanticlayer.service.AttributePairingRegistrationService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -34,6 +36,8 @@ import java.util.Optional;
 
 @Service
 public class AttributePairingRegistrationServiceImpl implements AttributePairingRegistrationService {
+
+    private static final Logger logger = LoggerFactory.getLogger(AttributePairingRegistrationServiceImpl.class);
 
     private static final String ENTITY_TYPE_CD = "ATTRIBUTE_PAIRING";
     private static final String CHANGE_TYPE_CD = "REGISTERED";
@@ -82,6 +86,8 @@ public class AttributePairingRegistrationServiceImpl implements AttributePairing
 
     @Override
     public AttributePairingRegistrationResponseDto registerPairing(AttributePairingRegistrationRequestDto request) {
+        logger.debug("Registering attribute pairing. clientId={}, pairingCode={}, schemaCode={}, objectCode={}, crossEngine={}",
+                request.client_id(), request.pairing_cd(), request.schema_cd(), request.object_cd(), request.is_cross_engine_flg());
         ObjectExposureRecord object = findRequiredObject(request.schema_cd(), request.object_cd(), request.client_id());
         List<AttributeExposureRecord> attributes = objectExposureReadDao.findAttributes(request.client_id(), object.object_id());
 
@@ -93,10 +99,17 @@ public class AttributePairingRegistrationServiceImpl implements AttributePairing
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
 
         try {
-            return transactionOperations.execute(status -> persistRegistration(request, now));
+            AttributePairingRegistrationResponseDto response = transactionOperations.execute(status -> persistRegistration(request, now));
+            logger.info("Attribute pairing registered. clientId={}, pairingCode={}, lifecycleStatusCode={}, governanceReviewStatusCode={}",
+                    request.client_id(), response.pairing_cd(), response.lifecycle_status_cd(), response.governance_review_status_cd());
+            return response;
         } catch (PolicyViolationException exception) {
+            logger.warn("Attribute pairing registration denied. clientId={}, pairingCode={}, errorMessage={}",
+                    request.client_id(), request.pairing_cd(), exception.getMessage(), exception);
             throw exception;
         } catch (RuntimeException exception) {
+            logger.error("Attribute pairing registration failed. clientId={}, pairingCode={}, errorMessage={}",
+                    request.client_id(), request.pairing_cd(), exception.getMessage(), exception);
             throw new AttributePairingRegistrationServiceException("Unable to register attribute pairing", exception);
         }
     }
@@ -105,6 +118,8 @@ public class AttributePairingRegistrationServiceImpl implements AttributePairing
         ObjectExposureRecord object = objectExposureReadDao.findObject(schemaCode, objectCode)
                 .orElseThrow(() -> new RegistryResourceNotFoundException("object", schemaCode + "." + objectCode));
         if (object.client_id() != null && !object.client_id().equals(clientId)) {
+            logger.warn("Attribute pairing object client mismatch. requestedClientId={}, objectClientId={}, objectRef={}.{}",
+                    clientId, object.client_id(), schemaCode, objectCode);
             throw new RegistryResourceNotFoundException("object", schemaCode + "." + objectCode);
         }
         return object;
@@ -113,6 +128,7 @@ public class AttributePairingRegistrationServiceImpl implements AttributePairing
     private void ensureAttributeExists(List<AttributeExposureRecord> attributes, String attributeCode, String role) {
         boolean exists = attributes.stream().anyMatch(attribute -> attributeCode.equals(attribute.attribute_cd()));
         if (!exists) {
+            logger.warn("Attribute pairing attribute missing. attributeCode={}, role={}", attributeCode, role);
             throw new RegistryResourceNotFoundException(role + " attribute", attributeCode);
         }
     }
@@ -125,6 +141,8 @@ public class AttributePairingRegistrationServiceImpl implements AttributePairing
                 request.filter_attribute_cd()
         );
         if (!requestFlag || !databaseFlag) {
+            logger.warn("Attribute pairing index validation failed. pairingCode={}, requestIndexedFlag={}, databaseIndexedFlag={}, filterAttributeCode={}",
+                    request.pairing_cd(), requestFlag, databaseFlag, request.filter_attribute_cd());
             throw new AttributePairingRegistrationServiceException(
                     "Filter attribute " + request.filter_attribute_cd() + " is not indexed and cannot be activated"
             );
@@ -140,6 +158,8 @@ public class AttributePairingRegistrationServiceImpl implements AttributePairing
                 )
         );
         if (!decision.allowed()) {
+            logger.warn("Attribute pairing cross-engine policy denied. clientId={}, pairingCode={}, policyCode={}",
+                    request.client_id(), request.pairing_cd(), decision.code());
             throw new PolicyViolationException(decision.code(), decision.message());
         }
     }

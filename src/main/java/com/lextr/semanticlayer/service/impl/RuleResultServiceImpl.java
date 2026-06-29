@@ -16,6 +16,8 @@ import com.lextr.semanticlayer.model.ObjectExposureAccessAuditWriteRequest;
 import com.lextr.semanticlayer.service.DqRuleService;
 import com.lextr.semanticlayer.service.RuleResultPolicyClient;
 import com.lextr.semanticlayer.service.RuleResultService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -32,6 +34,8 @@ import java.util.Optional;
 
 @Service
 public class RuleResultServiceImpl implements RuleResultService {
+
+    private static final Logger logger = LoggerFactory.getLogger(RuleResultServiceImpl.class);
 
     private static final String RESULT_ENTITY_TYPE_CD = "EXTERNAL_RULE_RESULT";
     private static final String AUDIT_INGESTED = "INGESTED";
@@ -76,23 +80,32 @@ public class RuleResultServiceImpl implements RuleResultService {
 
     @Override
     public RuleResultIngestResponseDto ingestRuleResult(ExternalRuleResultIngestRequestDto request, String principalCd) {
+        logger.debug("Ingesting rule result. clientId={}, outboundId={}, ruleRefCode={}, outputKindCode={}",
+                request.client_id(), request.outbound_id(), request.rule_ref_cd(), request.output_kind_cd());
         RuleResultPolicyDecisionDto decision = ruleResultPolicyClient.validateIngest(request, principalCd);
         if (!decision.allowed()) {
+            logger.warn("Rule result ingest denied. clientId={}, outboundId={}, ruleRefCode={}, policyCode={}",
+                    request.client_id(), request.outbound_id(), request.rule_ref_cd(), decision.code());
             throw new PolicyViolationException(decision.code(), decision.message());
         }
 
         OffsetDateTime now = effectiveNow(request.observed_ts());
         String normalizedKind = normalizeKind(request.output_kind_cd());
         try {
-            return transactionOperations.execute(status -> {
+            RuleResultIngestResponseDto response = transactionOperations.execute(status -> {
                 if (EDITCHECK_KIND_CD.equals(normalizedKind)) {
                     return routeEditcheck(request, principalCd, normalizedKind, now);
                 }
                 return ingestExternalResult(request, principalCd, normalizedKind, now);
             });
+            logger.info("Rule result ingested. clientId={}, outboundId={}, ruleRefCode={}, routeTargetCode={}",
+                    request.client_id(), request.outbound_id(), request.rule_ref_cd(), response.route_target_cd());
+            return response;
         } catch (PolicyViolationException exception) {
             throw exception;
         } catch (RuntimeException exception) {
+            logger.error("Rule result ingest failed. clientId={}, outboundId={}, ruleRefCode={}, errorMessage={}",
+                    request.client_id(), request.outbound_id(), request.rule_ref_cd(), exception.getMessage(), exception);
             throw new RuleResultServiceException("Unable to ingest rule result", exception);
         }
     }
@@ -130,6 +143,8 @@ public class RuleResultServiceImpl implements RuleResultService {
                                                        String principalCd,
                                                        String outputKindCd,
                                                        OffsetDateTime now) {
+        logger.info("Routing rule result to DQ ingest. clientId={}, outboundId={}, ruleRefCode={}",
+                request.client_id(), request.outbound_id(), request.rule_ref_cd());
         DqRuleResultIngestRequestDto dqRequest = toDqRuleResultIngestRequest(request, principalCd);
         DqRuleResultDto routedResult = dqRuleService.ingestResult(dqRequest, principalCd);
 
@@ -213,6 +228,7 @@ public class RuleResultServiceImpl implements RuleResultService {
         try {
             return objectMapper.readTree(jsonText);
         } catch (IOException exception) {
+            logger.error("Failed to parse stored rule result payload. errorMessage={}", exception.getMessage(), exception);
             throw new RuleResultServiceException("Unable to parse stored rule result payload", exception);
         }
     }

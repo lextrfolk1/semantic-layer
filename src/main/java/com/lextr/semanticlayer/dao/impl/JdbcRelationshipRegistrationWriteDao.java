@@ -6,6 +6,8 @@ import com.lextr.semanticlayer.model.SemanticRelationshipCatalogRecord;
 import com.lextr.semanticlayer.model.SemanticRelationshipCatalogWriteRequest;
 import com.lextr.semanticlayer.model.SemanticRelationshipProjectionSyncWriteRequest;
 import com.lextr.semanticlayer.util.SQLQueryLoaderUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -17,6 +19,8 @@ import java.time.OffsetDateTime;
 
 @Repository
 public class JdbcRelationshipRegistrationWriteDao implements RelationshipRegistrationWriteDao {
+
+    private static final Logger logger = LoggerFactory.getLogger(JdbcRelationshipRegistrationWriteDao.class);
 
     static final String INSERT_RELATIONSHIP = "relationship_registration.insert_relationship";
     static final String UPDATE_NEO4J_PROJECTION_SYNC = "relationship_registration.update_neo4j_projection_sync";
@@ -32,6 +36,9 @@ public class JdbcRelationshipRegistrationWriteDao implements RelationshipRegistr
 
     @Override
     public SemanticRelationshipCatalogRecord insertRelationship(SemanticRelationshipCatalogWriteRequest request) {
+        logger.debug("Executing relationship insert. relationshipCode={}, parentSchemaCode={}, parentObjectCode={}, childSchemaCode={}, childObjectCode={}",
+                request.relationship_cd(), request.parent_schema_cd(), request.parent_object_cd(),
+                request.child_schema_cd(), request.child_object_cd());
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("relationship_cd", request.relationship_cd())
                 .addValue("parent_schema_cd", request.parent_schema_cd())
@@ -53,26 +60,34 @@ public class JdbcRelationshipRegistrationWriteDao implements RelationshipRegistr
                 .addValue("created_by", request.created_by())
                 .addValue("updated_ts", request.updated_ts())
                 .addValue("updated_by", request.updated_by());
-        return queryForRelationship(INSERT_RELATIONSHIP, parameters, "Insert relationship returned no rows");
+        SemanticRelationshipCatalogRecord record =
+                queryForRelationship(INSERT_RELATIONSHIP, parameters, "Insert relationship returned no rows");
+        logger.debug("Relationship insert completed. relationshipCode={}, id={}", record.relationship_cd(), record.id());
+        return record;
     }
 
     @Override
     public SemanticRelationshipCatalogRecord updateNeo4jProjectionSync(SemanticRelationshipProjectionSyncWriteRequest request) {
+        logger.debug("Executing relationship projection sync update. relationshipCode={}, syncedTimestamp={}",
+                request.relationship_cd(), request.neo4j_synced_ts());
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("relationship_cd", request.relationship_cd())
                 .addValue("neo4j_synced_ts", request.neo4j_synced_ts())
                 .addValue("updated_ts", request.updated_ts())
                 .addValue("updated_by", request.updated_by());
-        return queryForRelationship(
+        SemanticRelationshipCatalogRecord record = queryForRelationship(
                 UPDATE_NEO4J_PROJECTION_SYNC,
                 parameters,
                 "Update relationship projection sync returned no rows"
         );
+        logger.debug("Relationship projection sync update completed. relationshipCode={}", record.relationship_cd());
+        return record;
     }
 
     private NamedParameterJdbcTemplate jdbcTemplate() {
         NamedParameterJdbcTemplate jdbcTemplate = jdbcTemplateProvider.getIfAvailable();
         if (jdbcTemplate == null) {
+            logger.error("NamedParameterJdbcTemplate is not configured for relationship registration DAO.");
             throw new SemanticLayerException("NamedParameterJdbcTemplate is not configured");
         }
         return jdbcTemplate;

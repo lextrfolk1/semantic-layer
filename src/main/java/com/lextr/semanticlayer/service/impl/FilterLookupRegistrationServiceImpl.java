@@ -17,6 +17,8 @@ import com.lextr.semanticlayer.model.SemanticFilterLookupRecord;
 import com.lextr.semanticlayer.model.SemanticFilterLookupWriteRequest;
 import com.lextr.semanticlayer.service.FilterLookupPolicyClient;
 import com.lextr.semanticlayer.service.FilterLookupRegistrationService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -32,6 +34,8 @@ import java.util.Optional;
 
 @Service
 public class FilterLookupRegistrationServiceImpl implements FilterLookupRegistrationService {
+
+    private static final Logger logger = LoggerFactory.getLogger(FilterLookupRegistrationServiceImpl.class);
 
     private static final String GOVERNANCE_POLICY_CD = "GOV-FL-001";
     private static final String POLICY_SCOPE_CD = "FILTER_LOOKUP";
@@ -81,6 +85,14 @@ public class FilterLookupRegistrationServiceImpl implements FilterLookupRegistra
 
     @Override
     public FilterLookupRegistrationResponseDto registerFilterLookup(FilterLookupRegistrationRequestDto request) {
+        logger.debug(
+                "Registering filter lookup. clientId={}, lookupCode={}, constructionTypeCode={}, executionStrategyCode={}, reviewPeriodOverride={}",
+                request.client_id(),
+                request.lookup_cd(),
+                request.construction_type_cd(),
+                request.execution_strategy_cd(),
+                request.review_period_days_override()
+        );
         GovernancePolicyPresetRecord reviewFloorPolicy = findRequiredReviewFloorPolicy();
         Integer reviewPeriodFloorDays = parseReviewFloorDays(reviewFloorPolicy);
 
@@ -91,14 +103,26 @@ public class FilterLookupRegistrationServiceImpl implements FilterLookupRegistra
         LocalDate nextReviewDueDate = now.toLocalDate().plusDays(effectiveReviewPeriodDays);
 
         try {
-            return transactionOperations.execute(status -> persistRegistration(
+            FilterLookupRegistrationResponseDto response = transactionOperations.execute(status -> persistRegistration(
                     request,
                     now,
                     nextReviewDueDate
             ));
+            logger.info(
+                    "Filter lookup registered. clientId={}, lookupCode={}, workflowTaskId={}, nextReviewDueDate={}",
+                    request.client_id(),
+                    response.lookup_cd(),
+                    response.workflow_task_id(),
+                    response.next_review_due_dt()
+            );
+            return response;
         } catch (PolicyViolationException exception) {
+            logger.warn("Filter lookup registration denied. clientId={}, lookupCode={}, errorMessage={}",
+                    request.client_id(), request.lookup_cd(), exception.getMessage(), exception);
             throw exception;
         } catch (RuntimeException exception) {
+            logger.error("Filter lookup registration failed. clientId={}, lookupCode={}, errorMessage={}",
+                    request.client_id(), request.lookup_cd(), exception.getMessage(), exception);
             throw new FilterLookupRegistrationServiceException("Unable to register filter lookup", exception);
         }
     }
@@ -116,8 +140,13 @@ public class FilterLookupRegistrationServiceImpl implements FilterLookupRegistra
 
     private Integer parseReviewFloorDays(GovernancePolicyPresetRecord policyPreset) {
         try {
-            return Integer.valueOf(policyPreset.default_value_txt());
+            Integer reviewPeriodFloorDays = Integer.valueOf(policyPreset.default_value_txt());
+            logger.debug("Resolved filter lookup review floor policy. policyCode={}, reviewPeriodFloorDays={}",
+                    policyPreset.policy_cd(), reviewPeriodFloorDays);
+            return reviewPeriodFloorDays;
         } catch (RuntimeException exception) {
+            logger.error("Failed to parse filter lookup review floor policy. policyCode={}, errorMessage={}",
+                    policyPreset.policy_cd(), exception.getMessage(), exception);
             throw new FilterLookupRegistrationServiceException(
                     "Unable to parse governance policy value for " + policyPreset.policy_cd(),
                     exception
@@ -136,6 +165,14 @@ public class FilterLookupRegistrationServiceImpl implements FilterLookupRegistra
                 )
         );
         if (!decision.allowed()) {
+            logger.warn(
+                    "Filter lookup review period validation denied. clientId={}, lookupCode={}, reviewPeriodOverride={}, reviewPeriodFloorDays={}, policyCode={}",
+                    request.client_id(),
+                    request.lookup_cd(),
+                    request.review_period_days_override(),
+                    reviewPeriodFloorDays,
+                    decision.code()
+            );
             throw new PolicyViolationException(decision.code(), decision.message());
         }
     }

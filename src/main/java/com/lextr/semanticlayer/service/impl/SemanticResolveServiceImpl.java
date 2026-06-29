@@ -20,6 +20,8 @@ import com.lextr.semanticlayer.model.ObjectExposureRecord;
 import com.lextr.semanticlayer.service.ObjectExposurePolicyClient;
 import com.lextr.semanticlayer.service.SemanticResolvePolicyClient;
 import com.lextr.semanticlayer.service.SemanticResolveService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -34,6 +36,8 @@ import java.util.UUID;
 
 @Service
 public class SemanticResolveServiceImpl implements SemanticResolveService {
+
+    private static final Logger logger = LoggerFactory.getLogger(SemanticResolveServiceImpl.class);
 
     private static final String ACCESS_POLICY_CD = "POL-RS-001";
     private static final String CLASSIFICATION_POLICY_CD = "POL-DC-001";
@@ -105,6 +109,9 @@ public class SemanticResolveServiceImpl implements SemanticResolveService {
                                                                 String actorId,
                                                                 String roleCode,
                                                                 String purposeCode) {
+        logger.debug("Resolving semantic attributes. clientId={}, schemaCode={}, objectCode={}, requestedAttributeCount={}",
+                request.client_id(), request.schema_cd(), request.object_cd(),
+                request.logical_attribute_cd() == null ? 0 : request.logical_attribute_cd().size());
         String effectiveActorId = (actorId == null || actorId.isBlank()) && shouldDefaultHeaders() ? "Lextr User" : actorId;
         String effectiveRoleCode = (roleCode == null || roleCode.isBlank()) && shouldDefaultHeaders() ? "ENGINE" : roleCode;
         String effectivePurposeCode = (purposeCode == null || purposeCode.isBlank()) && shouldDefaultHeaders() ? "RESOLUTION" : purposeCode;
@@ -127,6 +134,8 @@ public class SemanticResolveServiceImpl implements SemanticResolveService {
 
         List<String> logicalAttributeCodes = request.logical_attribute_cd();
         if (logicalAttributeCodes == null || logicalAttributeCodes.isEmpty()) {
+            logger.warn("Semantic resolve skipped because no logical attributes were requested. clientId={}, schemaCode={}, objectCode={}",
+                    request.client_id(), request.schema_cd(), request.object_cd());
             writeAudit(
                     ENTITY_TYPE_CD_SEMANTIC,
                     effectiveActorId,
@@ -142,8 +151,11 @@ public class SemanticResolveServiceImpl implements SemanticResolveService {
                 request.object_cd(),
                 logicalAttributeCodes
         );
-        return resolveRows(REQUEST_TYPE_SEMANTIC, request.client_id(), effectiveActorId, effectiveRoleCode, effectivePurposeCode, object,
+        List<LogicalPhysicalResolutionDto> results = resolveRows(REQUEST_TYPE_SEMANTIC, request.client_id(), effectiveActorId, effectiveRoleCode, effectivePurposeCode, object,
                 semanticEntityRef(request.schema_cd(), request.object_cd()), rows);
+        logger.debug("Semantic attributes resolved. clientId={}, schemaCode={}, objectCode={}, resultCount={}",
+                request.client_id(), request.schema_cd(), request.object_cd(), results.size());
+        return results;
     }
 
     @Override
@@ -152,6 +164,7 @@ public class SemanticResolveServiceImpl implements SemanticResolveService {
                                                                    String roleCode,
                                                                    String purposeCode,
                                                                    Long outboundId) {
+        logger.debug("Resolving outbound grain. clientId={}, outboundId={}", clientId, outboundId);
         String effectiveActorId = (actorId == null || actorId.isBlank()) && shouldDefaultHeaders() ? "Lextr User" : actorId;
         String effectiveRoleCode = (roleCode == null || roleCode.isBlank()) && shouldDefaultHeaders() ? "ENGINE" : roleCode;
         String effectivePurposeCode = (purposeCode == null || purposeCode.isBlank()) && shouldDefaultHeaders() ? "RESOLUTION" : purposeCode;
@@ -171,6 +184,7 @@ public class SemanticResolveServiceImpl implements SemanticResolveService {
 
         List<LogicalPhysicalResolutionRecord> rows = logicalPhysicalResolutionDao.findByOutboundGrain(clientId, outboundId);
         if (rows.isEmpty()) {
+            logger.warn("Outbound grain resolve returned no rows. clientId={}, outboundId={}", clientId, outboundId);
             writeAudit(
                     ENTITY_TYPE_CD_CONSUMPTION,
                     effectiveActorId,
@@ -186,8 +200,10 @@ public class SemanticResolveServiceImpl implements SemanticResolveService {
                         "object",
                         firstRow.schema_cd() + "." + firstRow.object_cd()
                 ));
-        return resolveRows(REQUEST_TYPE_CONSUMPTION, clientId, effectiveActorId, effectiveRoleCode, effectivePurposeCode, object,
+        List<LogicalPhysicalResolutionDto> results = resolveRows(REQUEST_TYPE_CONSUMPTION, clientId, effectiveActorId, effectiveRoleCode, effectivePurposeCode, object,
                 String.valueOf(outboundId), rows);
+        logger.debug("Outbound grain resolved. clientId={}, outboundId={}, resultCount={}", clientId, outboundId, results.size());
+        return results;
     }
 
     private List<LogicalPhysicalResolutionDto> resolveRows(String requestType,
@@ -203,6 +219,8 @@ public class SemanticResolveServiceImpl implements SemanticResolveService {
         );
 
         if (!objectDecision.allowed() || objectDecision.withheld()) {
+            logger.warn("Semantic resolve withheld at object level. clientId={}, entityRef={}, rowCount={}",
+                    clientId, entityRef, rows.size());
             writeAudit(
                     ENTITY_TYPE_CD_SEMANTIC,
                     actorId,
@@ -254,6 +272,8 @@ public class SemanticResolveServiceImpl implements SemanticResolveService {
                 entityRef,
                 "Resolve returned " + visibleRows.size() + " rows; masked=" + maskedCount + "; withheld=" + withheldCount
         );
+        logger.debug("Semantic resolve decision summary. clientId={}, entityRef={}, visibleCount={}, maskedCount={}, withheldCount={}",
+                clientId, entityRef, visibleRows.size(), maskedCount, withheldCount);
         return visibleRows;
     }
 
@@ -275,6 +295,8 @@ public class SemanticResolveServiceImpl implements SemanticResolveService {
                 resourceRefTxt
         ));
         if (!decision.allowed()) {
+            logger.warn("Semantic resolve access denied. requestType={}, clientId={}, resourceRef={}, policyCode={}",
+                    requestType, clientId, resourceRefTxt, policyCode(decision, ACCESS_POLICY_CD));
             writeAudit(
                     requestType.equals(REQUEST_TYPE_CONSUMPTION) ? ENTITY_TYPE_CD_CONSUMPTION : ENTITY_TYPE_CD_SEMANTIC,
                     actorId,

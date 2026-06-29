@@ -5,6 +5,8 @@ import com.lextr.semanticlayer.exception.SemanticLayerException;
 import com.lextr.semanticlayer.model.DataConnectionRecord;
 import com.lextr.semanticlayer.model.SchemaCatalogRecord;
 import com.lextr.semanticlayer.util.SQLQueryLoaderUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -20,6 +22,8 @@ import java.util.UUID;
 
 @Repository
 public class JdbcRegistryReadDao implements RegistryReadDao {
+
+    private static final Logger logger = LoggerFactory.getLogger(JdbcRegistryReadDao.class);
 
     static final String SCHEMA_REGISTRY_FIND_ALL = "schema_registry.find_all";
     static final String SCHEMA_REGISTRY_FIND_BY_CODE = "schema_registry.find_by_code";
@@ -37,51 +41,63 @@ public class JdbcRegistryReadDao implements RegistryReadDao {
 
     @Override
     public List<SchemaCatalogRecord> findSchemas(String clientId, String lifecycleStatusCode) {
+        logger.debug("Executing schema lookup. clientId={}, lifecycleStatusCode={}, queryKey={}", clientId, lifecycleStatusCode, SCHEMA_REGISTRY_FIND_ALL);
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("client_id", clientId)
                 .addValue("lifecycle_status_cd", lifecycleStatusCode);
-        return jdbcTemplate().query(
+        List<SchemaCatalogRecord> schemas = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(SCHEMA_REGISTRY_FIND_ALL),
                 parameters,
                 schemaCatalogRowMapper()
         );
+        logger.debug("Schema lookup completed. clientId={}, resultCount={}", clientId, schemas.size());
+        return schemas;
     }
 
     @Override
     public Optional<SchemaCatalogRecord> findSchema(String clientId, String schemaCode) {
+        logger.debug("Executing schema lookup by code. clientId={}, schemaCode={}, queryKey={}", clientId, schemaCode, SCHEMA_REGISTRY_FIND_BY_CODE);
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("client_id", clientId)
                 .addValue("schema_cd", schemaCode);
-        return jdbcTemplate().query(
+        List<SchemaCatalogRecord> schemas = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(SCHEMA_REGISTRY_FIND_BY_CODE),
                 parameters,
                 schemaCatalogRowMapper()
-        ).stream().findFirst();
+        );
+        logger.debug("Schema lookup by code completed. clientId={}, schemaCode={}, resultCount={}", clientId, schemaCode, schemas.size());
+        return schemas.stream().findFirst();
     }
 
     @Override
     public List<DataConnectionRecord> findConnections(String clientId, String engineCode, Boolean activeFlag) {
+        logger.debug("Executing connection lookup. clientId={}, engineCode={}, activeFlag={}, queryKey={}", clientId, engineCode, activeFlag, CONNECTION_REGISTRY_FIND_ALL);
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("client_id", clientId)
                 .addValue("engine_cd", engineCode)
                 .addValue("is_active_flg", activeFlag);
-        return jdbcTemplate().query(
+        List<DataConnectionRecord> connections = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(CONNECTION_REGISTRY_FIND_ALL),
                 parameters,
                 dataConnectionRowMapper()
         );
+        logger.debug("Connection lookup completed. clientId={}, resultCount={}", clientId, connections.size());
+        return connections;
     }
 
     @Override
     public Optional<DataConnectionRecord> findConnection(String clientId, UUID connectionId) {
+        logger.debug("Executing connection lookup by id. clientId={}, connectionId={}, queryKey={}", clientId, connectionId, CONNECTION_REGISTRY_FIND_BY_ID);
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("client_id", clientId)
                 .addValue("connection_id", connectionId);
-        return jdbcTemplate().query(
+        List<DataConnectionRecord> connections = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(CONNECTION_REGISTRY_FIND_BY_ID),
                 parameters,
                 dataConnectionRowMapper()
-        ).stream().findFirst();
+        );
+        logger.debug("Connection lookup by id completed. clientId={}, connectionId={}, resultCount={}", clientId, connectionId, connections.size());
+        return connections.stream().findFirst();
     }
 
     private NamedParameterJdbcTemplate jdbcTemplate() {
@@ -143,22 +159,28 @@ public class JdbcRegistryReadDao implements RegistryReadDao {
 
     @Override
     public List<java.util.Map<String, Object>> introspectColumns(String schemaCd, String tableCd) {
+        logger.debug("Executing column introspection query. schemaCode={}, tableCode={}", schemaCd, tableCd);
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("schema_cd", schemaCd)
                 .addValue("table_cd", tableCd);
-        return jdbcTemplate().queryForList(
+        List<java.util.Map<String, Object>> columns = jdbcTemplate().queryForList(
                 sqlQueryLoaderUtil.getQuery("schema_registry.introspect_columns"),
                 parameters
         );
+        logger.debug("Column introspection query completed. schemaCode={}, tableCode={}, resultCount={}", schemaCd, tableCd, columns.size());
+        return columns;
     }
 
     @Override
     public List<java.util.Map<String, Object>> introspectTables(String schemaCd) {
+        logger.debug("Executing table introspection query. schemaCode={}", schemaCd);
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("schema_cd", schemaCd);
-        return jdbcTemplate().queryForList(
+        List<java.util.Map<String, Object>> tables = jdbcTemplate().queryForList(
                 sqlQueryLoaderUtil.getQuery("schema_registry.introspect_tables"),
                 parameters
         );
+        logger.debug("Table introspection query completed. schemaCode={}, resultCount={}", schemaCd, tables.size());
+        return tables;
     }
 }
