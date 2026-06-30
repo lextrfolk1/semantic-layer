@@ -94,6 +94,36 @@ public class ApiExceptionHandler {
         return buildResponse(status, statusCodeFor(status), exception.getMessage(), exception);
     }
 
+    @ExceptionHandler(org.springframework.jdbc.BadSqlGrammarException.class)
+    public ResponseEntity<ApiErrorResponseDto> handleBadSqlGrammar(org.springframework.jdbc.BadSqlGrammarException exception) {
+        return buildResponse(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                INTERNAL_SERVER_ERROR_CODE,
+                "Database query execution failed due to a schema mismatch or SQL grammar error.",
+                exception
+        );
+    }
+
+    @ExceptionHandler(org.springframework.dao.DataAccessResourceFailureException.class)
+    public ResponseEntity<ApiErrorResponseDto> handleDataAccessResourceFailure(org.springframework.dao.DataAccessResourceFailureException exception) {
+        return buildResponse(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                SERVICE_UNAVAILABLE_CODE,
+                "Database connection is unavailable. Please check if the database is running.",
+                exception
+        );
+    }
+
+    @ExceptionHandler(org.springframework.dao.DataAccessException.class)
+    public ResponseEntity<ApiErrorResponseDto> handleDataAccessException(org.springframework.dao.DataAccessException exception) {
+        return buildResponse(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                INTERNAL_SERVER_ERROR_CODE,
+                "A database error occurred: " + Optional.ofNullable(exception.getRootCause()).map(Throwable::getMessage).orElse(exception.getMessage()),
+                exception
+        );
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponseDto> handleUnexpectedException(Exception exception) {
         return buildResponse(
