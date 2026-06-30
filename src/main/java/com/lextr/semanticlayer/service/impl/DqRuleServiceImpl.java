@@ -237,18 +237,31 @@ public class DqRuleServiceImpl implements DqRuleService {
                         : request.request_txt()
         ));
 
-        DqRuleMatrixCoverageDto coverage = computeMatrixCoverage(request.client_id(), ruleCode);
+        Optional<DqRuleMatrixCoverageDto> coverage = tryComputeMatrixCoverage(request.client_id(), ruleCode);
+        String coverageSummary = coverage
+                .map(value -> "coverage=" + value.coverage_pct() + "%")
+                .orElse("coverage=unknown");
         dqRuleDao.insertMetadataChangeHistory(new DqRuleMetadataChangeHistoryWriteRequest(
                 syntheticChangeId(request.client_id(), ruleCode, REQUEST_CHANGE_TYPE_CD),
                 request.client_id(),
                 ENTITY_TYPE_CD,
                 ruleCode,
                 REQUEST_CHANGE_TYPE_CD,
-                "Requested DQ rule " + ruleCode + "; coverage=" + coverage.coverage_pct() + "%",
+                "Requested DQ rule " + ruleCode + "; " + coverageSummary,
                 now,
                 request.requested_by()
         ));
         return toWorkflowTaskDto(task);
+    }
+
+    private Optional<DqRuleMatrixCoverageDto> tryComputeMatrixCoverage(String clientId, String ruleCode) {
+        try {
+            return Optional.of(computeMatrixCoverage(clientId, ruleCode));
+        } catch (RegistryResourceNotFoundException exception) {
+            logger.warn("DQ rule coverage unavailable during request submission. clientId={}, ruleCode={}, reason={}",
+                    clientId, ruleCode, exception.getMessage());
+            return Optional.empty();
+        }
     }
 
     private void validateEnginePrincipal(DqRuleResultIngestRequestDto request, String principalCd) {

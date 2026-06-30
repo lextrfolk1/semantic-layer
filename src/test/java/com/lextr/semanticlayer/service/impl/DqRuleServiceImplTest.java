@@ -74,6 +74,31 @@ class DqRuleServiceImplTest {
     }
 
     @Test
+    void requestsDqRulesEvenWhenCatalogRuleDoesNotYetExist() {
+        TransactionHarness harness = new TransactionHarness();
+        RecordingDqRuleDao dao = new RecordingDqRuleDao(harness);
+        DqRuleServiceImpl service = new DqRuleServiceImpl(
+                dao,
+                new RecordingDqRulePolicyClient(new DqRulePolicyDecisionDto(true, null, null), new DqRulePolicyDecisionDto(true, null, null)),
+                new RecordingTransactionOperations(harness)
+        );
+
+        List<WorkflowTaskResponseDto> response = service.requestRules(new DqRuleRequestDto(
+                "client-a",
+                List.of("TST"),
+                "steward",
+                "Please request a new DQ rule"
+        ));
+
+        assertTrue(harness.committed);
+        assertEquals(1, response.size());
+        assertEquals("TST", response.get(0).entity_ref());
+        assertEquals(1, dao.insertedWorkflowTasks.size());
+        assertEquals(1, dao.insertedMetadataChanges.size());
+        assertTrue(dao.insertedMetadataChanges.get(0).change_summary_txt().contains("coverage=unknown"));
+    }
+
+    @Test
     void rejectsResultIngestForNonEnginePrincipal() {
         TransactionHarness harness = new TransactionHarness();
         RecordingDqRuleDao dao = new RecordingDqRuleDao(harness);
