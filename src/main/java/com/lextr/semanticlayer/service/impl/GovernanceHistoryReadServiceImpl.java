@@ -10,7 +10,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class GovernanceHistoryReadServiceImpl implements GovernanceHistoryReadService {
@@ -34,8 +36,18 @@ public class GovernanceHistoryReadServiceImpl implements GovernanceHistoryReadSe
         validateRequired("entity_type_cd", entityTypeCode);
         validateRequired("entity_ref", entityRef);
 
+        String resolvedEntityRef = entityRef;
+        if ("RELATIONSHIP".equalsIgnoreCase(entityTypeCode) && entityRef != null && !entityRef.isBlank()) {
+            try {
+                UUID.fromString(entityRef);
+            } catch (IllegalArgumentException e) {
+                resolvedEntityRef = UUID.nameUUIDFromBytes(entityRef.getBytes(StandardCharsets.UTF_8)).toString();
+                logger.debug("Resolved RELATIONSHIP entityRef {} to UUID {}", entityRef, resolvedEntityRef);
+            }
+        }
+
         List<GovernanceHistoryEventRecord> allEvents =
-                governanceHistoryReadDao.findEvents(clientId, entityTypeCode, entityRef, null);
+                governanceHistoryReadDao.findEvents(clientId, entityTypeCode, resolvedEntityRef, null);
         if (allEvents.isEmpty()) {
             logger.warn("Governance history not found. clientId={}, entityTypeCode={}, entityRef={}",
                     clientId, entityTypeCode, entityRef);
@@ -44,7 +56,7 @@ public class GovernanceHistoryReadServiceImpl implements GovernanceHistoryReadSe
 
         List<GovernanceHistoryEventRecord> filteredEvents = changeTypeCode == null || changeTypeCode.isBlank()
                 ? allEvents
-                : governanceHistoryReadDao.findEvents(clientId, entityTypeCode, entityRef, changeTypeCode);
+                : governanceHistoryReadDao.findEvents(clientId, entityTypeCode, resolvedEntityRef, changeTypeCode);
         List<GovernanceHistoryEventDto> history = filteredEvents.stream().map(this::toDto).toList();
         logger.debug("Governance history resolved. clientId={}, entityTypeCode={}, entityRef={}, resultCount={}",
                 clientId, entityTypeCode, entityRef, history.size());

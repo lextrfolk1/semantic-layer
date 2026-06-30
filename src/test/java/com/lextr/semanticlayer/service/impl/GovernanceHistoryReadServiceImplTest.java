@@ -79,11 +79,11 @@ class GovernanceHistoryReadServiceImplTest {
                 }
         );
 
-        assertResolvedEntityType(service, "OBJECT", "meta.gl_balance");
-        assertResolvedEntityType(service, "RELATIONSHIP", "gl_to_ledger");
-        assertResolvedEntityType(service, "ATTRIBUTE_PAIRING", "customer_name_to_id");
-        assertResolvedEntityType(service, "FILTER_LOOKUP", "ledger_scope");
-        assertResolvedEntityType(service, "DQ_RULE", "gl_balance_not_null");
+        assertResolvedEntityType(service, "OBJECT", "meta.gl_balance", "meta.gl_balance");
+        assertResolvedEntityType(service, "RELATIONSHIP", "gl_to_ledger", "d1193c87-0052-316b-9a99-0cce79c48070");
+        assertResolvedEntityType(service, "ATTRIBUTE_PAIRING", "customer_name_to_id", "customer_name_to_id");
+        assertResolvedEntityType(service, "FILTER_LOOKUP", "ledger_scope", "ledger_scope");
+        assertResolvedEntityType(service, "DQ_RULE", "gl_balance_not_null", "gl_balance_not_null");
     }
 
     @Test
@@ -110,13 +110,14 @@ class GovernanceHistoryReadServiceImplTest {
 
     private static void assertResolvedEntityType(GovernanceHistoryReadServiceImpl service,
                                                  String entityTypeCode,
-                                                 String entityRef) {
+                                                 String entityRef,
+                                                 String expectedEntityRef) {
         List<GovernanceHistoryEventDto> results =
                 service.findHistory("client-a", entityTypeCode, entityRef, null);
 
         assertEquals(1, results.size());
         assertEquals(entityTypeCode, results.get(0).entity_type_cd());
-        assertEquals(entityRef, results.get(0).entity_ref());
+        assertEquals(expectedEntityRef, results.get(0).entity_ref());
     }
 
     private static GovernanceHistoryEventRecord historyRecord(String entityTypeCode,
