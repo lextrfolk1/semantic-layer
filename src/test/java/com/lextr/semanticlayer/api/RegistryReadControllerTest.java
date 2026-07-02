@@ -103,6 +103,32 @@ class RegistryReadControllerTest {
     }
 
     @Test
+    void returnsSchemaByCodeWithinClientScope() throws Exception {
+        RecordingRegistryReadDao dao = new RecordingRegistryReadDao();
+        dao.schemasByClient = Map.of(
+                "client-a", List.of(new SchemaCatalogRecord(
+                        "meta",
+                        "Metadata",
+                        "Metadata Override",
+                        "Semantic system of record",
+                        "ACTIVE",
+                        OffsetDateTime.parse("2026-06-16T10:15:30+05:30"),
+                        "flyway",
+                        OffsetDateTime.parse("2026-06-17T10:15:30+05:30"),
+                        "platform"
+                ))
+        );
+        MockMvc mockMvc = mockMvc(dao);
+
+        mockMvc.perform(get("/api/registry/schemas/{schema_code}", "meta")
+                        .queryParam("client_id", "client-a"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.schema_cd").value("meta"))
+                .andExpect(jsonPath("$.schema_nm").value("Metadata Override"))
+                .andExpect(jsonPath("$.lifecycle_status_cd").value("ACTIVE"));
+    }
+
+    @Test
     void returns404ForUnknownConnectionIdWithinClientScope() throws Exception {
         UUID connectionId = UUID.fromString("00000000-0000-0000-0000-000000000099");
         MockMvc mockMvc = mockMvc(new RecordingRegistryReadDao());

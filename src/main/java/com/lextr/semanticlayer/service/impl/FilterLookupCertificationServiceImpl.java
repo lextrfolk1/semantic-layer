@@ -17,6 +17,8 @@ import com.lextr.semanticlayer.model.GovernancePolicyPresetRecord;
 import com.lextr.semanticlayer.model.SemanticFilterLookupRecord;
 import com.lextr.semanticlayer.service.FilterLookupCertificationService;
 import com.lextr.semanticlayer.service.FilterLookupPolicyClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -32,6 +34,8 @@ import java.util.Optional;
 
 @Service
 public class FilterLookupCertificationServiceImpl implements FilterLookupCertificationService {
+
+    private static final Logger logger = LoggerFactory.getLogger(FilterLookupCertificationServiceImpl.class);
 
     private static final String GOVERNANCE_POLICY_CD = "GOV-FL-001";
     private static final String POLICY_SCOPE_CD = "FILTER_LOOKUP";
@@ -82,6 +86,7 @@ public class FilterLookupCertificationServiceImpl implements FilterLookupCertifi
 
     @Override
     public FilterLookupEffectiveReviewDto certifyLookup(String lookupCode, FilterLookupCertificationRequestDto request) {
+        logger.debug("Certifying filter lookup. clientId={}, lookupCode={}", request.client_id(), lookupCode);
         SemanticFilterLookupRecord currentLookup = findRequiredLookup(request.client_id(), lookupCode);
         int reviewPeriodFloorDays = findReviewPeriodFloorDays();
         long staleValueCount = filterLookupReadDao.countStaleValues(request.client_id(), lookupCode);
@@ -94,16 +99,23 @@ public class FilterLookupCertificationServiceImpl implements FilterLookupCertifi
         );
 
         try {
-            return transactionOperations.execute(status -> persistCertification(
+            FilterLookupEffectiveReviewDto review = transactionOperations.execute(status -> persistCertification(
                     currentLookup,
                     request,
                     now,
                     nextReviewDueDate,
                     reviewPeriodFloorDays
             ));
+            logger.info("Filter lookup certified. clientId={}, lookupCode={}, healthStatusCode={}, nextReviewDueDate={}",
+                    request.client_id(), lookupCode, review.health_status_cd(), review.next_review_due_dt());
+            return review;
         } catch (PolicyViolationException exception) {
+            logger.warn("Filter lookup certification denied. clientId={}, lookupCode={}, errorMessage={}",
+                    request.client_id(), lookupCode, exception.getMessage(), exception);
             throw exception;
         } catch (RuntimeException exception) {
+            logger.error("Filter lookup certification failed. clientId={}, lookupCode={}, errorMessage={}",
+                    request.client_id(), lookupCode, exception.getMessage(), exception);
             throw new FilterLookupCertificationServiceException("Unable to certify filter lookup", exception);
         }
     }
@@ -123,8 +135,13 @@ public class FilterLookupCertificationServiceImpl implements FilterLookupCertifi
                         "Unable to resolve governance policy " + GOVERNANCE_POLICY_CD
                 ));
         try {
-            return Integer.parseInt(policy.default_value_txt());
+            int reviewPeriodFloorDays = Integer.parseInt(policy.default_value_txt());
+            logger.debug("Resolved filter lookup certification review floor. policyCode={}, reviewPeriodFloorDays={}",
+                    policy.policy_cd(), reviewPeriodFloorDays);
+            return reviewPeriodFloorDays;
         } catch (RuntimeException exception) {
+            logger.error("Failed to parse filter lookup certification policy. policyCode={}, errorMessage={}",
+                    policy.policy_cd(), exception.getMessage(), exception);
             throw new FilterLookupCertificationServiceException(
                     "Unable to parse governance policy value for " + policy.policy_cd(),
                     exception
@@ -145,6 +162,8 @@ public class FilterLookupCertificationServiceImpl implements FilterLookupCertifi
                 )
         );
         if (!decision.allowed()) {
+            logger.warn("Filter lookup certification policy denied. clientId={}, lookupCode={}, staleValueCount={}, policyCode={}",
+                    request.client_id(), lookup.lookup_cd(), staleValueCount, decision.code());
             throw new PolicyViolationException(decision.code(), decision.message());
         }
     }

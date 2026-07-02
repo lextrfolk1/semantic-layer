@@ -9,6 +9,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -31,6 +33,8 @@ import java.util.Map;
 @Tag(name = "Relationships", description = "Relationship registration operations.")
 public class RelationshipRegistrationController {
 
+    private static final Logger logger = LoggerFactory.getLogger(RelationshipRegistrationController.class);
+
     private final RelationshipRegistrationService relationshipRegistrationService;
     private final NamedParameterJdbcTemplate jdbcTemplate;
     private final SQLQueryLoaderUtil sqlQueryLoaderUtil;
@@ -50,14 +54,18 @@ public class RelationshipRegistrationController {
     public List<Map<String, Object>> listRelationships(
             @Parameter(description = "Lifecycle status filter.") @RequestParam(value = "lifecycle_status_cd", required = false) String lifecycleStatusCd) {
         if (jdbcTemplate == null) {
+            logger.error("Relationship listing failed because NamedParameterJdbcTemplate is not configured.");
             throw new SemanticLayerException("NamedParameterJdbcTemplate is not configured");
         }
+        logger.debug("Listing relationships. lifecycleStatusCode={}", lifecycleStatusCd);
         MapSqlParameterSource params = new MapSqlParameterSource()
                 .addValue("lifecycle_status_cd", lifecycleStatusCd);
-        return jdbcTemplate.queryForList(
+        List<Map<String, Object>> relationships = jdbcTemplate.queryForList(
                 sqlQueryLoaderUtil.getQuery("semantic_relationship.find_all"),
                 params
         );
+        logger.debug("Relationships resolved. lifecycleStatusCode={}, resultCount={}", lifecycleStatusCd, relationships.size());
+        return relationships;
     }
 
     @PostMapping
@@ -65,6 +73,18 @@ public class RelationshipRegistrationController {
     @Operation(summary = "Register relationship", description = "Registers a semantic relationship between two objects.")
     public RelationshipRegistrationResponseDto registerRelationship(
             @Valid @RequestBody RelationshipRegistrationRequestDto request) {
-        return relationshipRegistrationService.registerRelationship(request);
+        logger.debug(
+                "Registering relationship. relationshipCode={}, parentSchemaCode={}, parentObjectCode={}, childSchemaCode={}, childObjectCode={}, relationshipTypeCode={}",
+                request.relationship_cd(),
+                request.parent_schema_cd(),
+                request.parent_object_cd(),
+                request.child_schema_cd(),
+                request.child_object_cd(),
+                request.relationship_type_cd()
+        );
+        RelationshipRegistrationResponseDto response = relationshipRegistrationService.registerRelationship(request);
+        logger.debug("Relationship registered. relationshipCode={}, lifecycleStatusCode={}",
+                request.relationship_cd(), response.lifecycle_status_cd());
+        return response;
     }
 }

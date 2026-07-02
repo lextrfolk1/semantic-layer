@@ -7,6 +7,8 @@ import com.lextr.semanticlayer.model.AttributePairingCatalogRecord;
 import com.lextr.semanticlayer.model.AttributePairingValueCacheRecord;
 import com.lextr.semanticlayer.model.AttributePairingValueCacheWriteRequest;
 import com.lextr.semanticlayer.util.SQLQueryLoaderUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -19,6 +21,8 @@ import java.util.Optional;
 
 @Repository
 public class JdbcAttributePairingResolutionDao implements AttributePairingResolutionDao {
+
+    private static final Logger logger = LoggerFactory.getLogger(JdbcAttributePairingResolutionDao.class);
 
     static final String FIND_PAIRING_BY_CODE = "attribute_pairing_resolution.find_pairing_by_code";
     static final String FIND_ACTIVE_PAIRING = "attribute_pairing_resolution.find_active_pairing_by_display_attribute";
@@ -38,14 +42,18 @@ public class JdbcAttributePairingResolutionDao implements AttributePairingResolu
 
     @Override
     public Optional<AttributePairingCatalogRecord> findPairing(String clientId, String pairingCode) {
+        logger.debug("Executing attribute pairing lookup by code. clientId={}, pairingCode={}", clientId, pairingCode);
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("client_id", clientId)
                 .addValue("pairing_cd", pairingCode);
-        return jdbcTemplate().query(
+        Optional<AttributePairingCatalogRecord> record = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(FIND_PAIRING_BY_CODE),
                 parameters,
                 JdbcAttributePairingResolutionDao::mapPairingRow
         ).stream().findFirst();
+        logger.debug("Attribute pairing lookup by code completed. clientId={}, pairingCode={}, found={}",
+                clientId, pairingCode, record.isPresent());
+        return record;
     }
 
     @Override
@@ -53,29 +61,39 @@ public class JdbcAttributePairingResolutionDao implements AttributePairingResolu
                                                                      String schemaCode,
                                                                      String objectCode,
                                                                      String displayAttributeCode) {
+        logger.debug("Executing active attribute pairing lookup. clientId={}, schemaCode={}, objectCode={}, displayAttributeCode={}",
+                clientId, schemaCode, objectCode, displayAttributeCode);
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("client_id", clientId)
                 .addValue("schema_cd", schemaCode)
                 .addValue("object_cd", objectCode)
                 .addValue("display_attribute_cd", displayAttributeCode);
-        return jdbcTemplate().query(
+        Optional<AttributePairingCatalogRecord> record = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(FIND_ACTIVE_PAIRING),
                 parameters,
                 JdbcAttributePairingResolutionDao::mapPairingRow
         ).stream().findFirst();
+        logger.debug("Active attribute pairing lookup completed. clientId={}, schemaCode={}, objectCode={}, found={}",
+                clientId, schemaCode, objectCode, record.isPresent());
+        return record;
     }
 
     @Override
     public boolean isAttributeIndexed(String schemaCode, String objectCode, String attributeCode) {
+        logger.debug("Executing attribute index lookup. schemaCode={}, objectCode={}, attributeCode={}",
+                schemaCode, objectCode, attributeCode);
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("schema_cd", schemaCode)
                 .addValue("object_cd", objectCode)
                 .addValue("attribute_cd", attributeCode);
-        return jdbcTemplate().query(
+        boolean indexed = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(CHECK_FILTER_ATTRIBUTE_INDEX),
                 parameters,
                 (resultSet, rowNum) -> resultSet.getBoolean("indexed_flg")
         ).stream().findFirst().orElse(false);
+        logger.debug("Attribute index lookup completed. schemaCode={}, objectCode={}, attributeCode={}, indexed={}",
+                schemaCode, objectCode, attributeCode, indexed);
+        return indexed;
     }
 
     @Override
@@ -83,20 +101,27 @@ public class JdbcAttributePairingResolutionDao implements AttributePairingResolu
                                                                       String clientId,
                                                                       String displayValue,
                                                                       OffsetDateTime asOfTimestamp) {
+        logger.debug("Executing attribute pairing cache lookup. clientId={}, pairingCode={}, asOfTimestamp={}",
+                clientId, pairingCode, asOfTimestamp);
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("pairing_cd", pairingCode)
                 .addValue("client_id", clientId)
                 .addValue("display_value_txt", displayValue)
                 .addValue("as_of_ts", asOfTimestamp);
-        return jdbcTemplate().query(
+        Optional<AttributePairingValueCacheRecord> record = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(FIND_CACHED_VALUE),
                 parameters,
                 JdbcAttributePairingResolutionDao::mapCacheRow
         ).stream().findFirst();
+        logger.debug("Attribute pairing cache lookup completed. clientId={}, pairingCode={}, cacheHit={}",
+                clientId, pairingCode, record.isPresent());
+        return record;
     }
 
     @Override
     public AttributePairingValueCacheRecord upsertCachedValue(AttributePairingValueCacheWriteRequest request) {
+        logger.debug("Executing attribute pairing cache upsert. clientId={}, pairingCode={}, oneToMany={}",
+                request.client_id(), request.pairing_cd(), request.is_one_to_many_flg());
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("pairing_cd", request.pairing_cd())
                 .addValue("client_id", request.client_id())
@@ -107,30 +132,39 @@ public class JdbcAttributePairingResolutionDao implements AttributePairingResolu
                 .addValue("last_hit_ts", request.last_hit_ts())
                 .addValue("cached_ts", request.cached_ts())
                 .addValue("expires_ts", request.expires_ts());
-        return jdbcTemplate().query(
+        AttributePairingValueCacheRecord record = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(UPSERT_CACHED_VALUE),
                 parameters,
                 JdbcAttributePairingResolutionDao::mapCacheRow
         ).stream().findFirst().orElseThrow(() -> new SemanticLayerException("Upsert attribute pairing cache returned no rows"));
+        logger.debug("Attribute pairing cache upsert completed. clientId={}, pairingCode={}, cacheId={}",
+                request.client_id(), request.pairing_cd(), record.id());
+        return record;
     }
 
     @Override
     public AttributePairingValueCacheRecord recordCacheHit(AttributePairingCacheHitWriteRequest request) {
+        logger.debug("Executing attribute pairing cache hit record. clientId={}, pairingCode={}",
+                request.client_id(), request.pairing_cd());
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("pairing_cd", request.pairing_cd())
                 .addValue("display_value_txt", request.display_value_txt())
                 .addValue("client_id", request.client_id())
                 .addValue("last_hit_ts", request.last_hit_ts());
-        return jdbcTemplate().query(
+        AttributePairingValueCacheRecord record = jdbcTemplate().query(
                 sqlQueryLoaderUtil.getQuery(RECORD_CACHE_HIT),
                 parameters,
                 JdbcAttributePairingResolutionDao::mapCacheRow
         ).stream().findFirst().orElseThrow(() -> new SemanticLayerException("Record attribute pairing cache hit returned no rows"));
+        logger.debug("Attribute pairing cache hit recorded. clientId={}, pairingCode={}, hitCount={}",
+                request.client_id(), request.pairing_cd(), record.hit_count_nbr());
+        return record;
     }
 
     private NamedParameterJdbcTemplate jdbcTemplate() {
         NamedParameterJdbcTemplate jdbcTemplate = jdbcTemplateProvider.getIfAvailable();
         if (jdbcTemplate == null) {
+            logger.error("NamedParameterJdbcTemplate is not configured for attribute pairing resolution DAO.");
             throw new SemanticLayerException("NamedParameterJdbcTemplate is not configured");
         }
         return jdbcTemplate;

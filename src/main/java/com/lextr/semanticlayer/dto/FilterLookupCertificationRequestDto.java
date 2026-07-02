@@ -8,7 +8,7 @@ public record FilterLookupCertificationRequestDto(
         @Size(max = 40)
         String client_id,
         @NotBlank
-        @Size(max = 100)
+        @Size(max = 32)
         String certified_by
 ) {
 }

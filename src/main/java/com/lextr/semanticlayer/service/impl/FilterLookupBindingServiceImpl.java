@@ -16,6 +16,8 @@ import com.lextr.semanticlayer.model.FilterLookupMetadataChangeHistoryWriteReque
 import com.lextr.semanticlayer.model.SemanticFilterLookupRecord;
 import com.lextr.semanticlayer.service.FilterLookupBindingService;
 import com.lextr.semanticlayer.service.FilterLookupPolicyClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -31,6 +33,8 @@ import java.util.Optional;
 
 @Service
 public class FilterLookupBindingServiceImpl implements FilterLookupBindingService {
+
+    private static final Logger logger = LoggerFactory.getLogger(FilterLookupBindingServiceImpl.class);
 
     private static final String CHANGE_TYPE_CD = "BOUND";
     private static final String ENTITY_TYPE_CD = "FILTER_LOOKUP";
@@ -70,6 +74,8 @@ public class FilterLookupBindingServiceImpl implements FilterLookupBindingServic
 
     @Override
     public FilterLookupBindingResponseDto bindLookup(String lookupCode, FilterLookupBindingRequestDto request) {
+        logger.debug("Binding filter lookup. clientId={}, lookupCode={}, boundObject={}, bindingContextCode={}",
+                request.client_id(), lookupCode, request.bound_obj(), request.binding_context_cd());
         SemanticFilterLookupRecord currentLookup = findRequiredLookup(request.client_id(), lookupCode);
 
         LocalDate nextReviewDueDate = currentLookup.next_review_due_dt();
@@ -80,14 +86,21 @@ public class FilterLookupBindingServiceImpl implements FilterLookupBindingServic
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
 
         try {
-            return transactionOperations.execute(status -> persistBinding(
+            FilterLookupBindingResponseDto response = transactionOperations.execute(status -> persistBinding(
                     request,
                     lookupCode,
                     now
             ));
+            logger.info("Filter lookup bound. clientId={}, lookupCode={}, bindingContextCode={}, active={}",
+                    request.client_id(), lookupCode, response.binding_context_cd(), response.is_active_flg());
+            return response;
         } catch (PolicyViolationException exception) {
+            logger.warn("Filter lookup binding denied. clientId={}, lookupCode={}, errorMessage={}",
+                    request.client_id(), lookupCode, exception.getMessage(), exception);
             throw exception;
         } catch (RuntimeException exception) {
+            logger.error("Filter lookup binding failed. clientId={}, lookupCode={}, errorMessage={}",
+                    request.client_id(), lookupCode, exception.getMessage(), exception);
             throw new FilterLookupBindingServiceException("Unable to bind filter lookup", exception);
         }
     }
@@ -107,6 +120,8 @@ public class FilterLookupBindingServiceImpl implements FilterLookupBindingServic
                 )
         );
         if (!decision.allowed()) {
+            logger.warn("Filter lookup binding policy denied. clientId={}, lookupCode={}, bindingContextCode={}, isOverdue={}, policyCode={}",
+                    request.client_id(), lookupCode, request.binding_context_cd(), isOverdue, decision.code());
             throw new PolicyViolationException(decision.code(), decision.message());
         }
     }

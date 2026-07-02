@@ -110,6 +110,16 @@ class ApiExceptionHandlerWebMvcTest {
     }
 
     @Test
+    void appliesNotFoundContractToUnknownRoutes() throws Exception {
+        MockMvc mockMvc = mockMvc(new RecordingWorkflowApprovalService(), new NoOpObjectRegistrationService(),
+                new RecordingObjectExposureReadService(), new RecordingGovernancePolicyPresetReadService());
+
+        mockMvc.perform(get("/api/does-not-exist"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+    }
+
+    @Test
     void preservesAnnotatedSemanticLayerStatusAcrossControllers() throws Exception {
         RecordingWorkflowApprovalService workflowService = new RecordingWorkflowApprovalService();
         workflowService.error = new WorkflowTaskAlreadyApprovedException(301L);
@@ -125,6 +135,24 @@ class ApiExceptionHandlerWebMvcTest {
                         .value("Workflow task 301 is already approved and cannot be re-approved"));
 
         assertEquals(301L, workflowService.lastId);
+    }
+
+    @Test
+    void appliesUnexpectedExceptionContractToWorkflowRequests() throws Exception {
+        RecordingWorkflowApprovalService workflowService = new RecordingWorkflowApprovalService();
+        workflowService.error = new RuntimeException("boom");
+        MockMvc mockMvc = mockMvc(workflowService, new NoOpObjectRegistrationService(),
+                new RecordingObjectExposureReadService(), new RecordingGovernancePolicyPresetReadService());
+
+        mockMvc.perform(post("/api/workflow-tasks/{id}/approve", 301L)
+                        .contentType("application/json")
+                        .content(validWorkflowRequestJson()))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.code").value("INTERNAL_SERVER_ERROR"))
+                .andExpect(jsonPath("$.message").value("boom"));
+
+        assertEquals(301L, workflowService.lastId);
+        assertEquals("client-a", workflowService.lastRequest.client_id());
     }
 
     private static MockMvc mockMvc(WorkflowApprovalService workflowApprovalService,
@@ -223,12 +251,21 @@ class ApiExceptionHandlerWebMvcTest {
         private UUID lastObjectId;
 
         @Override
-        public List<ObjectExposureSummaryDto> findObjects(String clientId, String schemaCode, String lifecycleStatusCode) {
+        public List<ObjectExposureSummaryDto> findObjects(String clientId,
+                                                          String actorId,
+                                                          String roleCode,
+                                                          String purposeCode,
+                                                          String schemaCode,
+                                                          String lifecycleStatusCode) {
             throw new UnsupportedOperationException("Not used in exception handler tests");
         }
 
         @Override
-        public ObjectExposureDetailDto findObject(String clientId, UUID objectId) {
+        public ObjectExposureDetailDto findObject(String clientId,
+                                                  String actorId,
+                                                  String roleCode,
+                                                  String purposeCode,
+                                                  UUID objectId) {
             lastObjectId = objectId;
             throw new UnsupportedOperationException("Not used in exception handler tests");
         }

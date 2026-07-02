@@ -19,7 +19,7 @@ public record FilterLookupBindingRequestDto(
         @Size(max = 100)
         String binding_ref,
         @NotBlank
-        @Size(max = 100)
+        @Size(max = 32)
         String bound_by
 ) {
 }

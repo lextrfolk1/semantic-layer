@@ -68,6 +68,47 @@ class WorkflowTaskControllerTest {
     }
 
     @Test
+    void routesWorkflowRejectionEndpointToService() throws Exception {
+        RecordingWorkflowApprovalService service = new RecordingWorkflowApprovalService();
+        service.response = new WorkflowTaskResponseDto(
+                301L,
+                "FILTER_LOOKUP_REGISTRATION",
+                "FILTER_LOOKUP",
+                "LEDGER_SCOPE",
+                "REJECTED",
+                "producer",
+                OffsetDateTime.parse("2026-06-18T10:15:30Z"),
+                null,
+                LocalDate.parse("2026-09-16"),
+                "Review filter lookup LEDGER_SCOPE",
+                "client-a",
+                "rejecter",
+                OffsetDateTime.parse("2026-06-18T10:20:30Z"),
+                "not allowed"
+        );
+        MockMvc mockMvc = mockMvc(service);
+
+        mockMvc.perform(post("/api/workflow-tasks/{id}/reject", 301L)
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "rejected_by": "rejecter",
+                                  "rejection_note_txt": "not allowed"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(301))
+                .andExpect(jsonPath("$.task_status_cd").value("REJECTED"))
+                .andExpect(jsonPath("$.client_id").value("client-a"))
+                .andExpect(jsonPath("$.approved_by").value("rejecter"))
+                .andExpect(jsonPath("$.approval_note_txt").value("not allowed"));
+
+        assertEquals(301L, service.lastId);
+        assertEquals("rejecter", service.lastRejectBody.get("rejected_by"));
+        assertEquals("not allowed", service.lastRejectBody.get("rejection_note_txt"));
+    }
+
+    @Test
     void rejectsApproverNameLongerThanThirtyTwoCharacters() throws Exception {
         MockMvc mockMvc = mockMvc(new RecordingWorkflowApprovalService());
 
@@ -107,6 +148,23 @@ class WorkflowTaskControllerTest {
         mockMvc.perform(post("/api/workflow-tasks/{id}/approve", 301L)
                         .contentType("application/json")
                         .content(validRequestJson()))
+                .andExpect(status().isInternalServerError());
+    }
+
+    @Test
+    void mapsWorkflowRejectionServiceErrorsToInternalServerError() throws Exception {
+        RecordingWorkflowApprovalService service = new RecordingWorkflowApprovalService();
+        service.error = new WorkflowApprovalServiceException("rejection failed");
+        MockMvc mockMvc = mockMvc(service);
+
+        mockMvc.perform(post("/api/workflow-tasks/{id}/reject", 301L)
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "rejected_by": "rejecter",
+                                  "rejection_note_txt": "not allowed"
+                                }
+                                """))
                 .andExpect(status().isInternalServerError());
     }
 

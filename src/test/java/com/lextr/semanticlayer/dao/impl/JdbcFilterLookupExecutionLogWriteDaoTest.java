@@ -14,6 +14,8 @@ import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 import org.springframework.jdbc.datasource.AbstractDataSource;
 
 import javax.sql.DataSource;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.lang.reflect.Proxy;
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -26,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -64,6 +67,19 @@ class JdbcFilterLookupExecutionLogWriteDaoTest {
         );
 
         assertThrows(SemanticLayerException.class, () -> dao.insertExecutionLog(executionLogRequest()));
+    }
+
+    @Test
+    void usesNamedParameterJdbcTemplateAndDoesNotUseJpa() throws Exception {
+        String source = Files.readString(Path.of(
+                "src/main/java/com/lextr/semanticlayer/dao/impl/JdbcFilterLookupExecutionLogWriteDao.java"
+        ));
+
+        assertTrue(source.contains("NamedParameterJdbcTemplate"));
+        assertFalse(source.contains("EntityManager"));
+        assertFalse(source.contains("JpaRepository"));
+        assertFalse(source.contains("jakarta.persistence"));
+        assertFalse(source.contains("javax.persistence"));
     }
 
     private static FilterLookupExecutionLogWriteRequest executionLogRequest() {

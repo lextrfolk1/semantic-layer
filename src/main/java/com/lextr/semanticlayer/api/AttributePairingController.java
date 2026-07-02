@@ -14,6 +14,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -34,6 +36,8 @@ import java.util.Map;
 @RequestMapping("/api/attribute-pairings")
 @Tag(name = "Attribute Pairings", description = "Attribute pairing registration and resolution operations.")
 public class AttributePairingController {
+
+    private static final Logger logger = LoggerFactory.getLogger(AttributePairingController.class);
 
     private final AttributePairingRegistrationService attributePairingRegistrationService;
     private final AttributePairingResolutionService attributePairingResolutionService;
@@ -58,14 +62,18 @@ public class AttributePairingController {
     public List<Map<String, Object>> listPairings(
             @Parameter(description = "Client ID filter.") @RequestParam(value = "client_id", required = false) String clientId) {
         if (jdbcTemplate == null) {
+            logger.error("Attribute pairing listing failed because NamedParameterJdbcTemplate is not configured");
             throw new SemanticLayerException("NamedParameterJdbcTemplate is not configured");
         }
+        logger.debug("Listing attribute pairings. clientId={}", clientId);
         MapSqlParameterSource params = new MapSqlParameterSource()
                 .addValue("client_id", clientId);
-        return jdbcTemplate.queryForList(
+        List<Map<String, Object>> pairings = jdbcTemplate.queryForList(
                 sqlQueryLoaderUtil.getQuery("attribute_pairing.find_all"),
                 params
         );
+        logger.debug("Attribute pairings resolved. clientId={}, resultCount={}", clientId, pairings.size());
+        return pairings;
     }
 
     @PostMapping
@@ -73,14 +81,38 @@ public class AttributePairingController {
     @Operation(summary = "Register attribute pairing", description = "Registers an attribute pairing for logical display-to-filter resolution.")
     public AttributePairingRegistrationResponseDto registerPairing(
             @Valid @RequestBody AttributePairingRegistrationRequestDto request) {
-        return attributePairingRegistrationService.registerPairing(request);
+        logger.debug(
+                "Registering attribute pairing. clientId={}, pairingCode={}, schemaCode={}, objectCode={}",
+                request.client_id(),
+                request.pairing_cd(),
+                request.schema_cd(),
+                request.object_cd()
+        );
+        AttributePairingRegistrationResponseDto response = attributePairingRegistrationService.registerPairing(request);
+        logger.debug("Attribute pairing registered. clientId={}, pairingCode={}", request.client_id(), request.pairing_cd());
+        return response;
     }
 
     @PostMapping("/resolve")
     @Operation(summary = "Resolve attribute pairing", description = "Resolves a display value to its filter value using the active pairing.")
     public AttributePairingResolutionResponseDto resolvePairing(
             @Valid @RequestBody AttributePairingResolutionRequestDto request) {
-        return attributePairingResolutionService.resolvePairing(request);
+        logger.debug(
+                "Resolving attribute pairing. clientId={}, schemaCode={}, objectCode={}, displayAttributeCode={}",
+                request.client_id(),
+                request.schema_cd(),
+                request.object_cd(),
+                request.display_attribute_cd()
+        );
+        AttributePairingResolutionResponseDto response = attributePairingResolutionService.resolvePairing(request);
+        logger.debug(
+                "Attribute pairing resolved. clientId={}, schemaCode={}, objectCode={}, displayAttributeCode={}",
+                request.client_id(),
+                request.schema_cd(),
+                request.object_cd(),
+                request.display_attribute_cd()
+        );
+        return response;
     }
 
     private static final class MissingAttributePairingRegistrationService implements AttributePairingRegistrationService {

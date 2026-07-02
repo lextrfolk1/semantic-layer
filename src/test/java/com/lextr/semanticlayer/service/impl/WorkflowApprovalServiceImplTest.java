@@ -9,6 +9,7 @@ import com.lextr.semanticlayer.dto.WorkflowPolicyRequestDto;
 import com.lextr.semanticlayer.exception.PolicyViolationException;
 import com.lextr.semanticlayer.exception.RegistryResourceNotFoundException;
 import com.lextr.semanticlayer.exception.WorkflowApprovalServiceException;
+import com.lextr.semanticlayer.exception.WorkflowTaskNotPendingException;
 import com.lextr.semanticlayer.exception.WorkflowTaskAlreadyApprovedException;
 import com.lextr.semanticlayer.model.FilterLookupWorkflowTaskRecord;
 import com.lextr.semanticlayer.model.FilterLookupMetadataChangeHistoryRecord;
@@ -275,6 +276,50 @@ class WorkflowApprovalServiceImplTest {
     }
 
     @Test
+    void rejectsApprovalForNonPendingRejectedTaskWithoutHittingSideEffects() {
+        TransactionHarness harness = new TransactionHarness();
+        RecordingWorkflowApprovalDao dao = new RecordingWorkflowApprovalDao();
+        dao.tasks.put(302L, new FilterLookupWorkflowTaskRecord(
+                302L,
+                "FILTER_LOOKUP_REGISTRATION",
+                "FILTER_LOOKUP",
+                "LEDGER_SCOPE",
+                "REJECTED",
+                "producer",
+                OffsetDateTime.now(),
+                null,
+                null,
+                "Review",
+                "client-a",
+                null,
+                null,
+                null
+        ));
+
+        RecordingFilterLookupRegistrationWriteDao writeDao = new RecordingFilterLookupRegistrationWriteDao();
+        RecordingWorkflowPolicyClient policyClient = new RecordingWorkflowPolicyClient(
+                new WorkflowPolicyDecisionDto(true, null, null)
+        );
+        WorkflowApprovalServiceImpl service = new WorkflowApprovalServiceImpl(
+                dao,
+                writeDao,
+                policyClient,
+                new RecordingTransactionOperations(harness)
+        );
+
+        WorkflowTaskNotPendingException exception = assertThrows(WorkflowTaskNotPendingException.class, () ->
+                service.approveTask(302L, new WorkflowApprovalRequestDto("client-a", "approver", "approved"))
+        );
+
+        assertEquals("Workflow task 302 is REJECTED and cannot be approved", exception.getMessage());
+        assertFalse(harness.committed);
+        assertFalse(harness.rolledBack);
+        assertEquals(0, writeDao.metadataChanges.size());
+        assertEquals(0, policyClient.requests.size());
+        assertNull(dao.lookupStatus.get("LEDGER_SCOPE"));
+    }
+
+    @Test
     void throwsResourceNotFoundForUnknownTask() {
         TransactionHarness harness = new TransactionHarness();
         RecordingWorkflowApprovalDao dao = new RecordingWorkflowApprovalDao();
@@ -371,21 +416,26 @@ class WorkflowApprovalServiceImplTest {
 
         // Perform rejections
         service.rejectTask(401L, Map.of("rejected_by", "rejecter", "rejection_note_txt", "no lookup"));
+        assertEquals("client-a", dao.rejectionClientIds.get(401L));
         assertEquals("SUSPENDED", dao.lookupStatus.get("LEDGER_SCOPE"));
         assertEquals("REJECTED", dao.lookupLifecycleStatus.get("LEDGER_SCOPE"));
 
         service.rejectTask(402L, Map.of("rejected_by", "rejecter", "rejection_note_txt", "no override"));
+        assertEquals("client-a", dao.rejectionClientIds.get(402L));
         assertEquals("REJECTED", dao.overrideStatus.get(502L));
 
         service.rejectTask(403L, Map.of("rejected_by", "rejecter", "rejection_note_txt", "no object"));
+        assertEquals("client-a", dao.rejectionClientIds.get(403L));
         assertEquals("DRAFT", dao.objectStatus.get("obj-123"));
         assertEquals("REJECTED", dao.objectGovStatus.get("obj-123"));
 
         service.rejectTask(404L, Map.of("rejected_by", "rejecter", "rejection_note_txt", "no pairing"));
+        assertEquals("client-a", dao.rejectionClientIds.get(404L));
         assertEquals("DRAFT", dao.pairingStatus.get("pair-123"));
         assertEquals("REJECTED", dao.pairingGovStatus.get("pair-123"));
 
         service.rejectTask(405L, Map.of("rejected_by", "rejecter", "rejection_note_txt", "no relationship"));
+        assertEquals("client-a", dao.rejectionClientIds.get(405L));
         assertEquals("REJECTED", dao.relationshipStatus.get("rel-123"));
     }
 
@@ -438,6 +488,7 @@ class WorkflowApprovalServiceImplTest {
         private final Map<String, String> pairingStatus = new HashMap<>();
         private final Map<String, String> pairingGovStatus = new HashMap<>();
         private final Map<String, String> relationshipStatus = new HashMap<>();
+        private final Map<Long, String> rejectionClientIds = new HashMap<>();
 
         @Override
         public FilterLookupWorkflowTaskRecord findTaskById(String clientId, Long id) {
@@ -496,11 +547,12 @@ class WorkflowApprovalServiceImplTest {
         }
 
         @Override
-        public FilterLookupWorkflowTaskRecord rejectTask(Long id, String rejectedBy, OffsetDateTime rejectedTs, String rejectionNote) {
+        public FilterLookupWorkflowTaskRecord rejectTask(String clientId, Long id, String rejectedBy, OffsetDateTime rejectedTs, String rejectionNote) {
             FilterLookupWorkflowTaskRecord record = tasks.get(id);
             if (record == null) {
                 throw new IllegalArgumentException("Task not found");
             }
+            rejectionClientIds.put(id, clientId);
             FilterLookupWorkflowTaskRecord rejected = new FilterLookupWorkflowTaskRecord(
                     record.id(),
                     record.task_type_cd(),
@@ -525,6 +577,11 @@ class WorkflowApprovalServiceImplTest {
         public void approveObject(String clientId, String objectId, String lifecycleStatus, OffsetDateTime updatedTs, String updatedBy) {
             objectStatus.put(objectId, lifecycleStatus);
             objectGovStatus.put(objectId, "APPROVED");
+        }
+
+        @Override
+        public void grantDefaultAttributeAccess(String clientId, String objectId, String approvedBy, OffsetDateTime approvedTs) {
+            // no-op in test
         }
 
         @Override

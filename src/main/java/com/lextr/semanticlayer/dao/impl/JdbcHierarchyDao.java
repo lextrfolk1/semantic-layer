@@ -5,6 +5,8 @@ import com.lextr.semanticlayer.exception.SemanticLayerException;
 import com.lextr.semanticlayer.model.LogicalHierarchyLevelRecord;
 import com.lextr.semanticlayer.model.LogicalHierarchyRecord;
 import com.lextr.semanticlayer.util.SQLQueryLoaderUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.RowMapper;
@@ -19,6 +21,8 @@ import java.util.List;
 
 @Repository
 public class JdbcHierarchyDao implements HierarchyDao {
+
+    private static final Logger logger = LoggerFactory.getLogger(JdbcHierarchyDao.class);
 
     private static final String FIND_ALL = "logical_hierarchy.find_all";
     private static final String INSERT = "logical_hierarchy.insert";
@@ -39,6 +43,7 @@ public class JdbcHierarchyDao implements HierarchyDao {
 
     private void checkJdbcTemplate() {
         if (jdbcTemplate == null) {
+            logger.error("NamedParameterJdbcTemplate is not configured for hierarchy DAO.");
             throw new SemanticLayerException("NamedParameterJdbcTemplate is not configured");
         }
     }
@@ -68,38 +73,50 @@ public class JdbcHierarchyDao implements HierarchyDao {
     @Override
     public List<LogicalHierarchyRecord> findAll(String tenantCd) {
         checkJdbcTemplate();
+        logger.debug("Executing hierarchy list query. tenantCode={}", tenantCd);
         MapSqlParameterSource params = new MapSqlParameterSource()
                 .addValue("tenant_cd", tenantCd);
-        return jdbcTemplate.query(sqlQueryLoaderUtil.getQuery(FIND_ALL), params, hierarchyRowMapper);
+        List<LogicalHierarchyRecord> records = jdbcTemplate.query(sqlQueryLoaderUtil.getQuery(FIND_ALL), params, hierarchyRowMapper);
+        logger.debug("Hierarchy list query completed. tenantCode={}, resultCount={}", tenantCd, records.size());
+        return records;
     }
 
     @Override
     public LogicalHierarchyRecord insert(String hierarchyCd, String hierarchyNm, String tenantCd,
                                           String hierarchyStatusCd, String createdBy) {
         checkJdbcTemplate();
+        logger.debug("Executing hierarchy insert. tenantCode={}, hierarchyCode={}, hierarchyStatusCode={}",
+                tenantCd, hierarchyCd, hierarchyStatusCd);
         MapSqlParameterSource params = new MapSqlParameterSource()
                 .addValue("hierarchy_cd", hierarchyCd)
                 .addValue("hierarchy_nm", hierarchyNm)
                 .addValue("tenant_cd", tenantCd)
                 .addValue("hierarchy_status_cd", hierarchyStatusCd)
                 .addValue("created_by", createdBy);
-        return jdbcTemplate.query(sqlQueryLoaderUtil.getQuery(INSERT), params, hierarchyRowMapper)
+        LogicalHierarchyRecord record = jdbcTemplate.query(sqlQueryLoaderUtil.getQuery(INSERT), params, hierarchyRowMapper)
                 .stream().findFirst()
                 .orElseThrow(() -> new SemanticLayerException("Failed to insert hierarchy: " + hierarchyCd));
+        logger.debug("Hierarchy insert completed. tenantCode={}, hierarchyCode={}, id={}", tenantCd, hierarchyCd, record.id());
+        return record;
     }
 
     @Override
     public List<LogicalHierarchyLevelRecord> findLevels(String hierarchyCd) {
         checkJdbcTemplate();
+        logger.debug("Executing hierarchy level query. hierarchyCode={}", hierarchyCd);
         MapSqlParameterSource params = new MapSqlParameterSource()
                 .addValue("hierarchy_cd", hierarchyCd);
-        return jdbcTemplate.query(sqlQueryLoaderUtil.getQuery(FIND_LEVELS), params, levelRowMapper);
+        List<LogicalHierarchyLevelRecord> records = jdbcTemplate.query(sqlQueryLoaderUtil.getQuery(FIND_LEVELS), params, levelRowMapper);
+        logger.debug("Hierarchy level query completed. hierarchyCode={}, resultCount={}", hierarchyCd, records.size());
+        return records;
     }
 
     @Override
     public LogicalHierarchyLevelRecord insertLevel(String hierarchyCd, Integer levelNbr, String levelLabel,
                                                     String attributeCd, String codeCd, String objectRef) {
         checkJdbcTemplate();
+        logger.debug("Executing hierarchy level insert. hierarchyCode={}, levelNumber={}, attributeCode={}",
+                hierarchyCd, levelNbr, attributeCd);
         MapSqlParameterSource params = new MapSqlParameterSource()
                 .addValue("hierarchy_cd", hierarchyCd)
                 .addValue("level_nbr", levelNbr)
@@ -107,9 +124,11 @@ public class JdbcHierarchyDao implements HierarchyDao {
                 .addValue("attribute_cd", attributeCd)
                 .addValue("code_cd", codeCd)
                 .addValue("object_ref", objectRef);
-        return jdbcTemplate.query(sqlQueryLoaderUtil.getQuery(INSERT_LEVEL), params, levelRowMapper)
+        LogicalHierarchyLevelRecord record = jdbcTemplate.query(sqlQueryLoaderUtil.getQuery(INSERT_LEVEL), params, levelRowMapper)
                 .stream().findFirst()
                 .orElseThrow(() -> new SemanticLayerException("Failed to insert hierarchy level"));
+        logger.debug("Hierarchy level insert completed. hierarchyCode={}, levelId={}", hierarchyCd, record.id());
+        return record;
     }
 
     private static OffsetDateTime getOffsetDateTime(java.sql.ResultSet rs, String col) throws java.sql.SQLException {

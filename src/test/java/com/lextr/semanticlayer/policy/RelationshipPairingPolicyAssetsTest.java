@@ -29,6 +29,8 @@ class RelationshipPairingPolicyAssetsTest {
         assertTrue(tests.contains("test_evaluate_denies_cross_engine_pairing"));
         assertTrue(tests.contains("test_evaluate_defaults_deny_on_invalid_input"));
         assertTrue(tests.contains("decision.code == \"POL-CE-002\""));
+        assertTrue(tests.contains("contains(decision.message, \"POL-CE-002\")"));
+        assertTrue(tests.contains("decision.message == \"POL-CE-002: unknown or invalid input\""));
     }
 
     @Test
@@ -50,6 +52,8 @@ class RelationshipPairingPolicyAssetsTest {
         assertTrue(tests.contains("test_evaluate_denies_cross_engine_query"));
         assertTrue(tests.contains("test_evaluate_defaults_deny_on_invalid_input"));
         assertTrue(tests.contains("decision.code == \"POL-CE-003\""));
+        assertTrue(tests.contains("contains(decision.message, \"POL-CE-003\")"));
+        assertTrue(tests.contains("decision.message == \"POL-CE-003: unknown or invalid input\""));
     }
 
     private static String read(String path) throws IOException {

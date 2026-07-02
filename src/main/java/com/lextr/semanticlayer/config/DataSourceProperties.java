@@ -1,15 +1,21 @@
 package com.lextr.semanticlayer.config;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.validation.annotation.Validated;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 @ConfigurationProperties(prefix = "app.datasource")
+@Validated
 public class DataSourceProperties {
 
+    @NotBlank
     private String primary;
-    private Map<String, DataSourceConfig> dataSources = new LinkedHashMap<>();
+    @Valid
+    private Map<String, @Valid DataSourceConfig> dataSources = new LinkedHashMap<>();
 
     public String getPrimary() {
         return primary;
@@ -29,9 +35,12 @@ public class DataSourceProperties {
 
     public static class DataSourceConfig {
 
+        @NotBlank
         private String url;
+        @NotBlank
         private String username;
         private String password;
+        @NotBlank
         private String driverClassName;
         private Map<String, String> additionalProperties = new LinkedHashMap<>();
 

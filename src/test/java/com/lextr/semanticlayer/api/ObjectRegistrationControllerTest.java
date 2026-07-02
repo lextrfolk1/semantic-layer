@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -43,7 +44,10 @@ class ObjectRegistrationControllerTest {
                         "Amount",
                         "MDRM12345678",
                         "MDRM",
-                        "US"
+                        "US",
+                        true,
+                        false,
+                        false
                 ))
         );
         MockMvc mockMvc = mockMvc(service);
@@ -66,7 +70,10 @@ class ObjectRegistrationControllerTest {
                                       "data_type_cd": "DECIMAL",
                                       "taxonomy_cd": "MDRM12345678",
                                       "taxonomy_source_cd": "MDRM",
-                                      "taxonomy_jurisdiction_cd": "US"
+                                      "taxonomy_jurisdiction_cd": "US",
+                                      "pk_flg": true,
+                                      "fk_flg": false,
+                                      "nullable_flg": false
                                     }
                                   ]
                                 }
@@ -75,11 +82,17 @@ class ObjectRegistrationControllerTest {
                 .andExpect(jsonPath("$.object_id").value("00000000-0000-0000-0000-000000000101"))
                 .andExpect(jsonPath("$.lifecycle_status_cd").value("DRAFT"))
                 .andExpect(jsonPath("$.workflow_status_cd").value("PENDING_APPROVAL"))
-                .andExpect(jsonPath("$.attributes[0].attribute_cd").value("AMOUNT"));
+                .andExpect(jsonPath("$.attributes[0].attribute_cd").value("AMOUNT"))
+                .andExpect(jsonPath("$.attributes[0].pk_flg").value(true))
+                .andExpect(jsonPath("$.attributes[0].fk_flg").value(false))
+                .andExpect(jsonPath("$.attributes[0].nullable_flg").value(false));
 
         assertEquals("client-a", service.lastRequest.client_id());
         assertEquals("GL Balance", service.lastRequest.object_nm());
         assertEquals("Amount", service.lastRequest.attributes().get(0).attribute_nm());
+        assertTrue(service.lastRequest.attributes().get(0).pk_flg());
+        assertEquals(false, service.lastRequest.attributes().get(0).fk_flg());
+        assertEquals(false, service.lastRequest.attributes().get(0).nullable_flg());
     }
 
     @Test
@@ -104,12 +117,52 @@ class ObjectRegistrationControllerTest {
                                       "data_type_cd": "DECIMAL",
                                       "taxonomy_cd": "MDRM12345678",
                                       "taxonomy_source_cd": "MDRM",
-                                      "taxonomy_jurisdiction_cd": "US"
+                                      "taxonomy_jurisdiction_cd": "US",
+                                      "pk_flg": true,
+                                      "fk_flg": false,
+                                      "nullable_flg": false
                                     }
                                   ]
                                 }
                                 """))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message").value("object_nm: object_nm must be 32 characters or less"));
+    }
+
+    @Test
+    void rejectsAttributeNameLongerThanThirtyTwoCharacters() throws Exception {
+        MockMvc mockMvc = mockMvc(new RecordingObjectRegistrationService());
+
+        mockMvc.perform(post("/api/objects")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "client_id": "client-a",
+                                  "object_cd": "GL_BALANCE",
+                                  "object_nm": "GL Balance",
+                                  "object_type_cd": "TABLE",
+                                  "schema_cd": "meta",
+                                  "connection_id": "00000000-0000-0000-0000-000000000201",
+                                  "registered_by": "producer",
+                                  "attributes": [
+                                    {
+                                      "attribute_cd": "AMOUNT",
+                                      "attribute_nm": "123456789012345678901234567890123",
+                                      "data_type_cd": "DECIMAL",
+                                      "taxonomy_cd": "MDRM12345678",
+                                      "taxonomy_source_cd": "MDRM",
+                                      "taxonomy_jurisdiction_cd": "US",
+                                      "pk_flg": true,
+                                      "fk_flg": false,
+                                      "nullable_flg": false
+                                    }
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message").value("attributes[0].attribute_nm: attribute_nm must be 32 characters or less"));
     }
 
     @Test
@@ -136,12 +189,17 @@ class ObjectRegistrationControllerTest {
                                       "data_type_cd": "DECIMAL",
                                       "taxonomy_cd": "MDRM12345678",
                                       "taxonomy_source_cd": "MDRM",
-                                      "taxonomy_jurisdiction_cd": "US"
+                                      "taxonomy_jurisdiction_cd": "US",
+                                      "pk_flg": true,
+                                      "fk_flg": false,
+                                      "nullable_flg": false
                                     }
                                   ]
                                 }
                                 """))
-                .andExpect(status().isInternalServerError());
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.code").value("INTERNAL_SERVER_ERROR"))
+                .andExpect(jsonPath("$.message").value("registration failed"));
     }
 
     @Test
@@ -168,7 +226,10 @@ class ObjectRegistrationControllerTest {
                                       "data_type_cd": "DECIMAL",
                                       "taxonomy_cd": "MDRM12345678",
                                       "taxonomy_source_cd": "MDRM",
-                                      "taxonomy_jurisdiction_cd": "US"
+                                      "taxonomy_jurisdiction_cd": "US",
+                                      "pk_flg": true,
+                                      "fk_flg": false,
+                                      "nullable_flg": false
                                     }
                                   ]
                                 }
@@ -209,12 +270,21 @@ class ObjectRegistrationControllerTest {
     private static final class NoOpObjectExposureReadService implements ObjectExposureReadService {
 
         @Override
-        public List<ObjectExposureSummaryDto> findObjects(String clientId, String schemaCode, String lifecycleStatusCode) {
+        public List<ObjectExposureSummaryDto> findObjects(String clientId,
+                                                          String actorId,
+                                                          String roleCode,
+                                                          String purposeCode,
+                                                          String schemaCode,
+                                                          String lifecycleStatusCode) {
             throw new UnsupportedOperationException("Not used in write tests");
         }
 
         @Override
-        public ObjectExposureDetailDto findObject(String clientId, UUID objectId) {
+        public ObjectExposureDetailDto findObject(String clientId,
+                                                  String actorId,
+                                                  String roleCode,
+                                                  String purposeCode,
+                                                  UUID objectId) {
             throw new UnsupportedOperationException("Not used in write tests");
         }
     }

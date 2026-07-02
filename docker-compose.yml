@@ -1,0 +1,8 @@
+services:
+  opa:
+    container_name: semantic-layer-opa
+    build:
+      context: .
+      dockerfile: Dockerfile.opa
+    ports:
+      - "8181:8181"

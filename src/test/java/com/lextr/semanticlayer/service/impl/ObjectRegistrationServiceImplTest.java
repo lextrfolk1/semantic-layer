@@ -38,9 +38,12 @@ class ObjectRegistrationServiceImplTest {
     void registersObjectAtomicallyAndWritesAuditRow() {
         TransactionHarness harness = new TransactionHarness();
         RecordingObjectRegistrationWriteDao dao = new RecordingObjectRegistrationWriteDao(harness);
+        RecordingTaxonomyPolicyClient policyClient = new RecordingTaxonomyPolicyClient(
+                new TaxonomyPolicyDecisionDto(true, null, null)
+        );
         ObjectRegistrationServiceImpl service = new ObjectRegistrationServiceImpl(
                 dao,
-                request -> new TaxonomyPolicyDecisionDto(true, null, null),
+                policyClient,
                 new RecordingTransactionOperations(harness)
         );
 
@@ -58,7 +61,10 @@ class ObjectRegistrationServiceImplTest {
                         "DECIMAL",
                         "MDRM12345678",
                         "MDRM",
-                        "US"
+                        "US",
+                        true,
+                        false,
+                        false
                 ))
         ));
 
@@ -70,12 +76,24 @@ class ObjectRegistrationServiceImplTest {
         assertEquals("GL_BALANCE", dao.objectRequest.object_cd());
         assertEquals("client-a", dao.objectRequest.client_id());
         assertEquals("AMOUNT", dao.attributeRequests.get(0).attribute_cd());
+        assertTrue(dao.attributeRequests.get(0).pk_flg());
+        assertEquals(false, dao.attributeRequests.get(0).fk_flg());
+        assertEquals(false, dao.attributeRequests.get(0).nullable_flg());
         assertEquals("PENDING_APPROVAL", dao.workflowTaskRequest.task_status_cd());
         assertEquals("REGISTERED", dao.metadataChangeHistoryRequest.change_type_cd());
         assertEquals("Registered draft object", dao.committedMetadataChanges.get(0).change_summary_txt());
+        assertEquals(1, policyClient.recordedRequests.size());
+        TaxonomyPolicyRequestDto policyRequest = policyClient.recordedRequests.get(0);
+        assertEquals("client-a", policyRequest.client_id());
+        assertEquals("MDRM12345678", policyRequest.taxonomy_cd());
+        assertEquals("MDRM", policyRequest.taxonomy_source_cd());
+        assertEquals("US", policyRequest.taxonomy_jurisdiction_cd());
         assertEquals("DRAFT", result.lifecycle_status_cd());
         assertEquals("PENDING_APPROVAL", result.workflow_status_cd());
         assertEquals("AMOUNT", result.attributes().get(0).attribute_cd());
+        assertTrue(result.attributes().get(0).pk_flg());
+        assertEquals(false, result.attributes().get(0).fk_flg());
+        assertEquals(false, result.attributes().get(0).nullable_flg());
         assertNotNull(result.object_id());
         assertNotNull(result.workflow_task_id());
         assertNotNull(result.change_history_id());
@@ -100,9 +118,9 @@ class ObjectRegistrationServiceImplTest {
                 UUID.fromString("00000000-0000-0000-0000-000000000201"),
                 "producer",
                 List.of(
-                        new AttributeRegistrationRequestDto("AMOUNT", "Amount", "DECIMAL", "MDRM12345678", "MDRM", "US"),
-                        new AttributeRegistrationRequestDto("AMOUNT", "Amount Dup", "INTEGER", "MDRM99999999", "MDRM", "US"),
-                        new AttributeRegistrationRequestDto("BALANCE", "Balance", "DECIMAL", "MDRM12345678", "MDRM", "US")
+                        new AttributeRegistrationRequestDto("AMOUNT", "Amount", "DECIMAL", "MDRM12345678", "MDRM", "US", true, false, false),
+                        new AttributeRegistrationRequestDto("AMOUNT", "Amount Dup", "INTEGER", "MDRM99999999", "MDRM", "US", false, false, true),
+                        new AttributeRegistrationRequestDto("BALANCE", "Balance", "DECIMAL", "MDRM12345678", "MDRM", "US", false, true, true)
                 )
         ));
 
@@ -119,9 +137,12 @@ class ObjectRegistrationServiceImplTest {
     void surfacesPolicyBlockBeforePersistingWrites() {
         TransactionHarness harness = new TransactionHarness();
         RecordingObjectRegistrationWriteDao dao = new RecordingObjectRegistrationWriteDao(harness);
+        RecordingTaxonomyPolicyClient policyClient = new RecordingTaxonomyPolicyClient(
+                new TaxonomyPolicyDecisionDto(false, "taxonomy.jurisdiction_valid", "Taxonomy jurisdiction is invalid")
+        );
         ObjectRegistrationServiceImpl service = new ObjectRegistrationServiceImpl(
                 dao,
-                request -> new TaxonomyPolicyDecisionDto(false, "taxonomy.jurisdiction_valid", "Taxonomy jurisdiction is invalid"),
+                policyClient,
                 new RecordingTransactionOperations(harness)
         );
 
@@ -139,11 +160,16 @@ class ObjectRegistrationServiceImplTest {
                         "DECIMAL",
                         "MDRM12345678",
                         "MDRM",
-                        "US"
+                        "US",
+                        true,
+                        false,
+                        false
                 ))
         )));
 
         assertEquals("taxonomy.jurisdiction_valid", exception.code());
+        assertEquals(1, policyClient.recordedRequests.size());
+        assertEquals("client-a", policyClient.recordedRequests.get(0).client_id());
         assertEquals(0, dao.committedObjects.size());
         assertEquals(0, dao.committedMetadataChanges.size());
         assertTrue(!harness.committed);
@@ -173,7 +199,10 @@ class ObjectRegistrationServiceImplTest {
                         "DECIMAL",
                         "MDRM12345678",
                         "MDRM",
-                        "US"
+                        "US",
+                        true,
+                        false,
+                        false
                 ))
         )));
 
@@ -234,6 +263,9 @@ class ObjectRegistrationServiceImplTest {
                     request.taxonomy_cd(),
                     request.taxonomy_source_cd(),
                     request.taxonomy_jurisdiction_cd(),
+                    request.pk_flg(),
+                    request.fk_flg(),
+                    request.nullable_flg(),
                     request.created_ts(),
                     request.created_by(),
                     request.updated_ts(),
@@ -277,6 +309,22 @@ class ObjectRegistrationServiceImplTest {
             );
             harness.addMetadataChange(record, committedMetadataChanges);
             return record;
+        }
+    }
+
+    private static final class RecordingTaxonomyPolicyClient implements TaxonomyPolicyClient {
+
+        private final TaxonomyPolicyDecisionDto decision;
+        private final List<TaxonomyPolicyRequestDto> recordedRequests = new ArrayList<>();
+
+        private RecordingTaxonomyPolicyClient(TaxonomyPolicyDecisionDto decision) {
+            this.decision = decision;
+        }
+
+        @Override
+        public TaxonomyPolicyDecisionDto validateJurisdiction(TaxonomyPolicyRequestDto request) {
+            recordedRequests.add(request);
+            return decision;
         }
     }
 
@@ -324,6 +372,9 @@ class ObjectRegistrationServiceImplTest {
                     request.taxonomy_cd(),
                     request.taxonomy_source_cd(),
                     request.taxonomy_jurisdiction_cd(),
+                    request.pk_flg(),
+                    request.fk_flg(),
+                    request.nullable_flg(),
                     request.created_ts(),
                     request.created_by(),
                     request.updated_ts(),

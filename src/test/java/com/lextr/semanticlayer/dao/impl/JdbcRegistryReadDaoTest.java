@@ -76,6 +76,7 @@ class JdbcRegistryReadDaoTest {
 
         SchemaCatalogRecord result = dao.findSchema("client-a", "meta").orElseThrow();
 
+        assertTrue(jdbcTemplate.recordedSql.contains("client_id = :client_id"));
         assertTrue(jdbcTemplate.recordedSql.contains("schema_cd = :schema_cd"));
         assertEquals("client-a", jdbcTemplate.recordedParameters.get("client_id"));
         assertEquals("meta", jdbcTemplate.recordedParameters.get("schema_cd"));
@@ -111,6 +112,7 @@ class JdbcRegistryReadDaoTest {
 
         DataConnectionRecord result = dao.findConnection("client-a", connectionId).orElseThrow();
 
+        assertTrue(jdbcTemplate.recordedSql.contains("client_id = :client_id"));
         assertTrue(jdbcTemplate.recordedSql.contains("connection_id = :connection_id"));
         assertEquals("client-a", jdbcTemplate.recordedParameters.get("client_id"));
         assertEquals(connectionId, jdbcTemplate.recordedParameters.get("connection_id"));

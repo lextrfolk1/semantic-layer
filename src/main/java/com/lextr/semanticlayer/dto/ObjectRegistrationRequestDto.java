@@ -13,7 +13,7 @@ public record ObjectRegistrationRequestDto(
         @NotBlank String client_id,
         @NotBlank String object_cd,
         @NotBlank
-        @Size(max = 32)
+        @Size(max = 32, message = "object_nm must be 32 characters or less")
         String object_nm,
         @NotBlank String object_type_cd,
         @NotBlank String schema_cd,

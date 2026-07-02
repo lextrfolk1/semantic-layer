@@ -70,7 +70,7 @@ class FilterLookupCertificationControllerTest {
     }
 
     @Test
-    void rejectsCertifiedByLongerThanOneHundredCharacters() throws Exception {
+    void rejectsCertifiedByLongerThanThirtyTwoCharacters() throws Exception {
         MockMvc mockMvc = mockMvc(new RecordingFilterLookupCertificationService());
 
         mockMvc.perform(post("/api/filter-lookups/{lookup_code}/certify", "LEDGER_SCOPE")
@@ -78,7 +78,7 @@ class FilterLookupCertificationControllerTest {
                         .content("""
                                 {
                                   "client_id": "client-a",
-                                  "certified_by": "12345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901"
+                                  "certified_by": "123456789012345678901234567890123"
                                 }
                                 """))
                 .andExpect(status().isBadRequest());

@@ -138,7 +138,7 @@ public class ControllerExecutionTimeAspect {
                                    String requestSummary,
                                    long elapsedMillis) {
         if ("controller".equals(layer)) {
-            logger.info(
+            logger.debug(
                     "Handled request {} via {}.{} in {} ms",
                     requestSummary,
                     targetClass.getSimpleName(),
@@ -148,7 +148,7 @@ public class ControllerExecutionTimeAspect {
             return;
         }
 
-        logger.info(
+        logger.debug(
                 "Completed {} {}.{} in {} ms{}",
                 layer,
                 targetClass.getSimpleName(),

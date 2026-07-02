@@ -5,12 +5,16 @@ import com.lextr.semanticlayer.dto.LogicalHierarchyDto;
 import com.lextr.semanticlayer.model.LogicalHierarchyLevelRecord;
 import com.lextr.semanticlayer.model.LogicalHierarchyRecord;
 import com.lextr.semanticlayer.service.HierarchyService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 
 @Service
 public class HierarchyServiceImpl implements HierarchyService {
+
+    private static final Logger logger = LoggerFactory.getLogger(HierarchyServiceImpl.class);
 
     private final HierarchyDao hierarchyDao;
 
@@ -20,16 +24,24 @@ public class HierarchyServiceImpl implements HierarchyService {
 
     @Override
     public List<LogicalHierarchyDto> findAll(String tenantCd) {
+        logger.debug("Listing hierarchies. tenantCode={}", tenantCd);
         List<LogicalHierarchyRecord> hierarchies = hierarchyDao.findAll(tenantCd);
-        return hierarchies.stream().map(this::toDto).toList();
+        List<LogicalHierarchyDto> results = hierarchies.stream().map(this::toDto).toList();
+        logger.debug("Hierarchies resolved. tenantCode={}, resultCount={}", tenantCd, results.size());
+        return results;
     }
 
     @Override
     public LogicalHierarchyDto createHierarchy(String hierarchyCd, String hierarchyNm, String tenantCd,
                                                 String hierarchyStatusCd, String createdBy) {
+        logger.debug("Creating hierarchy. tenantCode={}, hierarchyCode={}, hierarchyStatusCode={}",
+                tenantCd, hierarchyCd, hierarchyStatusCd);
         LogicalHierarchyRecord record = hierarchyDao.insert(hierarchyCd, hierarchyNm, tenantCd,
                 hierarchyStatusCd, createdBy);
-        return toDto(record);
+        LogicalHierarchyDto hierarchy = toDto(record);
+        logger.info("Hierarchy created. tenantCode={}, hierarchyCode={}, levelCount={}",
+                tenantCd, hierarchyCd, hierarchy.levels().size());
+        return hierarchy;
     }
 
     private LogicalHierarchyDto toDto(LogicalHierarchyRecord record) {

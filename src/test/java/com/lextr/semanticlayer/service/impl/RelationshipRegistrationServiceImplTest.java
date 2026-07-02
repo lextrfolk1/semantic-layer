@@ -18,6 +18,7 @@ import com.lextr.semanticlayer.model.ObjectCatalogWriteRequest;
 import com.lextr.semanticlayer.model.ObjectExposureRecord;
 import com.lextr.semanticlayer.model.RelationshipGraphProjectionRequest;
 import com.lextr.semanticlayer.exception.PolicyViolationException;
+import com.lextr.semanticlayer.exception.RelationshipAlreadyExistsException;
 import com.lextr.semanticlayer.exception.RelationshipRegistrationServiceException;
 import com.lextr.semanticlayer.model.SemanticRelationshipCatalogRecord;
 import com.lextr.semanticlayer.model.SemanticRelationshipCatalogWriteRequest;
@@ -30,6 +31,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionOperations;
+import org.springframework.dao.DuplicateKeyException;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -138,6 +140,87 @@ class RelationshipRegistrationServiceImplTest {
         assertEquals("DRAFT", response.lifecycle_status_cd());
         assertEquals("FOREIGN_KEY", response.relationship_type_cd());
         assertNotNull(response.neo4j_synced_ts());
+    }
+
+    @Test
+    void registersSelfRelationshipOnTheSameObjectWhenPolicyAllows() {
+        TransactionHarness harness = new TransactionHarness();
+        RecordingRelationshipRegistrationWriteDao relationshipDao = new RecordingRelationshipRegistrationWriteDao(harness);
+        relationshipDao.response = new SemanticRelationshipCatalogRecord(
+                202L,
+                "SELF_RELATIONSHIP",
+                "meta",
+                "external_rule_result",
+                "client_id",
+                "meta",
+                "external_rule_result",
+                "client_id",
+                "FOREIGN_KEY",
+                "ONE_TO_ONE",
+                "INNER",
+                true,
+                false,
+                false,
+                "Self join testing",
+                "Join on client_id = client_id",
+                null,
+                "DRAFT",
+                OffsetDateTime.parse("2026-06-17T10:15:30Z"),
+                "producer",
+                OffsetDateTime.parse("2026-06-17T10:15:30Z"),
+                "producer"
+        );
+        RecordingObjectRegistrationWriteDao sideEffectDao = new RecordingObjectRegistrationWriteDao(harness);
+        ObjectExposureRecord object = objectRecord("client-a", "meta", "external_rule_result", UUID.fromString("00000000-0000-0000-0000-000000000203"));
+        RecordingObjectExposureReadDao objectReadDao = new RecordingObjectExposureReadDao(object, object);
+        RecordingRegistryReadDao registryReadDao = new RecordingRegistryReadDao(
+                connectionRecord(UUID.fromString("00000000-0000-0000-0000-000000000203"), "POSTGRES"),
+                connectionRecord(UUID.fromString("00000000-0000-0000-0000-000000000203"), "POSTGRES")
+        );
+        RecordingRelationshipPolicyClient policyClient = new RecordingRelationshipPolicyClient(
+                new RelationshipPolicyDecisionDto(true, null, null)
+        );
+        RecordingRelationshipGraphProjectionClient projectionClient = new RecordingRelationshipGraphProjectionClient(true);
+        RelationshipRegistrationServiceImpl service = new RelationshipRegistrationServiceImpl(
+                relationshipDao,
+                sideEffectDao,
+                objectReadDao,
+                registryReadDao,
+                projectionClient,
+                policyClient,
+                new RecordingTransactionOperations(harness)
+        );
+
+        RelationshipRegistrationResponseDto response = service.registerRelationship(new RelationshipRegistrationRequestDto(
+                "SELF_RELATIONSHIP",
+                "meta",
+                "external_rule_result",
+                "client_id",
+                "meta",
+                "external_rule_result",
+                "client_id",
+                "FOREIGN_KEY",
+                "ONE_TO_ONE",
+                "INNER",
+                true,
+                false,
+                false,
+                "Self join testing",
+                "Join on client_id = client_id",
+                "producer"
+        ));
+
+        assertTrue(harness.committed);
+        assertEquals("SELF_RELATIONSHIP", relationshipDao.lastRequest.relationship_cd());
+        assertEquals("client-a", policyClient.lastRequest.client_id());
+        assertEquals("POSTGRES", policyClient.lastRequest.parent_engine_cd());
+        assertEquals("POSTGRES", policyClient.lastRequest.child_engine_cd());
+        assertTrue(!policyClient.lastRequest.is_cross_engine_flg());
+        assertEquals("client_id", relationshipDao.lastRequest.parent_attribute_cd());
+        assertEquals("client_id", relationshipDao.lastRequest.child_attribute_cd());
+        assertEquals(1, projectionClient.requests.size());
+        assertEquals(202L, response.id());
+        assertEquals("DRAFT", response.lifecycle_status_cd());
     }
 
     @Test
@@ -268,7 +351,55 @@ class RelationshipRegistrationServiceImplTest {
         assertEquals(0, sideEffectDao.committedMetadataChanges.size());
     }
 
-    private static final class RecordingRelationshipRegistrationWriteDao implements RelationshipRegistrationWriteDao {
+    @Test
+    void convertsDuplicateRelationshipCodesIntoConflictErrors() {
+        TransactionHarness harness = new TransactionHarness();
+        DuplicateRelationshipRegistrationWriteDao relationshipDao = new DuplicateRelationshipRegistrationWriteDao(harness);
+        RecordingObjectRegistrationWriteDao sideEffectDao = new RecordingObjectRegistrationWriteDao(harness);
+        RecordingObjectExposureReadDao objectReadDao = new RecordingObjectExposureReadDao(
+                objectRecord("client-a", "meta", "external_rule_result", UUID.fromString("00000000-0000-0000-0000-000000000203")),
+                objectRecord("client-a", "meta", "external_rule_result", UUID.fromString("00000000-0000-0000-0000-000000000203"))
+        );
+        RecordingRegistryReadDao registryReadDao = new RecordingRegistryReadDao(
+                connectionRecord(UUID.fromString("00000000-0000-0000-0000-000000000203"), "POSTGRES"),
+                connectionRecord(UUID.fromString("00000000-0000-0000-0000-000000000203"), "POSTGRES")
+        );
+        RelationshipRegistrationServiceImpl service = new RelationshipRegistrationServiceImpl(
+                relationshipDao,
+                sideEffectDao,
+                objectReadDao,
+                registryReadDao,
+                request -> true,
+                request -> new RelationshipPolicyDecisionDto(true, null, null),
+                new RecordingTransactionOperations(harness)
+        );
+
+        RelationshipAlreadyExistsException exception = assertThrows(RelationshipAlreadyExistsException.class, () -> service.registerRelationship(new RelationshipRegistrationRequestDto(
+                "SELF_RELATIONSHIP",
+                "meta",
+                "external_rule_result",
+                "client_id",
+                "meta",
+                "external_rule_result",
+                "client_id",
+                "FOREIGN_KEY",
+                "ONE_TO_ONE",
+                "INNER",
+                true,
+                false,
+                false,
+                "Self join testing",
+                "Join on client_id = client_id",
+                "producer"
+        )));
+
+        assertTrue(exception.getMessage().contains("SELF_RELATIONSHIP"));
+        assertTrue(harness.rolledBack);
+        assertEquals(0, sideEffectDao.committedWorkflowTasks.size());
+        assertEquals(0, sideEffectDao.committedMetadataChanges.size());
+    }
+
+    private static class RecordingRelationshipRegistrationWriteDao implements RelationshipRegistrationWriteDao {
 
         private final TransactionHarness harness;
         private SemanticRelationshipCatalogWriteRequest lastRequest;
@@ -405,6 +536,18 @@ class RelationshipRegistrationServiceImplTest {
         }
     }
 
+    private static final class DuplicateRelationshipRegistrationWriteDao extends RecordingRelationshipRegistrationWriteDao {
+
+        private DuplicateRelationshipRegistrationWriteDao(TransactionHarness harness) {
+            super(harness);
+        }
+
+        @Override
+        public SemanticRelationshipCatalogRecord insertRelationship(SemanticRelationshipCatalogWriteRequest request) {
+            throw new DuplicateKeyException("duplicate relationship");
+        }
+    }
+
     private static final class RecordingObjectExposureReadDao implements ObjectExposureReadDao {
 
         private final ObjectExposureRecord parentObject;
@@ -438,6 +581,19 @@ class RelationshipRegistrationServiceImplTest {
 
         @Override
         public List<com.lextr.semanticlayer.model.AttributeExposureRecord> findAttributes(String clientId, UUID objectId) {
+            throw new UnsupportedOperationException("Not used in relationship tests");
+        }
+
+        @Override
+        public List<com.lextr.semanticlayer.model.AttributeAccessGrantRecord> findAttributeAccessGrants(String clientId,
+                                                                                                        String schemaCode,
+                                                                                                        String objectCode,
+                                                                                                        String attributeCode) {
+            throw new UnsupportedOperationException("Not used in relationship tests");
+        }
+
+        @Override
+        public void insertAccessAudit(com.lextr.semanticlayer.model.ObjectExposureAccessAuditWriteRequest request) {
             throw new UnsupportedOperationException("Not used in relationship tests");
         }
     }
@@ -591,6 +747,9 @@ class RelationshipRegistrationServiceImplTest {
                 "TABLE",
                 schemaCode,
                 connectionId,
+                "INTERNAL",
+                false,
+                false,
                 "ACTIVE",
                 OffsetDateTime.parse("2026-06-17T10:15:30Z"),
                 "producer",

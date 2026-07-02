@@ -106,6 +106,7 @@ public class WorkflowApprovalWireThroughTest {
         jdbcTemplate.setResponses(List.of(
                 List.of(taskRow),
                 List.of(approvedTaskRow),
+                List.of(Map.of("id", 999L, "lookup_cd", "LEDGER_SCOPE", "governance_status_cd", "APPROVED")),
                 List.of(auditRow)
         ));
 
@@ -125,14 +126,15 @@ public class WorkflowApprovalWireThroughTest {
                 .andExpect(jsonPath("$.approved_by").value("approver"));
 
         // Verify JDBC operations
-        assertEquals(3, jdbcTemplate.recordedSqls().size());
+        assertEquals(4, jdbcTemplate.recordedSqls().size());
         assertTrue(jdbcTemplate.recordedSqls().get(0).contains("FROM wkfl.workflow_task"));
         assertTrue(jdbcTemplate.recordedSqls().get(1).contains("UPDATE wkfl.workflow_task"));
-        assertTrue(jdbcTemplate.recordedSqls().get(2).contains("INSERT INTO meta.metadata_change_history"));
+        assertTrue(jdbcTemplate.recordedSqls().get(2).contains("UPDATE meta.semantic_filter_lookup"));
+        assertTrue(jdbcTemplate.recordedSqls().get(3).contains("INSERT INTO meta.metadata_change_history"));
 
-        // Verify update SQL (approveLookup) was executed
-        assertEquals(1, jdbcTemplate.recordedUpdates().size());
-        assertTrue(jdbcTemplate.recordedUpdates().get(0).contains("UPDATE meta.semantic_filter_lookup"));
+        // Verify approveLookup ran as a returning query
+        assertEquals(0, jdbcTemplate.recordedUpdates().size());
+        assertEquals("client-a", jdbcTemplate.recordedParameters().get(2).get("client_id"));
         
         // Verify policy requests
         assertEquals(1, workflowPolicyClient.recordedRequests().size());
@@ -240,6 +242,61 @@ public class WorkflowApprovalWireThroughTest {
         // Verify update SQL (approveFilterLookupValue) was executed
         assertEquals(1, jdbcTemplate.recordedUpdates().size());
         assertTrue(jdbcTemplate.recordedUpdates().get(0).contains("UPDATE meta.filter_lookup_value"));
+    }
+
+    @Test
+    void rejectsFilterLookupRegistrationTaskEndToEnd() throws Exception {
+        OffsetDateTime submittedTs = OffsetDateTime.parse("2026-06-18T10:15:30Z");
+        Map<String, Object> taskRow = pendingTaskRow(304L, "FILTER_LOOKUP_REGISTRATION", "FILTER_LOOKUP", "LEDGER_SCOPE", submittedTs);
+
+        Map<String, Object> rejectedTaskRow = new HashMap<>(taskRow);
+        rejectedTaskRow.put("task_status_cd", "REJECTED");
+        rejectedTaskRow.put("approved_by", "rejecter");
+        rejectedTaskRow.put("approved_ts", OffsetDateTime.parse("2026-06-18T12:00:00Z"));
+        rejectedTaskRow.put("approval_note_txt", "not approved");
+
+        Map<String, Object> auditRow = new HashMap<>();
+        auditRow.put("id", 404L);
+        auditRow.put("entity_type_cd", "FILTER_LOOKUP");
+        auditRow.put("entity_ref", "LEDGER_SCOPE");
+        auditRow.put("change_type_cd", "REJECTED");
+        auditRow.put("changed_by", "rejecter");
+        auditRow.put("changed_ts", OffsetDateTime.parse("2026-06-18T12:00:00Z"));
+        auditRow.put("old_value_json", null);
+        auditRow.put("new_value_json", null);
+        auditRow.put("change_reason_txt", "Rejected workflow task 304");
+
+        jdbcTemplate.setResponses(List.of(
+                List.of(taskRow),
+                List.of(rejectedTaskRow),
+                List.of(auditRow)
+        ));
+
+        mockMvc.perform(post("/api/workflow-tasks/304/reject")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "rejected_by": "rejecter",
+                                  "rejection_note_txt": "not approved"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(304))
+                .andExpect(jsonPath("$.task_type_cd").value("FILTER_LOOKUP_REGISTRATION"))
+                .andExpect(jsonPath("$.task_status_cd").value("REJECTED"))
+                .andExpect(jsonPath("$.approved_by").value("rejecter"))
+                .andExpect(jsonPath("$.approval_note_txt").value("not approved"));
+
+        assertEquals(3, jdbcTemplate.recordedSqls().size());
+        assertTrue(jdbcTemplate.recordedSqls().get(0).contains("FROM wkfl.workflow_task"));
+        assertTrue(jdbcTemplate.recordedSqls().get(1).contains("UPDATE wkfl.workflow_task"));
+        assertTrue(jdbcTemplate.recordedSqls().get(2).contains("INSERT INTO meta.metadata_change_history"));
+
+        assertEquals(1, jdbcTemplate.recordedUpdates().size());
+        assertTrue(jdbcTemplate.recordedUpdates().get(0).contains("UPDATE meta.semantic_filter_lookup"));
+        assertEquals("client-a", jdbcTemplate.recordedUpdateParameters().get(0).get("client_id"));
+        assertEquals("rejecter", jdbcTemplate.recordedUpdateParameters().get(0).get("updated_by"));
+        assertEquals("SUSPENDED", jdbcTemplate.recordedUpdateParameters().get(0).get("governance_status_cd"));
     }
 
     @Test

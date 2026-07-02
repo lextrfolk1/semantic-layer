@@ -1,6 +1,7 @@
 package com.lextr.semanticlayer.api;
 
 import com.lextr.semanticlayer.dto.ApiErrorResponseDto;
+import com.lextr.semanticlayer.exception.OpaPolicyClientException;
 import com.lextr.semanticlayer.exception.PolicyViolationException;
 import com.lextr.semanticlayer.exception.SemanticLayerException;
 import org.springframework.core.annotation.AnnotatedElementUtils;
@@ -15,6 +16,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -30,12 +33,19 @@ public class ApiExceptionHandler {
     private static final String BAD_REQUEST_CODE = "BAD_REQUEST";
     private static final String VALIDATION_ERROR_CODE = "VALIDATION_ERROR";
     private static final String NOT_FOUND_CODE = "NOT_FOUND";
+    private static final String CONFLICT_CODE = "CONFLICT";
     private static final String UNPROCESSABLE_ENTITY_CODE = "UNPROCESSABLE_ENTITY";
+    private static final String SERVICE_UNAVAILABLE_CODE = "SERVICE_UNAVAILABLE";
     private static final String INTERNAL_SERVER_ERROR_CODE = "INTERNAL_SERVER_ERROR";
 
     @ExceptionHandler(PolicyViolationException.class)
     public ResponseEntity<ApiErrorResponseDto> handlePolicyViolation(PolicyViolationException exception) {
         return buildResponse(HttpStatus.UNPROCESSABLE_ENTITY, exception.code(), exception.getMessage(), exception);
+    }
+
+    @ExceptionHandler(OpaPolicyClientException.class)
+    public ResponseEntity<ApiErrorResponseDto> handleOpaPolicyClientException(OpaPolicyClientException exception) {
+        return buildResponse(HttpStatus.SERVICE_UNAVAILABLE, SERVICE_UNAVAILABLE_CODE, exception.getMessage(), exception);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -73,10 +83,45 @@ public class ApiExceptionHandler {
         );
     }
 
+    @ExceptionHandler({NoHandlerFoundException.class, NoResourceFoundException.class})
+    public ResponseEntity<ApiErrorResponseDto> handleNotFound(Exception exception) {
+        return buildResponse(HttpStatus.NOT_FOUND, NOT_FOUND_CODE, exception.getMessage(), exception);
+    }
+
     @ExceptionHandler(SemanticLayerException.class)
     public ResponseEntity<ApiErrorResponseDto> handleSemanticLayerException(SemanticLayerException exception) {
         HttpStatus status = resolveStatus(exception);
         return buildResponse(status, statusCodeFor(status), exception.getMessage(), exception);
+    }
+
+    @ExceptionHandler(org.springframework.jdbc.BadSqlGrammarException.class)
+    public ResponseEntity<ApiErrorResponseDto> handleBadSqlGrammar(org.springframework.jdbc.BadSqlGrammarException exception) {
+        return buildResponse(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                INTERNAL_SERVER_ERROR_CODE,
+                "Database query execution failed due to a schema mismatch or SQL grammar error.",
+                exception
+        );
+    }
+
+    @ExceptionHandler(org.springframework.dao.DataAccessResourceFailureException.class)
+    public ResponseEntity<ApiErrorResponseDto> handleDataAccessResourceFailure(org.springframework.dao.DataAccessResourceFailureException exception) {
+        return buildResponse(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                SERVICE_UNAVAILABLE_CODE,
+                "Database connection is unavailable. Please check if the database is running.",
+                exception
+        );
+    }
+
+    @ExceptionHandler(org.springframework.dao.DataAccessException.class)
+    public ResponseEntity<ApiErrorResponseDto> handleDataAccessException(org.springframework.dao.DataAccessException exception) {
+        return buildResponse(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                INTERNAL_SERVER_ERROR_CODE,
+                "A database error occurred: " + Optional.ofNullable(exception.getRootCause()).map(Throwable::getMessage).orElse(exception.getMessage()),
+                exception
+        );
     }
 
     @ExceptionHandler(Exception.class)
@@ -118,7 +163,9 @@ public class ApiExceptionHandler {
         return switch (status) {
             case BAD_REQUEST -> BAD_REQUEST_CODE;
             case NOT_FOUND -> NOT_FOUND_CODE;
+            case CONFLICT -> CONFLICT_CODE;
             case UNPROCESSABLE_ENTITY -> UNPROCESSABLE_ENTITY_CODE;
+            case SERVICE_UNAVAILABLE -> SERVICE_UNAVAILABLE_CODE;
             default -> INTERNAL_SERVER_ERROR_CODE;
         };
     }

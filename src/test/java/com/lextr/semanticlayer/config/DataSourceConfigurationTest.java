@@ -136,6 +136,21 @@ class DataSourceConfigurationTest {
     }
 
     @Test
+    void datasourcePropertiesRejectMissingRequiredFields() {
+        contextRunner
+                .withPropertyValues(
+                        "app.datasource.primary=primaryDataSource",
+                        "app.datasource.datasources.primaryDataSource.username=sa",
+                        "app.datasource.datasources.primaryDataSource.password=",
+                        "app.datasource.datasources.primaryDataSource.driver-class-name=org.h2.Driver"
+                )
+                .run(context -> {
+                    assertNotNull(context.getStartupFailure());
+                    assertTrue(context.getStartupFailure().getMessage().contains("Could not bind properties to 'DataSourceProperties'"));
+                });
+    }
+
+    @Test
     void startupFailsWhenConfiguredPrimaryDatasourceIsUnavailable() {
         contextRunner
                 .withPropertyValues(
@@ -161,8 +176,17 @@ class DataSourceConfigurationTest {
         try (ConfigurableApplicationContext context = run("test")) {
             assertEquals("false", context.getEnvironment().getProperty("spring.cloud.config.enabled"));
             assertEquals("primaryDataSource", context.getEnvironment().getProperty("app.datasource.primary"));
-            assertNotNull(context.getBean(DataSource.class));
-            assertNotNull(context.getBean(NamedParameterJdbcTemplate.class));
+            DataSourceProperties properties = context.getBean(DataSourceProperties.class);
+            DataSourceConfig dataSourceConfig = context.getBean(DataSourceConfig.class);
+            DataSource primaryDataSource = context.getBean(DataSource.class);
+            NamedParameterJdbcTemplate jdbcTemplate = context.getBean(NamedParameterJdbcTemplate.class);
+
+            assertEquals("primaryDataSource", properties.getPrimary());
+            assertEquals("jdbc:h2:mem:semantic-layer;DB_CLOSE_DELAY=-1;MODE=PostgreSQL", properties.getDataSources().get("primaryDataSource").getUrl());
+            assertSame(dataSourceConfig.getDataSource("primaryDataSource"), primaryDataSource);
+            assertSame(primaryDataSource, jdbcTemplate.getJdbcTemplate().getDataSource());
+            assertEquals("HikariPool-Test", ((HikariDataSource) primaryDataSource).getPoolName());
+            assertNull(dataSourceConfig.getDataSource("clickHouseDataSource"));
             assertNotNull(context.getBean(JdbcTemplateConfig.SEMANTIC_LAYER_TRANSACTION_OPERATIONS, TransactionOperations.class));
         }
     }

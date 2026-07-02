@@ -5,10 +5,14 @@ import com.lextr.semanticlayer.dto.FilterLookupPreviewValueDto;
 import com.lextr.semanticlayer.model.FilterLookupPreviewValueRecord;
 import com.lextr.semanticlayer.model.SemanticFilterLookupRecord;
 import com.lextr.semanticlayer.service.FilterLookupSqlPreviewClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 
 public class JdbcFilterLookupSqlPreviewClient implements FilterLookupSqlPreviewClient {
+
+    private static final Logger logger = LoggerFactory.getLogger(JdbcFilterLookupSqlPreviewClient.class);
 
     private final FilterLookupReadDao filterLookupReadDao;
 
@@ -18,9 +22,14 @@ public class JdbcFilterLookupSqlPreviewClient implements FilterLookupSqlPreviewC
 
     @Override
     public List<FilterLookupPreviewValueDto> previewDistinctValues(String clientId, SemanticFilterLookupRecord lookup) {
-        return filterLookupReadDao.findSqlValues(clientId, lookup).stream()
+        logger.debug("Previewing SQL filter lookup values. clientId={}, lookupCode={}, executionStrategyCode={}",
+                clientId, lookup.lookup_cd(), lookup.execution_strategy_cd());
+        List<FilterLookupPreviewValueDto> values = filterLookupReadDao.findSqlValues(clientId, lookup).stream()
                 .map(this::toDto)
                 .toList();
+        logger.debug("SQL filter lookup values resolved. clientId={}, lookupCode={}, resultCount={}",
+                clientId, lookup.lookup_cd(), values.size());
+        return values;
     }
 
     private FilterLookupPreviewValueDto toDto(FilterLookupPreviewValueRecord record) {

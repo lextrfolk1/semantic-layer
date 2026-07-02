@@ -63,3 +63,5 @@ valid_jurisdiction_length if {
 }
 
 expected_jurisdiction_length["MDRM"] := 2
+expected_jurisdiction_length["LEXTR_ASSIGNED"] := 2
+expected_jurisdiction_length["REG_DEFINED"] := 2

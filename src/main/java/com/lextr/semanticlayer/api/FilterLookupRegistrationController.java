@@ -20,6 +20,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -38,6 +40,8 @@ import java.util.List;
 @RequestMapping("/api/filter-lookups")
 @Tag(name = "Filter Lookups", description = "Filter lookup registration, preview, binding, certification, and read operations.")
 public class FilterLookupRegistrationController {
+
+    private static final Logger logger = LoggerFactory.getLogger(FilterLookupRegistrationController.class);
 
     private final FilterLookupRegistrationService filterLookupRegistrationService;
     private final FilterLookupReadService filterLookupReadService;
@@ -115,14 +119,26 @@ public class FilterLookupRegistrationController {
     @Operation(summary = "Register filter lookup", description = "Registers a governed filter lookup.")
     public FilterLookupRegistrationResponseDto registerFilterLookup(
             @Valid @RequestBody FilterLookupRegistrationRequestDto request) {
-        return filterLookupRegistrationService.registerFilterLookup(request);
+        logger.debug(
+                "Registering filter lookup. clientId={}, lookupCode={}, constructionTypeCode={}, executionStrategyCode={}",
+                request.client_id(),
+                request.lookup_cd(),
+                request.construction_type_cd(),
+                request.execution_strategy_cd()
+        );
+        FilterLookupRegistrationResponseDto response = filterLookupRegistrationService.registerFilterLookup(request);
+        logger.debug("Filter lookup registered. clientId={}, lookupCode={}", request.client_id(), request.lookup_cd());
+        return response;
     }
 
     @PostMapping("/preview")
     @Operation(summary = "Preview filter lookups", description = "Previews filter lookup output for one or more lookup codes.")
     public List<FilterLookupPreviewResponseDto> previewLookups(
             @Valid @RequestBody FilterLookupPreviewRequestDto request) {
-        return filterLookupPreviewService.previewLookups(request);
+        logger.debug("Previewing filter lookups. clientId={}, lookupCodeCount={}", request.client_id(), request.lookup_codes().size());
+        List<FilterLookupPreviewResponseDto> previews = filterLookupPreviewService.previewLookups(request);
+        logger.debug("Filter lookup preview resolved. clientId={}, resultCount={}", request.client_id(), previews.size());
+        return previews;
     }
 
     @PostMapping("/{lookup_code}/bindings")
@@ -131,7 +147,17 @@ public class FilterLookupRegistrationController {
     public FilterLookupBindingResponseDto bindLookup(
             @Parameter(description = "Lookup code.") @PathVariable("lookup_code") String lookupCode,
             @Valid @RequestBody FilterLookupBindingRequestDto request) {
-        return filterLookupBindingService.bindLookup(lookupCode, request);
+        logger.debug(
+                "Binding filter lookup. clientId={}, lookupCode={}, boundObject={}, bindingContextCode={}",
+                request.client_id(),
+                lookupCode,
+                request.bound_obj(),
+                request.binding_context_cd()
+        );
+        FilterLookupBindingResponseDto response = filterLookupBindingService.bindLookup(lookupCode, request);
+        logger.debug("Filter lookup bound. clientId={}, lookupCode={}, bindingContextCode={}",
+                request.client_id(), lookupCode, request.binding_context_cd());
+        return response;
     }
 
     @PostMapping("/{lookup_code}/certify")
@@ -139,7 +165,11 @@ public class FilterLookupRegistrationController {
     public FilterLookupEffectiveReviewDto certifyLookup(
             @Parameter(description = "Lookup code.") @PathVariable("lookup_code") String lookupCode,
             @Valid @RequestBody FilterLookupCertificationRequestDto request) {
-        return filterLookupCertificationService.certifyLookup(lookupCode, request);
+        logger.debug("Certifying filter lookup. clientId={}, lookupCode={}", request.client_id(), lookupCode);
+        FilterLookupEffectiveReviewDto review = filterLookupCertificationService.certifyLookup(lookupCode, request);
+        logger.debug("Filter lookup certified. clientId={}, lookupCode={}, governanceStatusCode={}",
+                request.client_id(), lookupCode, review.governance_status_cd());
+        return review;
     }
 
     @GetMapping
@@ -149,7 +179,17 @@ public class FilterLookupRegistrationController {
             @Parameter(description = "Optional governance status filter.") @RequestParam(value = "governance_status_cd", required = false) String governanceStatusCode,
             @Parameter(description = "Optional health status filter.") @RequestParam(value = "health_status_cd", required = false) String healthStatusCode,
             @Parameter(description = "Optional lifecycle status filter.") @RequestParam(value = "lifecycle_status_cd", required = false) String lifecycleStatusCode) {
-        return filterLookupReadService.findLookups(clientId, governanceStatusCode, healthStatusCode, lifecycleStatusCode);
+        logger.debug(
+                "Listing filter lookups. clientId={}, governanceStatusCode={}, healthStatusCode={}, lifecycleStatusCode={}",
+                clientId,
+                governanceStatusCode,
+                healthStatusCode,
+                lifecycleStatusCode
+        );
+        List<FilterLookupEffectiveReviewDto> lookups =
+                filterLookupReadService.findLookups(clientId, governanceStatusCode, healthStatusCode, lifecycleStatusCode);
+        logger.debug("Filter lookups resolved. clientId={}, resultCount={}", clientId, lookups.size());
+        return lookups;
     }
 
     @GetMapping("/{lookup_code}")
@@ -157,7 +197,11 @@ public class FilterLookupRegistrationController {
     public FilterLookupEffectiveReviewDto findLookup(
             @Parameter(description = "Tenant identifier.") @RequestParam("client_id") String clientId,
             @Parameter(description = "Lookup code.") @PathVariable("lookup_code") String lookupCode) {
-        return filterLookupReadService.findLookup(clientId, lookupCode);
+        logger.debug("Fetching filter lookup. clientId={}, lookupCode={}", clientId, lookupCode);
+        FilterLookupEffectiveReviewDto lookup = filterLookupReadService.findLookup(clientId, lookupCode);
+        logger.debug("Filter lookup resolved. clientId={}, lookupCode={}, governanceStatusCode={}",
+                clientId, lookupCode, lookup.governance_status_cd());
+        return lookup;
     }
 
     private static final class MissingFilterLookupCertificationService implements FilterLookupCertificationService {

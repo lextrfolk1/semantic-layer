@@ -8,6 +8,8 @@ import com.lextr.semanticlayer.exception.SemanticLayerException;
 import com.lextr.semanticlayer.model.GovernancePolicyPresetRecord;
 import com.lextr.semanticlayer.model.SemanticFilterLookupRecord;
 import com.lextr.semanticlayer.service.FilterLookupReadService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -16,6 +18,8 @@ import java.util.List;
 
 @Service
 public class FilterLookupReadServiceImpl implements FilterLookupReadService {
+
+    private static final Logger logger = LoggerFactory.getLogger(FilterLookupReadServiceImpl.class);
 
     private static final String GOVERNANCE_POLICY_CD = "GOV-FL-001";
     private static final String POLICY_SCOPE_CD = "FILTER_LOOKUP";
@@ -37,18 +41,32 @@ public class FilterLookupReadServiceImpl implements FilterLookupReadService {
                                                             String governanceStatusCode,
                                                             String healthStatusCode,
                                                             String lifecycleStatusCode) {
+        logger.debug(
+                "Finding filter lookups. clientId={}, governanceStatusCode={}, healthStatusCode={}, lifecycleStatusCode={}",
+                clientId,
+                governanceStatusCode,
+                healthStatusCode,
+                lifecycleStatusCode
+        );
         int reviewPeriodFloorDays = findReviewPeriodFloorDays();
-        return filterLookupReadDao.findLookups(clientId, governanceStatusCode, healthStatusCode, lifecycleStatusCode).stream()
+        List<FilterLookupEffectiveReviewDto> lookups = filterLookupReadDao.findLookups(clientId, governanceStatusCode, healthStatusCode, lifecycleStatusCode).stream()
                 .map(record -> toDto(record, reviewPeriodFloorDays, filterLookupReadDao.countValues(clientId, record.lookup_cd())))
                 .toList();
+        logger.debug("Filter lookups resolved. clientId={}, resultCount={}", clientId, lookups.size());
+        return lookups;
     }
 
     @Override
     public FilterLookupEffectiveReviewDto findLookup(String clientId, String lookupCode) {
+        logger.debug("Finding filter lookup. clientId={}, lookupCode={}", clientId, lookupCode);
         int reviewPeriodFloorDays = findReviewPeriodFloorDays();
         SemanticFilterLookupRecord record = filterLookupReadDao.findLookup(clientId, lookupCode)
                 .orElseThrow(() -> new RegistryResourceNotFoundException("filter lookup", lookupCode));
-        return toDto(record, reviewPeriodFloorDays, filterLookupReadDao.countValues(clientId, lookupCode));
+        FilterLookupEffectiveReviewDto lookup =
+                toDto(record, reviewPeriodFloorDays, filterLookupReadDao.countValues(clientId, lookupCode));
+        logger.debug("Filter lookup resolved. clientId={}, lookupCode={}, governanceStatusCode={}",
+                clientId, lookupCode, lookup.governance_status_cd());
+        return lookup;
     }
 
     private int findReviewPeriodFloorDays() {
@@ -61,8 +79,13 @@ public class FilterLookupReadServiceImpl implements FilterLookupReadService {
                         "Unable to resolve governance policy " + GOVERNANCE_POLICY_CD
                 ));
         try {
-            return Integer.parseInt(policy.default_value_txt());
+            int reviewPeriodFloorDays = Integer.parseInt(policy.default_value_txt());
+            logger.debug("Resolved filter lookup review period floor. policyCode={}, reviewPeriodFloorDays={}",
+                    policy.policy_cd(), reviewPeriodFloorDays);
+            return reviewPeriodFloorDays;
         } catch (RuntimeException exception) {
+            logger.error("Failed to parse filter lookup governance policy. policyCode={}, errorMessage={}",
+                    policy.policy_cd(), exception.getMessage(), exception);
             throw new SemanticLayerException(
                     "Unable to parse governance policy value for " + policy.policy_cd(),
                     exception

@@ -14,6 +14,8 @@ import com.lextr.semanticlayer.model.AttributePairingCatalogRecord;
 import com.lextr.semanticlayer.model.AttributePairingValueCacheRecord;
 import com.lextr.semanticlayer.model.AttributePairingValueCacheWriteRequest;
 import com.lextr.semanticlayer.service.AttributePairingResolutionService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -26,6 +28,8 @@ import java.util.Optional;
 
 @Service
 public class AttributePairingResolutionServiceImpl implements AttributePairingResolutionService {
+
+    private static final Logger logger = LoggerFactory.getLogger(AttributePairingResolutionServiceImpl.class);
 
     private final AttributePairingResolutionDao attributePairingResolutionDao;
     private final ObjectMapper objectMapper;
@@ -49,6 +53,8 @@ public class AttributePairingResolutionServiceImpl implements AttributePairingRe
 
     @Override
     public AttributePairingResolutionResponseDto resolvePairing(AttributePairingResolutionRequestDto request) {
+        logger.debug("Resolving attribute pairing. clientId={}, schemaCode={}, objectCode={}, displayAttributeCode={}",
+                request.client_id(), request.schema_cd(), request.object_cd(), request.display_attribute_cd());
         AttributePairingCatalogRecord pairing = attributePairingResolutionDao.findActivePairing(
                         request.client_id(),
                         request.schema_cd(),
@@ -69,13 +75,17 @@ public class AttributePairingResolutionServiceImpl implements AttributePairingRe
         );
         if (cachedValue.isPresent()) {
             AttributePairingValueCacheRecord cacheRecord = cachedValue.get();
+            logger.debug("Attribute pairing cache hit. clientId={}, pairingCode={}", request.client_id(), pairing.pairing_cd());
             attributePairingResolutionDao.recordCacheHit(new AttributePairingCacheHitWriteRequest(
                     cacheRecord.pairing_cd(),
                     cacheRecord.display_value_txt(),
                     cacheRecord.client_id(),
                     now
             ));
-            return toResponse(pairing, cacheRecord, true);
+            AttributePairingResolutionResponseDto response = toResponse(pairing, cacheRecord, true);
+            logger.debug("Attribute pairing resolved from cache. clientId={}, pairingCode={}, oneToMany={}",
+                    request.client_id(), pairing.pairing_cd(), response.is_one_to_many_flg());
+            return response;
         }
 
         ResolvedValue resolvedValue = resolveValueFromInlineMap(pairing, request.display_value_txt());
@@ -94,11 +104,15 @@ public class AttributePairingResolutionServiceImpl implements AttributePairingRe
                                 : null
                 )
         );
-        return toResponse(pairing, cacheRecord, false);
+        AttributePairingResolutionResponseDto response = toResponse(pairing, cacheRecord, false);
+        logger.debug("Attribute pairing resolved. clientId={}, pairingCode={}, cached={}, oneToMany={}",
+                request.client_id(), pairing.pairing_cd(), false, response.is_one_to_many_flg());
+        return response;
     }
 
     private ResolvedValue resolveValueFromInlineMap(AttributePairingCatalogRecord pairing, String displayValue) {
         if (pairing.lookup_inline_map_jsonb() == null || pairing.lookup_inline_map_jsonb().isBlank()) {
+            logger.warn("Attribute pairing inline map missing. pairingCode={}", pairing.pairing_cd());
             throw new AttributePairingResolutionServiceException(
                     "Attribute pairing " + pairing.pairing_cd() + " does not define an inline lookup map"
             );
@@ -112,6 +126,7 @@ public class AttributePairingResolutionServiceImpl implements AttributePairingRe
             );
             Object resolved = valueMap.get(displayValue);
             if (resolved == null) {
+                logger.warn("Attribute pairing value not found. pairingCode={}", pairing.pairing_cd());
                 throw new RegistryResourceNotFoundException("attribute pairing value", displayValue);
             }
             if (resolved instanceof List<?> list) {
@@ -119,6 +134,8 @@ public class AttributePairingResolutionServiceImpl implements AttributePairingRe
             }
             return new ResolvedValue(String.valueOf(resolved), false);
         } catch (JsonProcessingException exception) {
+            logger.error("Failed to resolve attribute pairing inline map. pairingCode={}, errorMessage={}",
+                    pairing.pairing_cd(), exception.getMessage(), exception);
             throw new AttributePairingResolutionServiceException(
                     "Unable to resolve attribute pairing " + pairing.pairing_cd() + " from inline map",
                     exception

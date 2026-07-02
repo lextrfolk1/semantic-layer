@@ -17,6 +17,8 @@ class TaxonomyJurisdictionPolicyAssetsTest {
         assertTrue(policy.contains("package lextr.semantic.taxonomy"));
         assertTrue(policy.contains("default evaluate :="));
         assertTrue(policy.contains("\"code\": \"taxonomy.jurisdiction_valid\""));
+        assertTrue(policy.contains("\"message\": \"taxonomy.jurisdiction_valid: unknown or invalid input\""));
+        assertTrue(policy.contains("\"message\": \"taxonomy.jurisdiction_valid: allow\""));
         assertTrue(policy.contains("expected_jurisdiction_length[\"MDRM\"] := 2"));
     }
 
@@ -30,7 +32,13 @@ class TaxonomyJurisdictionPolicyAssetsTest {
         assertTrue(tests.contains("test_evaluate_denies_invalid_taxonomy_cd_length"));
         assertTrue(tests.contains("test_evaluate_denies_invalid_jurisdiction_length"));
         assertTrue(tests.contains("test_evaluate_defaults_deny_on_unknown_input"));
+        assertTrue(tests.contains("test_evaluate_defaults_deny_on_missing_client_id"));
+        assertTrue(tests.contains("test_evaluate_defaults_deny_on_missing_taxonomy_source"));
         assertTrue(tests.contains("decision.code == \"taxonomy.jurisdiction_valid\""));
+        assertTrue(tests.contains("decision.message == \"taxonomy.jurisdiction_valid: allow\""));
+        assertTrue(tests.contains("decision.message == \"taxonomy.jurisdiction_valid: taxonomy_cd must be 12 characters for source MDRM\""));
+        assertTrue(tests.contains("decision.message == \"taxonomy.jurisdiction_valid: taxonomy_jurisdiction_cd length must be 2 for source MDRM\""));
+        assertTrue(tests.contains("decision.message == \"taxonomy.jurisdiction_valid: unknown or invalid input\""));
     }
 
     private static String read(String path) throws IOException {

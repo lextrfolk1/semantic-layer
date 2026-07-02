@@ -7,7 +7,6 @@ import com.lextr.semanticlayer.util.SQLQueryLoaderUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Mockito;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -16,6 +15,8 @@ import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 
@@ -54,10 +55,13 @@ class JdbcHierarchyDaoTest {
         LogicalHierarchyRecord record = new LogicalHierarchyRecord(1L, "HIER-1", "Hierarchy", "GLOBAL", "ACTIVE", "system", null, null, null);
         when(jdbcTemplate.query(anyString(), any(SqlParameterSource.class), any(RowMapper.class)))
                 .thenReturn(Collections.singletonList(record));
+        ArgumentCaptor<SqlParameterSource> paramCaptor = ArgumentCaptor.forClass(SqlParameterSource.class);
 
         List<LogicalHierarchyRecord> result = dao.findAll("GLOBAL");
+        verify(jdbcTemplate).query(anyString(), paramCaptor.capture(), any(RowMapper.class));
         assertEquals(1, result.size());
         assertEquals("HIER-1", result.get(0).hierarchy_cd());
+        assertEquals("GLOBAL", paramCaptor.getValue().getValue("tenant_cd"));
     }
 
     @Test
@@ -67,10 +71,17 @@ class JdbcHierarchyDaoTest {
         LogicalHierarchyRecord record = new LogicalHierarchyRecord(1L, "HIER-1", "Hierarchy", "GLOBAL", "ACTIVE", "system", null, null, null);
         when(jdbcTemplate.query(anyString(), any(SqlParameterSource.class), any(RowMapper.class)))
                 .thenReturn(Collections.singletonList(record));
+        ArgumentCaptor<SqlParameterSource> paramCaptor = ArgumentCaptor.forClass(SqlParameterSource.class);
 
         LogicalHierarchyRecord result = dao.insert("HIER-1", "Hierarchy", "GLOBAL", "ACTIVE", "system");
+        verify(jdbcTemplate).query(anyString(), paramCaptor.capture(), any(RowMapper.class));
         assertNotNull(result);
         assertEquals("HIER-1", result.hierarchy_cd());
+        assertEquals("HIER-1", paramCaptor.getValue().getValue("hierarchy_cd"));
+        assertEquals("Hierarchy", paramCaptor.getValue().getValue("hierarchy_nm"));
+        assertEquals("GLOBAL", paramCaptor.getValue().getValue("tenant_cd"));
+        assertEquals("ACTIVE", paramCaptor.getValue().getValue("hierarchy_status_cd"));
+        assertEquals("system", paramCaptor.getValue().getValue("created_by"));
     }
 
     @Test
@@ -90,10 +101,13 @@ class JdbcHierarchyDaoTest {
         LogicalHierarchyLevelRecord record = new LogicalHierarchyLevelRecord(1L, "HIER-1", 1, "Level 1", "org_node_nm", "org_node_cd", "ref.organization_hierarchy");
         when(jdbcTemplate.query(anyString(), any(SqlParameterSource.class), any(RowMapper.class)))
                 .thenReturn(Collections.singletonList(record));
+        ArgumentCaptor<SqlParameterSource> paramCaptor = ArgumentCaptor.forClass(SqlParameterSource.class);
 
         List<LogicalHierarchyLevelRecord> result = dao.findLevels("HIER-1");
+        verify(jdbcTemplate).query(anyString(), paramCaptor.capture(), any(RowMapper.class));
         assertEquals(1, result.size());
         assertEquals("org_node_nm", result.get(0).attribute_cd());
+        assertEquals("HIER-1", paramCaptor.getValue().getValue("hierarchy_cd"));
     }
 
     @Test
@@ -103,10 +117,18 @@ class JdbcHierarchyDaoTest {
         LogicalHierarchyLevelRecord record = new LogicalHierarchyLevelRecord(1L, "HIER-1", 1, "Level 1", "org_node_nm", "org_node_cd", "ref.organization_hierarchy");
         when(jdbcTemplate.query(anyString(), any(SqlParameterSource.class), any(RowMapper.class)))
                 .thenReturn(Collections.singletonList(record));
+        ArgumentCaptor<SqlParameterSource> paramCaptor = ArgumentCaptor.forClass(SqlParameterSource.class);
 
         LogicalHierarchyLevelRecord result = dao.insertLevel("HIER-1", 1, "Level 1", "org_node_nm", "org_node_cd", "ref.organization_hierarchy");
+        verify(jdbcTemplate).query(anyString(), paramCaptor.capture(), any(RowMapper.class));
         assertNotNull(result);
         assertEquals(1, result.level_nbr());
+        assertEquals("HIER-1", paramCaptor.getValue().getValue("hierarchy_cd"));
+        assertEquals(1, paramCaptor.getValue().getValue("level_nbr"));
+        assertEquals("Level 1", paramCaptor.getValue().getValue("level_label"));
+        assertEquals("org_node_nm", paramCaptor.getValue().getValue("attribute_cd"));
+        assertEquals("org_node_cd", paramCaptor.getValue().getValue("code_cd"));
+        assertEquals("ref.organization_hierarchy", paramCaptor.getValue().getValue("object_ref"));
     }
 
     @Test
@@ -181,5 +203,16 @@ class JdbcHierarchyDaoTest {
         assertEquals("org_node_nm", result.attribute_cd());
         assertEquals("org_node_cd", result.code_cd());
         assertEquals("ref.organization_hierarchy", result.object_ref());
+    }
+
+    @Test
+    void usesNamedParameterJdbcTemplateAndDoesNotUseJpa() throws Exception {
+        String source = Files.readString(Path.of("src/main/java/com/lextr/semanticlayer/dao/impl/JdbcHierarchyDao.java"));
+
+        assertTrue(source.contains("NamedParameterJdbcTemplate"));
+        assertFalse(source.contains("EntityManager"));
+        assertFalse(source.contains("JpaRepository"));
+        assertFalse(source.contains("jakarta.persistence"));
+        assertFalse(source.contains("javax.persistence"));
     }
 }

@@ -12,7 +12,7 @@ test_evaluate_allows_valid_mdrm_input if {
 
     decision.allowed
     decision.code == "taxonomy.jurisdiction_valid"
-    contains(decision.message, "taxonomy.jurisdiction_valid")
+    decision.message == "taxonomy.jurisdiction_valid: allow"
 }
 
 test_evaluate_denies_invalid_taxonomy_cd_length if {
@@ -25,8 +25,7 @@ test_evaluate_denies_invalid_taxonomy_cd_length if {
 
     not decision.allowed
     decision.code == "taxonomy.jurisdiction_valid"
-    contains(decision.message, "taxonomy.jurisdiction_valid")
-    contains(decision.message, "taxonomy_cd must be 12 characters")
+    decision.message == "taxonomy.jurisdiction_valid: taxonomy_cd must be 12 characters for source MDRM"
 }
 
 test_evaluate_denies_invalid_jurisdiction_length if {
@@ -39,8 +38,7 @@ test_evaluate_denies_invalid_jurisdiction_length if {
 
     not decision.allowed
     decision.code == "taxonomy.jurisdiction_valid"
-    contains(decision.message, "taxonomy.jurisdiction_valid")
-    contains(decision.message, "taxonomy_jurisdiction_cd length must be 2")
+    decision.message == "taxonomy.jurisdiction_valid: taxonomy_jurisdiction_cd length must be 2 for source MDRM"
 }
 
 test_evaluate_defaults_deny_on_unknown_input if {
@@ -48,6 +46,30 @@ test_evaluate_defaults_deny_on_unknown_input if {
         "client_id": "client-a",
         "taxonomy_cd": "MDRM12345678",
         "taxonomy_source_cd": "UNKNOWN",
+        "taxonomy_jurisdiction_cd": "US"
+    }
+
+    not decision.allowed
+    decision.code == "taxonomy.jurisdiction_valid"
+    decision.message == "taxonomy.jurisdiction_valid: unknown or invalid input"
+}
+
+test_evaluate_defaults_deny_on_missing_client_id if {
+    decision := taxonomy.evaluate with input as {
+        "taxonomy_cd": "MDRM12345678",
+        "taxonomy_source_cd": "MDRM",
+        "taxonomy_jurisdiction_cd": "US"
+    }
+
+    not decision.allowed
+    decision.code == "taxonomy.jurisdiction_valid"
+    decision.message == "taxonomy.jurisdiction_valid: unknown or invalid input"
+}
+
+test_evaluate_defaults_deny_on_missing_taxonomy_source if {
+    decision := taxonomy.evaluate with input as {
+        "client_id": "client-a",
+        "taxonomy_cd": "MDRM12345678",
         "taxonomy_jurisdiction_cd": "US"
     }
 

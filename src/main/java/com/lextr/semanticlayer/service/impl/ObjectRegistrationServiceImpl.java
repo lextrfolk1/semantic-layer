@@ -19,6 +19,8 @@ import com.lextr.semanticlayer.model.WorkflowTaskRecord;
 import com.lextr.semanticlayer.model.WorkflowTaskWriteRequest;
 import com.lextr.semanticlayer.service.ObjectRegistrationService;
 import com.lextr.semanticlayer.service.TaxonomyPolicyClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.ObjectProvider;
@@ -37,6 +39,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class ObjectRegistrationServiceImpl implements ObjectRegistrationService {
+
+    private static final Logger logger = LoggerFactory.getLogger(ObjectRegistrationServiceImpl.class);
 
     private static final String WORKFLOW_TYPE_CD = "OBJECT_REGISTRATION";
     private static final String ENTITY_TYPE_CD = "OBJECT";
@@ -69,6 +73,8 @@ public class ObjectRegistrationServiceImpl implements ObjectRegistrationService 
 
     @Override
     public ObjectRegistrationResponseDto registerObject(ObjectRegistrationRequestDto request) {
+        logger.debug("Registering object. clientId={}, objectCode={}, schemaCode={}, objectTypeCode={}, attributeCount={}",
+                request.client_id(), request.object_cd(), request.schema_cd(), request.object_type_cd(), request.attributes().size());
         validateTaxonomyPolicy(request);
 
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
@@ -77,10 +83,18 @@ public class ObjectRegistrationServiceImpl implements ObjectRegistrationService 
         UUID changeHistoryId = UUID.randomUUID();
 
         try {
-            return transactionOperations.execute(status -> persistRegistration(request, now, objectId, workflowTaskId, changeHistoryId));
+            ObjectRegistrationResponseDto response =
+                    transactionOperations.execute(status -> persistRegistration(request, now, objectId, workflowTaskId, changeHistoryId));
+            logger.info("Object registered. clientId={}, objectId={}, workflowTaskId={}, attributeCount={}",
+                    request.client_id(), response.object_id(), response.workflow_task_id(), response.attributes().size());
+            return response;
         } catch (PolicyViolationException exception) {
+            logger.warn("Object registration denied. clientId={}, objectCode={}, errorMessage={}",
+                    request.client_id(), request.object_cd(), exception.getMessage(), exception);
             throw exception;
         } catch (RuntimeException exception) {
+            logger.error("Object registration failed. clientId={}, objectCode={}, errorMessage={}",
+                    request.client_id(), request.object_cd(), exception.getMessage(), exception);
             throw new ObjectRegistrationServiceException("Unable to register object", exception);
         }
     }
@@ -94,6 +108,8 @@ public class ObjectRegistrationServiceImpl implements ObjectRegistrationService 
                     attribute.taxonomy_jurisdiction_cd()
             ));
             if (!decision.allowed()) {
+                logger.warn("Object registration taxonomy policy denied. clientId={}, objectCode={}, attributeCode={}, policyCode={}",
+                        request.client_id(), request.object_cd(), attribute.attribute_cd(), decision.code());
                 throw new PolicyViolationException(decision.code(), decision.message());
             }
         });
@@ -137,6 +153,9 @@ public class ObjectRegistrationServiceImpl implements ObjectRegistrationService 
                         attribute.taxonomy_cd(),
                         attribute.taxonomy_source_cd(),
                         attribute.taxonomy_jurisdiction_cd(),
+                        attribute.pk_flg(),
+                        attribute.fk_flg(),
+                        attribute.nullable_flg(),
                         now,
                         request.registered_by(),
                         now,
@@ -188,7 +207,10 @@ public class ObjectRegistrationServiceImpl implements ObjectRegistrationService 
                 record.attribute_nm(),
                 record.taxonomy_cd(),
                 record.taxonomy_source_cd(),
-                record.taxonomy_jurisdiction_cd()
+                record.taxonomy_jurisdiction_cd(),
+                record.pk_flg(),
+                record.fk_flg(),
+                record.nullable_flg()
         );
     }
 

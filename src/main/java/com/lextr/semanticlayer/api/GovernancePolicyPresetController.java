@@ -5,6 +5,8 @@ import com.lextr.semanticlayer.service.GovernancePolicyPresetReadService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -20,6 +22,8 @@ import java.util.List;
 @Tag(name = "Governance", description = "Governance policy preset read operations.")
 public class GovernancePolicyPresetController {
 
+    private static final Logger logger = LoggerFactory.getLogger(GovernancePolicyPresetController.class);
+
     private final GovernancePolicyPresetReadService governancePolicyPresetReadService;
 
     public GovernancePolicyPresetController(GovernancePolicyPresetReadService governancePolicyPresetReadService) {
@@ -33,7 +37,11 @@ public class GovernancePolicyPresetController {
             @Parameter(description = "Optional policy scope filter.") @RequestParam(value = "policy_scope_cd", required = false) String policyScopeCode,
             @Parameter(description = "Optional as-of date in ISO-8601 format.") @RequestParam(value = "as_of_dt", required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOfDate) {
-        return governancePolicyPresetReadService.findPolicyPresets(clientId, policyScopeCode, asOfDate);
+        logger.debug("Listing governance policy presets. clientId={}, policyScopeCode={}, asOfDate={}", clientId, policyScopeCode, asOfDate);
+        List<GovernancePolicyPresetDto> presets =
+                governancePolicyPresetReadService.findPolicyPresets(clientId, policyScopeCode, asOfDate);
+        logger.debug("Governance policy presets resolved. clientId={}, resultCount={}", clientId, presets.size());
+        return presets;
     }
 
     @GetMapping("/{policy_code}")
@@ -44,6 +52,16 @@ public class GovernancePolicyPresetController {
             @Parameter(description = "Policy scope code.") @RequestParam("policy_scope_cd") String policyScopeCode,
             @Parameter(description = "Optional as-of date in ISO-8601 format.") @RequestParam(value = "as_of_dt", required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOfDate) {
-        return governancePolicyPresetReadService.findPolicyPreset(clientId, policyCode, policyScopeCode, asOfDate);
+        logger.debug(
+                "Fetching governance policy preset. clientId={}, policyCode={}, policyScopeCode={}, asOfDate={}",
+                clientId,
+                policyCode,
+                policyScopeCode,
+                asOfDate
+        );
+        GovernancePolicyPresetDto preset =
+                governancePolicyPresetReadService.findPolicyPreset(clientId, policyCode, policyScopeCode, asOfDate);
+        logger.debug("Governance policy preset resolved. clientId={}, policyCode={}, policyScopeCode={}", clientId, policyCode, policyScopeCode);
+        return preset;
     }
 }

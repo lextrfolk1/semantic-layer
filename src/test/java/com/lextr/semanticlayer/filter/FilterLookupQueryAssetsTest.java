@@ -14,6 +14,7 @@ class FilterLookupQueryAssetsTest {
 
         String insertLookupQuery = loader.getQuery("filter_lookup_registration.insert_lookup");
         String certifyLookupQuery = loader.getQuery("filter_lookup_registration.certify_lookup");
+        String insertBindingQuery = loader.getQuery("filter_lookup_registration.insert_binding");
         String insertWorkflowTaskQuery = loader.getQuery("filter_lookup_registration.insert_workflow_task");
         String insertMetadataChangeHistoryQuery = loader.getQuery("filter_lookup_registration.insert_metadata_change_history");
         String governancePresetQuery = loader.getQuery("governance_policy_preset.find_by_code");
@@ -47,6 +48,17 @@ class FilterLookupQueryAssetsTest {
         assertTrue(certifyLookupQuery.contains(":next_review_due_dt"));
         assertTrue(certifyLookupQuery.contains("WHERE client_id = :client_id AND lookup_cd = :lookup_cd"));
         assertTrue(certifyLookupQuery.contains("RETURNING id, lookup_cd"));
+
+        assertTrue(insertBindingQuery.contains("INSERT INTO meta.filter_lookup_binding"));
+        assertTrue(insertBindingQuery.contains(":lookup_cd"));
+        assertTrue(insertBindingQuery.contains(":bound_obj"));
+        assertTrue(insertBindingQuery.contains(":bound_attr_cd"));
+        assertTrue(insertBindingQuery.contains(":binding_context_cd"));
+        assertTrue(insertBindingQuery.contains(":binding_ref"));
+        assertTrue(insertBindingQuery.contains(":bound_by"));
+        assertTrue(insertBindingQuery.contains(":bound_ts"));
+        assertTrue(insertBindingQuery.contains(":is_active_flg"));
+        assertTrue(insertBindingQuery.contains("RETURNING id, lookup_cd, bound_obj"));
 
         assertTrue(insertWorkflowTaskQuery.contains("INSERT INTO wkfl.workflow_task"));
         assertTrue(insertWorkflowTaskQuery.contains(":task_type_cd"));

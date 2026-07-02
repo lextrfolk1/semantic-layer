@@ -14,3 +14,21 @@ spring:
 logging:
   level:
     com.lextr.semanticlayer: INFO
+app:
+  datasource:
+    primary: primaryDataSource
+    datasources:
+      primaryDataSource:
+        url: ${APP_DATASOURCE_URL:jdbc:h2:mem:semantic-layer;DB_CLOSE_DELAY=-1;MODE=PostgreSQL}
+        username: ${APP_DATASOURCE_USERNAME:sa}
+        password: ${APP_DATASOURCE_PASSWORD:}
+        driver-class-name: ${APP_DATASOURCE_DRIVER_CLASS_NAME:org.h2.Driver}
+        additional-properties:
+          maximum-pool-size: ${APP_DATASOURCE_MAXIMUM_POOL_SIZE:5}
+          minimum-idle: ${APP_DATASOURCE_MINIMUM_IDLE:1}
+          pool-name: ${APP_DATASOURCE_POOL_NAME:HikariPool-Test}
+opa:
+  enabled: ${OPA_ENABLED:false}
+  base-url: ${OPA_BASE_URL:http://localhost:8181}
+  decision-path-prefix: ${OPA_DECISION_PATH_PREFIX:/v1/data}
+  request-timeout: ${OPA_REQUEST_TIMEOUT:2s}

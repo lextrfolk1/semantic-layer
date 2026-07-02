@@ -11,6 +11,7 @@ It currently provides APIs and service logic for:
 - workflow task approval
 - governance policy preset reads
 - attribute pairing registration and attribute pairing resolution
+- logical-to-physical resolution reads for downstream engines
 
 ## Stack
 
@@ -79,6 +80,9 @@ Current controller groups:
 - `/api/attribute-pairings`
   - pairing registration
   - pairing resolution
+- `/api/logical-physical-resolutions`
+  - logical attribute resolution
+  - consumption outbound grain resolution
 
 ## Core modules
 
@@ -128,12 +132,15 @@ This includes SQL for:
 - filter lookup registration, read, preview, binding, certification, and execution logs
 - workflow approval
 - attribute pairing registration, resolution, index checks, and cache operations
+- logical-physical resolution queries for governed downstream engine mapping
 
 ### Policy assets
 
 Rego assets live under `src/main/resources/opa`:
 
 - `taxonomy/jurisdiction_valid.rego`
+- `object_exposure/access_control.rego`
+- `object_exposure/classification_exposure.rego`
 - `relationship/cross_engine_block.rego`
 - `relationship/cross_engine_pairing.rego`
 - `relationship/cross_engine_query.rego`

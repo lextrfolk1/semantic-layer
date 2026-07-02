@@ -2,6 +2,7 @@ package com.lextr.semanticlayer.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lextr.semanticlayer.dao.HierarchyDao;
+import com.lextr.semanticlayer.dto.LogicalHierarchyRequestDto;
 import com.lextr.semanticlayer.model.LogicalHierarchyLevelRecord;
 import com.lextr.semanticlayer.model.LogicalHierarchyRecord;
 import com.lextr.semanticlayer.service.HierarchyService;
@@ -11,12 +12,11 @@ import org.springframework.http.MediaType;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -49,14 +49,11 @@ class HierarchyControllerTest {
         RecordingHierarchyDao dao = new RecordingHierarchyDao();
         MockMvc mockMvc = mockMvc(dao);
 
-        Map<String, String> body = new HashMap<>();
-        body.put("hierarchy_cd", "HIER-NEW");
-        body.put("hierarchy_nm", "New Hierarchy");
-        body.put("tenant_cd", "new-tenant");
-
         mockMvc.perform(post("/api/hierarchies")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(new ObjectMapper().writeValueAsString(body)))
+                        .content(new ObjectMapper().writeValueAsString(new LogicalHierarchyRequestDto(
+                                "HIER-NEW", "New Hierarchy", "new-tenant", "ACTIVE", "tester"
+                        ))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.hierarchy_cd").value("HIER-NEW"))
                 .andExpect(jsonPath("$.tenant_cd").value("new-tenant"));
@@ -65,12 +62,33 @@ class HierarchyControllerTest {
         assertEquals("new-tenant", dao.lastTenantCdInserted);
     }
 
+    @Test
+    void rejectsHierarchyMissingName() throws Exception {
+        RecordingHierarchyDao dao = new RecordingHierarchyDao();
+        MockMvc mockMvc = mockMvc(dao);
+
+        mockMvc.perform(post("/api/hierarchies")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "hierarchy_cd": "HIER-MISSING-NAME"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message").value("hierarchy_nm: hierarchy_nm is required"));
+    }
+
     private static MockMvc mockMvc(HierarchyDao dao) {
         HierarchyService service = new HierarchyServiceImpl(dao);
         HierarchyController controller = new HierarchyController(service);
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+        LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
+        validator.afterPropertiesSet();
         return MockMvcBuilders.standaloneSetup(controller)
                 .setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))
+                .setValidator(validator)
+                .setControllerAdvice(new ApiExceptionHandler())
                 .build();
     }
 

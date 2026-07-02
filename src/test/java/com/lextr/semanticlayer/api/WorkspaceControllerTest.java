@@ -2,6 +2,8 @@ package com.lextr.semanticlayer.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lextr.semanticlayer.dao.WorkspaceDao;
+import com.lextr.semanticlayer.dto.TenantWorkspaceRequestDto;
+import com.lextr.semanticlayer.dto.WorkspaceObjectRequestDto;
 import com.lextr.semanticlayer.model.TenantWorkspaceRecord;
 import com.lextr.semanticlayer.model.WorkspaceObjectRecord;
 import com.lextr.semanticlayer.service.WorkspaceService;
@@ -11,12 +13,11 @@ import org.springframework.http.MediaType;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -49,15 +50,11 @@ class WorkspaceControllerTest {
         RecordingWorkspaceDao dao = new RecordingWorkspaceDao();
         MockMvc mockMvc = mockMvc(dao);
 
-        Map<String, String> body = new HashMap<>();
-        body.put("workspace_cd", "WS-NEW");
-        body.put("tenant_cd", "new-tenant");
-        body.put("workspace_nm", "New Workspace");
-        body.put("workspace_desc", "Description");
-
         mockMvc.perform(post("/api/workspaces")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(new ObjectMapper().writeValueAsString(body)))
+                        .content(new ObjectMapper().writeValueAsString(new TenantWorkspaceRequestDto(
+                                "WS-NEW", "new-tenant", "New Workspace", "Description", "ACTIVE", "tester"
+                        ))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.workspace_cd").value("WS-NEW"))
                 .andExpect(jsonPath("$.tenant_cd").value("new-tenant"));
@@ -66,12 +63,73 @@ class WorkspaceControllerTest {
         assertEquals("new-tenant", dao.lastTenantCdInserted);
     }
 
+    @Test
+    void rejectsWorkspaceMissingTenantCode() throws Exception {
+        RecordingWorkspaceDao dao = new RecordingWorkspaceDao();
+        MockMvc mockMvc = mockMvc(dao);
+
+        mockMvc.perform(post("/api/workspaces")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "workspace_cd": "WS-MISSING-TENANT",
+                                  "workspace_nm": "Workspace",
+                                  "workspace_desc": "Description"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message").value("tenant_cd: tenant_cd is required"));
+    }
+
+    @Test
+    void addsObjectToWorkspaceSuccessfully() throws Exception {
+        RecordingWorkspaceDao dao = new RecordingWorkspaceDao();
+        MockMvc mockMvc = mockMvc(dao);
+
+        mockMvc.perform(post("/api/workspaces/WS-NEW/objects")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(new ObjectMapper().writeValueAsString(new WorkspaceObjectRequestDto(
+                                "meta", "gl_balance", "tester"
+                        ))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.schema_cd").value("meta"))
+                .andExpect(jsonPath("$.object_cd").value("gl_balance"))
+                .andExpect(jsonPath("$.added_by").value("tester"));
+
+        assertEquals("WS-NEW", dao.lastWorkspaceCdAdded);
+        assertEquals("meta", dao.lastSchemaCdAdded);
+        assertEquals("gl_balance", dao.lastObjectCdAdded);
+        assertEquals("tester", dao.lastAddedByAdded);
+    }
+
+    @Test
+    void rejectsWorkspaceObjectMissingCodes() throws Exception {
+        RecordingWorkspaceDao dao = new RecordingWorkspaceDao();
+        MockMvc mockMvc = mockMvc(dao);
+
+        mockMvc.perform(post("/api/workspaces/WS-NEW/objects")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "schema_cd": "",
+                                  "object_cd": ""
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
     private static MockMvc mockMvc(WorkspaceDao dao) {
         WorkspaceService service = new WorkspaceServiceImpl(dao);
         WorkspaceController controller = new WorkspaceController(service);
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+        LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
+        validator.afterPropertiesSet();
         return MockMvcBuilders.standaloneSetup(controller)
                 .setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))
+                .setValidator(validator)
+                .setControllerAdvice(new ApiExceptionHandler())
                 .build();
     }
 
@@ -80,6 +138,10 @@ class WorkspaceControllerTest {
         private String lastTenantCdQuery;
         private String lastWorkspaceCdInserted;
         private String lastTenantCdInserted;
+        private String lastWorkspaceCdAdded;
+        private String lastSchemaCdAdded;
+        private String lastObjectCdAdded;
+        private String lastAddedByAdded;
 
         @Override
         public List<TenantWorkspaceRecord> findAll(String tenantCd) {
@@ -105,7 +167,11 @@ class WorkspaceControllerTest {
 
         @Override
         public WorkspaceObjectRecord insertObject(String workspaceCd, String schemaCd, String objectCd, String addedBy) {
-            return null;
+            lastWorkspaceCdAdded = workspaceCd;
+            lastSchemaCdAdded = schemaCd;
+            lastObjectCdAdded = objectCd;
+            lastAddedByAdded = addedBy;
+            return new WorkspaceObjectRecord(3L, workspaceCd, schemaCd, objectCd, addedBy, OffsetDateTime.now());
         }
 
         @Override
