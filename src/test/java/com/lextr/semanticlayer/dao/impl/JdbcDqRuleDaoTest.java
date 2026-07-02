@@ -73,11 +73,11 @@ class JdbcDqRuleDaoTest {
 
         assertTrue(jdbcTemplate.recordedSql.contains("INSERT INTO wkfl.workflow_task"));
         assertEquals("DQ_RULE_REQUEST", jdbcTemplate.recordedParameters.get("workflow_type_cd"));
-        assertEquals("REQUESTED", jdbcTemplate.recordedParameters.get("task_status_cd"));
+        assertEquals("PENDING", jdbcTemplate.recordedParameters.get("task_status_cd"));
         assertEquals("client-a", jdbcTemplate.recordedParameters.get("client_id"));
         assertEquals(301L, result.id());
         assertEquals("LEDGER_COMPLETENESS", result.rule_cd());
-        assertEquals("REQUESTED", result.task_status_cd());
+        assertEquals("PENDING", result.task_status_cd());
     }
 
     @Test
@@ -95,7 +95,7 @@ class JdbcDqRuleDaoTest {
         assertEquals(UUID.fromString("11111111-1111-1111-1111-111111111111"), jdbcTemplate.recordedParameters.get("workflow_task_id"));
         assertTrue(result.isPresent());
         assertEquals("LEDGER_COMPLETENESS", result.get().rule_cd());
-        assertEquals("REQUESTED", result.get().task_status_cd());
+        assertEquals("PENDING", result.get().task_status_cd());
     }
 
     @Test
@@ -162,7 +162,7 @@ class JdbcDqRuleDaoTest {
                 "DQ_RULE_REQUEST",
                 "DQ_RULE_REQUEST",
                 "LEDGER_COMPLETENESS",
-                "REQUESTED",
+                "PENDING",
                 "steward",
                 OffsetDateTime.parse("2026-06-26T10:15:30Z"),
                 "semantic-layer",
@@ -226,7 +226,7 @@ class JdbcDqRuleDaoTest {
         row.put("task_type_cd", "DQ_RULE_REQUEST");
         row.put("entity_type_cd", "DQ_RULE_REQUEST");
         row.put("rule_cd", "LEDGER_COMPLETENESS");
-        row.put("task_status_cd", "REQUESTED");
+        row.put("task_status_cd", "PENDING");
         row.put("submitted_by", "steward");
         row.put("submitted_ts", OffsetDateTime.parse("2026-06-26T10:15:30Z"));
         row.put("assigned_to", "semantic-layer");
@@ -241,7 +241,7 @@ class JdbcDqRuleDaoTest {
 
     private static Map<String, Object> requestRow() {
         Map<String, Object> row = workflowTaskRow();
-        row.put("task_status_cd", "REQUESTED");
+        row.put("task_status_cd", "PENDING");
         return row;
     }
 

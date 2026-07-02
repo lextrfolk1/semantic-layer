@@ -82,7 +82,7 @@ class DqRuleWireThroughTest {
                 attributeRow("ledger_status_cd")
         ));
         jdbcTemplate.setRowsForSqlFragment("FROM meta.dq_result", List.of(resultRow()));
-        jdbcTemplate.setRowsForSqlFragment("INSERT INTO wkfl.workflow_task", List.of(workflowTaskRow("REQUESTED", null, null, null)));
+        jdbcTemplate.setRowsForSqlFragment("INSERT INTO wkfl.workflow_task", List.of(workflowTaskRow("PENDING", null, null, null)));
         jdbcTemplate.setRowsForSqlFragment("INSERT INTO meta.metadata_change_history", List.of(metadataHistoryRow()));
         jdbcTemplate.setRowsForSqlFragment("FROM wkfl.workflow_task", List.of(workflowTaskRow("APPROVED", "approver", OffsetDateTime.parse("2026-06-18T10:20:30Z"), "looks good")));
 

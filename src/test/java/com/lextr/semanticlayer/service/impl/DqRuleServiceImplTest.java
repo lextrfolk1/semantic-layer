@@ -64,11 +64,11 @@ class DqRuleServiceImplTest {
 
         assertTrue(harness.committed);
         assertEquals(1, response.size());
-        assertEquals("REQUESTED", response.get(0).task_status_cd());
+        assertEquals("PENDING", response.get(0).task_status_cd());
         assertEquals("LEDGER_COMPLETENESS", response.get(0).entity_ref());
         assertEquals(1, dao.insertedWorkflowTasks.size());
         assertEquals(1, dao.insertedMetadataChanges.size());
-        assertEquals("REQUESTED", dao.insertedWorkflowTasks.get(0).task_status_cd());
+        assertEquals("PENDING", dao.insertedWorkflowTasks.get(0).task_status_cd());
         assertEquals("LEDGER_COMPLETENESS", dao.insertedMetadataChanges.get(0).entity_ref());
         assertTrue(dao.insertedMetadataChanges.get(0).change_summary_txt().contains("coverage=50%"));
     }

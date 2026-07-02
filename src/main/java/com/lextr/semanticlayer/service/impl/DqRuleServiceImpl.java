@@ -48,7 +48,7 @@ public class DqRuleServiceImpl implements DqRuleService {
 
     private static final String WORKFLOW_TYPE_CD = "DQ_RULE_REQUEST";
     private static final String ENTITY_TYPE_CD = "DQ_RULE_REQUEST";
-    private static final String REQUEST_STATUS_CD = "REQUESTED";
+    private static final String REQUEST_STATUS_CD = "PENDING";
     private static final String REQUEST_CHANGE_TYPE_CD = "REQUESTED";
     private static final String RESULT_CHANGE_TYPE_CD = "RESULT_INGESTED";
     private static final String COVERAGE_CHANGE_TYPE_CD = "COVERAGE_COMPUTED";
